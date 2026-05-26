@@ -318,3 +318,203 @@ efferents list
 - `efferents logs --lab-id`
 - `efferents restart --lab-id`
 - Remote registry / multi-machine
+
+---
+
+## 5. The four decouple touchpoints
+
+Where the LabConfig flows into Phase A code. Each touchpoint is a small, targeted edit — no architectural rewrites.
+
+### 5.1 — `efferents/lab.py`: static module → loader (CLAUDE.md items 2 + 3)
+
+**Today:** module-level constants (`LAB_ID`, `DOMAIN`, `STUDENTS`, `PEER_REVIEW_*`, `DEFAULT_STUDENT_ID`, ...). Every consumer does `from efferents import lab` then reads `lab.LAB_ID`, etc.
+
+**Change:** replace contents of `efferents/lab.py` with:
+
+```python
+# efferents/lab.py
+from __future__ import annotations
+from dataclasses import dataclass, field
+from pathlib import Path
+
+@dataclass(frozen=True)
+class Headline:
+    column: str
+    direction: str  # "max" | "min"
+
+@dataclass(frozen=True)
+class Panel:
+    column: str
+    label: str
+    target: float | None = None
+
+@dataclass(frozen=True)
+class Source:
+    dir: Path
+    allowed_patterns: tuple[str, ...] = ("**/*.py",)
+
+@dataclass(frozen=True)
+class Executor:
+    run_command: str        # must contain "{config_path}"
+    smoke_command: str | None
+    config_template: Path
+
+@dataclass(frozen=True)
+class Metrics:
+    headline: Headline
+    panels: tuple[Panel, ...]
+    flat_digest_epsilon: float = 0.005
+
+@dataclass(frozen=True)
+class Budget:
+    daily_cap_usd: float = 10.0
+    sonnet_default: bool = True
+
+@dataclass(frozen=True)
+class LabConfig:
+    lab_id: str
+    domain: str
+    pi_handle: str | None
+    source: Source
+    executor: Executor
+    metrics: Metrics
+    budget: Budget
+    # Phase-A multi-student stays here, defaulted:
+    default_student_id: str = "primary"
+    max_open_campaigns_per_student: int = 2
+    students: tuple[dict, ...] = field(default_factory=lambda: (
+        {"id": "primary", "handle": None, "focus": "", "prompt_overrides": {}},
+    ))
+    peer_review_enabled: bool = False
+    peer_review_accept_mean_threshold: float = 6.0
+    peer_review_accept_min_threshold: int = 4
+
+    @classmethod
+    def from_submission(cls, submission_dir: Path) -> "LabConfig":
+        """Load and validate hypothesis.md + lab.yaml. Raises SubmissionError."""
+        ...
+
+class SubmissionError(ValueError): ...
+
+_active: LabConfig | None = None
+
+def set_config(cfg: LabConfig) -> None:
+    global _active
+    _active = cfg
+
+def get_config() -> LabConfig:
+    if _active is None:
+        raise RuntimeError("LabConfig not loaded; call set_config() before agent code runs")
+    return _active
+
+# Backward-compat shims so auto-qml's existing imports keep working until it migrates:
+def __getattr__(name: str):  # PEP 562
+    cfg = get_config()
+    mapping = {
+        "LAB_ID": cfg.lab_id,
+        "DOMAIN": cfg.domain,
+        "PI_HANDLE": cfg.pi_handle,
+        "DEFAULT_STUDENT_ID": cfg.default_student_id,
+        "MAX_OPEN_CAMPAIGNS_PER_STUDENT": cfg.max_open_campaigns_per_student,
+        "STUDENTS": list(cfg.students),
+        "PEER_REVIEW_ENABLED": cfg.peer_review_enabled,
+        "PEER_REVIEW_ACCEPT_MEAN_THRESHOLD": cfg.peer_review_accept_mean_threshold,
+        "PEER_REVIEW_ACCEPT_MIN_THRESHOLD": cfg.peer_review_accept_min_threshold,
+    }
+    if name in mapping:
+        return mapping[name]
+    raise AttributeError(name)
+
+def get_student(student_id: str) -> dict: ...
+def student_ids() -> list[str]: ...
+```
+
+**Loader:** `LabConfig.from_submission(dir)` reads `hypothesis.md` (checks `falsifiability_gate: passed`), reads `lab.yaml`, validates per Section 2's rules, returns a fully-resolved frozen `LabConfig`.
+
+**Callsite impact:** zero immediate churn — `__getattr__` shim covers the old API. New code (registry, daemon, CLI) uses `lab.get_config()` directly. We migrate callsites away from the shim opportunistically; auto-qml keeps importing the old names until *its* next session.
+
+### 5.2 — Coder path scope (CLAUDE.md item 5)
+
+**Today** (`efferents/agents/coder.py`):
+```python
+DEFAULT_TARGET_GLOBS = ["auto_qml/*.py", "config/default.yaml", "config/smoke.yaml"]
+SMOKE_CONFIG = "config/smoke.yaml"
+_NEW_FILE_PATH_RE = re.compile(r"^auto_qml/[A-Za-z_][A-Za-z0-9_]*\.py$")
+```
+Plus the smoke invocation: `python -m auto_qml.run --config config/smoke.yaml`.
+
+**Change:** these become functions of `lab.get_config()`:
+
+```python
+def _target_globs() -> list[str]:
+    cfg = lab.get_config()
+    src = str(cfg.source.dir).rstrip("/")
+    return [
+        *(f"{src}/{pat}" if not pat.startswith(src + "/") else pat
+          for pat in cfg.source.allowed_patterns),
+        str(cfg.executor.config_template),
+    ]
+
+def _new_file_path_re() -> re.Pattern:
+    cfg = lab.get_config()
+    src = re.escape(str(cfg.source.dir).rstrip("/"))
+    return re.compile(rf"^{src}/[A-Za-z_][A-Za-z0-9_]*\.py$")
+
+def _smoke_command(config_path: Path) -> str:
+    cfg = lab.get_config()
+    template = cfg.executor.smoke_command or cfg.executor.run_command
+    return template.format(config_path=str(config_path))
+```
+
+Three call-side updates inside coder.py — line 47-49 (`DEFAULT_TARGET_GLOBS`, `SMOKE_CONFIG`), line 83 (`_NEW_FILE_PATH_RE`), and the smoke subprocess invocation. ~15-line diff.
+
+### 5.3 — progress.py panel metrics (CLAUDE.md item 6)
+
+**Today** (`efferents/agents/progress.py:58-63`):
+```python
+_PANEL_METRICS: list[tuple[str, str, float | None]] = [
+    ("e_w1", "energy W1 (lower)", None),
+    ...
+]
+```
+
+**Change:**
+
+```python
+def _panel_metrics() -> list[tuple[str, str, float | None]]:
+    cfg = lab.get_config()
+    return [(p.column, p.label, p.target) for p in cfg.metrics.panels]
+```
+
+The headline-metric selection (the "best of each" line) reads `cfg.metrics.headline.column` and `.direction` — `min` ↔ today's lower-is-better, `max` flips it.
+
+Touchpoints across progress.py: ~6 references to `_PANEL_METRICS` get inlined to `_panel_metrics()`. ~20-line diff.
+
+### 5.4 — Daemon wiring (new code)
+
+The Phase-A orchestrator never had a startup-config hook because the static `efferents/lab.py` was always available. The daemon adds one:
+
+```python
+# efferents/daemon.py
+def run(submission_dir: Path) -> None:
+    cfg = lab.LabConfig.from_submission(submission_dir)
+    lab.set_config(cfg)
+    os.chdir(submission_dir)             # so ./lab/ paths work as before
+    migrations.runner.upgrade(Path("./lab/state.db"))
+    orchestrator.start()                 # unchanged
+```
+
+`efferents/cli.py` calls `daemon.run()` directly in foreground mode, or forks (double-fork + setsid + pidfile) then calls it for `--detach`.
+
+### What does NOT change in Phase A code
+
+- `orchestrator.py` — unchanged. It already operates on whatever `lab.*` exposes.
+- `state.py` — unchanged in v1. `recent_runs` SELECT stays QML-coupled; documented limitation. Phase B touches this.
+- `analyst.py` — `flat_digest_epsilon` is the only knob, sourced from `cfg.metrics.flat_digest_epsilon`. ~3-line diff.
+- `writer.py` — unchanged in v1. Peer-review thresholds keep reading `lab.PEER_REVIEW_*` via shim.
+- `prompts/*.md` — unchanged in v1. QML-flavored prompts remain; documented limitation in intake.md.
+- `researcher.py`, `librarian.py` — unchanged.
+
+### Total decouple-work footprint
+
+~150 lines of new code (`LabConfig` + loader + shim), ~50 lines of edits across `coder.py` + `progress.py` + `analyst.py`. No new dependencies (pydantic optional; can hand-roll dataclass validation since the schema is small).
