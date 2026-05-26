@@ -14,7 +14,8 @@ The distribution model mirrors [moltbook](https://moltbook.com): a hosted markdo
 
 Ship the entry-flow plugin and do the minimum-viable framework decoupling from QML. Specifically:
 
-- New: `intake.md`, `status.md` (hosted); `efferents` CLI; `LabConfig` dataclass + loader; lab registry; daemon wrapper.
+- New: `intake.md` (hosted); `efferents` CLI; `LabConfig` dataclass + loader; lab registry; daemon wrapper. `status.md` is a v1-stretch goal — the local `efferents status` CLI covers the same use case without it.
+- Hosting: v1 serves `intake.md` from a GitHub raw URL (e.g., `raw.githubusercontent.com/mashathepotato/efferents/main/skills/intake.md`). `efferents.com` becomes the canonical URL only when the hosted journal/venue ships in Phase B.
 - Targeted decouple work inside Phase A:
   - LabConfig dataclass loaded from submission frontmatter (CLAUDE.md item 2)
   - `efferents/lab.py` becomes a loader, not a static module (item 3)
@@ -66,7 +67,7 @@ Three components, glued by a file contract.
 
 **Distribution principles, lifted from moltbook:**
 - A single hosted markdown URL is the entry point. The agent reads it and follows numbered steps.
-- Multiple skill markdowns for different concerns. v1 ships `intake.md` and (optionally) `status.md`. `register.md` and `submit.md` come in Phase B when efferents.com becomes a venue.
+- Multiple skill markdowns for different concerns. v1 ships `intake.md`; `status.md` is a stretch goal (local `efferents status` covers the same need). `register.md` and `submit.md` come in Phase B when efferents.com becomes a venue.
 - No backend in v1. Lab identity is local (UUID in the lab's state.db). The daemon runs on the human's machine against their `ANTHROPIC_API_KEY`.
 - Popper-probe stays an external dependency — per CLAUDE.md hard constraint.
 
@@ -78,7 +79,7 @@ Three components, glued by a file contract.
 - `efferents/lab.py` — replaces static module with `LabConfig` loader
 - `efferents/registry.py` — `~/.efferents/registry.json` read/write
 - `efferents/daemon.py` — fork + pidfile + signal handling wrapper around `orchestrator.start()`
-- `intake.md`, `status.md` — hosted markdown contracts
+- `intake.md` — hosted markdown contract (and `status.md` if it lands in v1)
 
 ---
 
@@ -246,7 +247,7 @@ You're done. The daemon owns the lab from here.
 - **Terse, instructional, for-agent.** Mirrors moltbook's SKILL.md style.
 - **Step 5 warnings are mandatory.** Deliberate human-confirmation gate before any autonomous code modification.
 - **popper-probe stays external.** intake.md only invokes it; doesn't inline its protocol.
-- **`status.md`** is a Phase B nice-to-have. The agent can also run `efferents status --lab-id <id>` locally.
+- **`status.md`** is a v1-stretch goal. If it ships, the agent fetches it the same way it fetched `intake.md`; if it doesn't, the agent runs `efferents status --lab-id <id>` locally — same outcome.
 
 ---
 
@@ -355,9 +356,12 @@ class Source:
 
 @dataclass(frozen=True)
 class Executor:
-    run_command: str        # must contain "{config_path}"
+    run_command: str                    # must contain "{config_path}"
     smoke_command: str | None
     config_template: Path
+    run_timeout_s: int = 7200
+    smoke_timeout_s: int = 300
+    env_passthrough: tuple[str, ...] = ()
 
 @dataclass(frozen=True)
 class Metrics:
@@ -413,7 +417,9 @@ def __getattr__(name: str):  # PEP 562
     mapping = {
         "LAB_ID": cfg.lab_id,
         "DOMAIN": cfg.domain,
+        "SUBDOMAIN": None,                # Phase A had this; not in LabConfig v1
         "PI_HANDLE": cfg.pi_handle,
+        "CODE_REPO": "",                  # Phase A had this; LabConfig only carries source.dir
         "DEFAULT_STUDENT_ID": cfg.default_student_id,
         "MAX_OPEN_CAMPAIGNS_PER_STUDENT": cfg.max_open_campaigns_per_student,
         "STUDENTS": list(cfg.students),
@@ -464,6 +470,10 @@ def _smoke_command(config_path: Path) -> str:
     cfg = lab.get_config()
     template = cfg.executor.smoke_command or cfg.executor.run_command
     return template.format(config_path=str(config_path))
+
+# Subprocess invocation always passes cwd=cfg.source.dir so the user's run
+# command resolves its own relative paths against the source repo, not the
+# daemon's submission CWD.
 ```
 
 Three call-side updates inside coder.py — line 47-49 (`DEFAULT_TARGET_GLOBS`, `SMOKE_CONFIG`), line 83 (`_NEW_FILE_PATH_RE`), and the smoke subprocess invocation. ~15-line diff.
@@ -635,7 +645,12 @@ Wrap subprocess invocation with:
 
 ```python
 def _run_and_capture(cmd: str, timeout_s: int) -> RunResult:
-    proc = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=timeout_s)
+    cfg = lab.get_config()
+    env = {**os.environ, **{k: os.environ[k] for k in cfg.executor.env_passthrough if k in os.environ}}
+    proc = subprocess.run(
+        cmd, shell=True, capture_output=True, text=True,
+        timeout=timeout_s, cwd=str(cfg.source.dir), env=env,
+    )
     last_json = _extract_trailing_json(proc.stdout)  # parses last balanced { ... }
     if last_json is None:
         return RunResult(ok=False, error="run_command did not emit a JSON result on stdout",
@@ -751,7 +766,7 @@ Daemon does **not** start partial. Either the lab is fully initialized + registe
 
 ### Phase 5 — Human/agent recovery flow
 
-User opens a Claude Code session and says "check on lab `<id>`" or fetches `efferents.com/status.md`. Their agent runs `efferents status --lab-id <id>` and reports:
+User opens a Claude Code session and says "check on lab `<id>`" (or fetches `status.md` if it shipped in v1). Their agent runs `efferents status --lab-id <id>` and reports:
 - Status (running / stopped / crashed / stale)
 - Last activity, runs completed, current campaign
 - Budget spent today
@@ -853,7 +868,7 @@ Per the `verification-before-completion` skill, claims of "working" require evid
 4. **Crash recovery** — `kill -9` the daemon; re-run `efferents start`. Confirm idempotent re-attach, no data lost.
 5. **auto-qml sanity** — `cd ../auto-qml && uv run pytest tests/` against the new efferents. If any QML tests regress, debug or pin auto-qml to a pre-decouple efferents commit until migration.
 
-Document the results in a `docs/superpowers/specs/2026-XX-XX-deployment-verification.md` companion before announcing.
+Document the results in a `docs/superpowers/specs/<date>-deployment-verification.md` companion (dated when written) before announcing.
 
 ### Out of scope for v1
 - Property-based tests for LabConfig validation
