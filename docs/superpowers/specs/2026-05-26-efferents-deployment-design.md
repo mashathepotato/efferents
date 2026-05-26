@@ -682,3 +682,181 @@ Add a sentence in Step 2 question #2: "Run command template — anything that ta
 - Daemon-side compute provisioning.
 - Cost tracking for compute (we already track Anthropic spend via budget tracker; compute spend is user-tracked).
 - Live log streaming from remote runs to the dashboard. Stdout is captured to `daemon.log`; that's it.
+
+---
+
+## 8. Error handling & failure modes
+
+Errors stratify by phase. Each has a clear surface and a recovery action.
+
+### Phase 1 — Pre-daemon (agent's intake.md execution)
+
+| Failure | Surface | Recovery |
+|---|---|---|
+| `popper-probe` not installed | Agent refuses Step 1 | Human installs it, restarts intake |
+| `falsifiability_gate: failed` | Agent shows the `## Diagnostic` block, STOPs | Human sharpens claim, restarts intake |
+| `efferents validate` finds bad `lab.yaml` | Agent surfaces field-level error from CLI stderr | Human fixes lab.yaml, agent re-runs validate |
+| Human declines Step-5 warnings | Agent STOPs | Human aborts or fixes the concern (e.g., commits source dir) |
+
+No daemon launched until Step 6. Failures here cost only conversation tokens.
+
+### Phase 2 — Daemon startup
+
+| Failure | Surface | Recovery |
+|---|---|---|
+| `lab/` mkdir or migration fails (permissions, disk full) | Exit code 1, stderr diagnostic; nothing registered | Fix the underlying issue; re-run `efferents start` |
+| Registry file lock contention | Retry 3× with backoff, then fail with message naming the contending PID | Resolve the conflict (usually a concurrent CLI invocation) |
+| Stale pidfile (PID dead, registry says running) | `efferents start` detects this on re-launch, clears the stale pidfile, marks registry `stopped`, proceeds | Automatic |
+| `os.fork()` fails | Exit code 1 (rare; only on resource-starved hosts) | Free resources; re-run |
+
+Daemon does **not** start partial. Either the lab is fully initialized + registered + forked, or nothing.
+
+### Phase 3 — Daemon runtime
+
+**Anthropic API failures.**
+- `5xx` / rate limit: exponential backoff inside `efferents.agents.budget` retry helper (already exists for Phase A). Cap at 5 retries; on persistent failure, log + pause orchestrator for 10 minutes, then resume.
+- `4xx` (auth, request shape): treated as fatal — daemon halts, writes diagnostic to `daemon.log` + `lab/halt_reason.txt`, exits non-zero. Requires human intervention (bad API key, etc.).
+
+**Budget exhaustion.**
+- `BudgetTracker` already enforces a per-day cap. When hit: orchestrator pauses (doesn't exit); next API call returns "budget exhausted" and the loop sleeps until midnight UTC then resumes. `efferents status` surfaces "budget paused, resumes <time>".
+
+**Subprocess (run_command / smoke_command) failures.**
+- Timeout: process killed, run marked `failed`, Coder restores snapshot, Researcher reads the failure from `coder_log.jsonl` and avoids re-proposing.
+- Non-zero exit: same as above.
+- Empty stdout / no trailing JSON: same as above; daemon logs "run_command did not emit JSON result on stdout" — surfaces missing executor contract.
+- Smoke test fails: expected; Coder restores snapshot; not a daemon-level error.
+- Real run fails repeatedly (3 in a row, same git_commit): orchestrator marks the campaign blocked; Researcher proposes a different direction.
+
+**State integrity.**
+- SQLite write fails (disk full, corruption): daemon halts, writes diagnostic, exits non-zero. No corruption recovery in v1 — manual `sqlite3` repair if it happens.
+- `state.json` write fails: same.
+
+### Phase 4 — Daemon liveness
+
+**Crash detection.** No heartbeat thread in v1. `efferents status` infers liveness from:
+- Pidfile present + PID is alive process → `running`
+- Pidfile present + PID dead → `crashed`
+- Pidfile absent + registry says running → `crashed` (rare; race condition during fork)
+- `state.json` mtime older than 1 hour → `running but stale`; the daemon may be hung
+
+**Crash recovery.** Re-running `efferents start --submission <same-dir>` is idempotent:
+- Clears stale pidfile, removes stale registry entry.
+- Re-runs migrations (no-op).
+- Inspects `state.db` for rows with `status='started'` and no result row — marks them `crashed`.
+- Forks a fresh daemon, re-attaches to `state.db`, resumes orchestrator loop.
+
+**Orphaned subprocesses.** A daemon crash mid-run leaves the run_command process orphaned. Daemon doesn't track subprocess PIDs across crashes. Documented limitation: user should `ps` or check remote backend if a run looks orphaned. Phase B could add a runs table column tracking subprocess PID + host.
+
+**No auto-restart in v1.** When daemon dies, it stays dead until human action. Phase B can wrap in systemd / launchd / pm2. Don't ship auto-restart now — it would mask bugs.
+
+### Phase 5 — Human/agent recovery flow
+
+User opens a Claude Code session and says "check on lab `<id>`" or fetches `efferents.com/status.md`. Their agent runs `efferents status --lab-id <id>` and reports:
+- Status (running / stopped / crashed / stale)
+- Last activity, runs completed, current campaign
+- Budget spent today
+- Headline metric trajectory
+- Dashboard path
+- If crashed: the contents of `lab/halt_reason.txt` (if present) or the tail of `daemon.log`
+
+Recovery actions the agent can suggest:
+- `efferents stop --lab-id <id>` → graceful shutdown
+- `efferents start --submission <dir>` → restart (idempotent re-attach)
+- `tail lab/daemon.log` → inspect
+- `open lab/progress/index.html` → dashboard
+
+### Out of scope for v1
+- Auto-restart / process supervision
+- Heartbeat thread + dead-mans-switch
+- Slack / ntfy alerts on daemon crash (`notify.py` exists but isn't wired into crash paths)
+- Distributed run tracking (subprocess PIDs on remote hosts)
+- Sentry / error aggregation
+
+---
+
+## 9. Testing strategy + the smoke lab
+
+The decouple work and the new code each need their own verification path. The smoke lab is the integration test.
+
+### 9.1 — Unit tests for new code
+
+| Module | Test file | Key cases |
+|---|---|---|
+| `efferents.lab.LabConfig` | `tests/test_lab_config.py` | valid submission → frozen config; missing hypothesis.md; `falsifiability_gate: failed`; missing required field; non-existent `source.dir`; bad direction; missing `{config_path}` placeholder; defaults applied; absolute vs relative path resolution |
+| `efferents.registry` | `tests/test_registry.py` | empty registry create; concurrent writes (two CLI invocations); stale-PID cleanup; corrupted JSON recovery (truncate + warn) |
+| `efferents.daemon` | `tests/test_daemon.py` | foreground happy path (no fork); detach writes pidfile; SIGTERM clean shutdown; second start with stale pidfile cleans it; second start with live pidfile errors out |
+| `efferents.cli` | `tests/test_cli.py` | `validate` exit codes + stderr shape; `start --submission` end-to-end (foreground, smoke lab); `status` against running/stopped/crashed daemon; `list` table format; `stop` idempotent |
+| `_run_and_capture` (in coder or new exec module) | `tests/test_run_capture.py` | trailing JSON parsed; no JSON → ok=False with named error; timeout → ok=False; multi-line stdout with JSON in middle (only last is taken); malformed JSON tolerated |
+
+All new code targets ≥80% line coverage. No mocking the Anthropic client beyond what Phase A already does.
+
+### 9.2 — Carrying over Phase A's existing tests
+
+Per CLAUDE.md, 62/65 tests came over from auto-qml. Triage plan:
+
+1. Run `uv run pytest tests/` once, capture pass/fail.
+2. **Generic tests** (state primitives, budget tracker, migrations, schemas, popper-gate, paper frontmatter): expected to pass post-decouple. Fix any that break — usually because they imported `lab.LAB_ID` or similar and now need `lab.set_config(...)` setup. Add a `conftest.py` fixture that loads a minimal smoke-lab LabConfig for all tests.
+3. **QML-specific tests** (anything asserting on `e_w1`, jet metrics, QML-shaped run rows): move to `tests/lab_reference/` and mark with `@pytest.mark.skip(reason="QML-specific; lives with auto-qml long-term")` until auto-qml migrates back to consuming `efferents` as a dep. No effort wasted maintaining them here.
+4. Document the split in `tests/README.md`.
+
+Goal: every test in `tests/` (excluding `tests/lab_reference/`) passes against the smoke lab fixture. CI should fail if a generic test slips into QML-coupled assertions.
+
+### 9.3 — The smoke lab (proves the plumbing)
+
+A deliberately trivial non-QML lab. Its purpose is **proving the abstractions hold**, not doing research. Lives at `examples/smoke-lab/`.
+
+```
+examples/smoke-lab/
+├── README.md                    # how to invoke + what it proves
+├── hypothesis.md                # popper-formatted, silly but valid
+├── lab.yaml                     # exercises the full schema
+├── src/
+│   ├── __init__.py
+│   ├── stub_run.py              # reads config, "trains", emits stdout JSON
+│   └── stub_eval.py             # called from stub_run; deterministic given seed
+└── configs/
+    ├── default.yaml             # tunable knob (e.g., `coefficient: 0.5`)
+    └── smoke.yaml               # cheap variant (fewer iterations)
+```
+
+**The "research" the smoke lab does:**
+- Hypothesis (silly): "increasing `coefficient` above 0.7 reduces synthetic_loss below 0.1".
+- `stub_run.py` computes `synthetic_loss = abs(0.8 - coefficient) + tiny_noise(seed)`. Pure CPU, finishes in <1s.
+- Emits the stdout JSON contract: `{"run_id":"...","metrics":{"synthetic_loss":0.073},...}`.
+- Coder modifies `configs/default.yaml` (varies `coefficient`) and `src/stub_run.py` (could tweak noise/eval).
+- Headline metric: `synthetic_loss`, direction `min`. Panels: just `synthetic_loss`.
+- The hypothesis is genuinely falsifiable (Researcher can corroborate or refute by varying coefficient through 0–1 and observing where loss minimizes).
+
+This is small enough that a daemon can run a full cycle (Researcher → Coder → smoke → run → eval → analyst digest) in under 30 seconds. Lets us run end-to-end tests in CI without GPU.
+
+### 9.4 — End-to-end integration test
+
+A single test (`tests/integration/test_smoke_lab_e2e.py`) that:
+
+1. Copies `examples/smoke-lab/` to a tmpdir.
+2. Runs `efferents validate --submission <tmpdir>` — asserts exit 0, parses lab_id.
+3. Runs `efferents start --submission <tmpdir>` foreground for ~60 seconds (subprocess + timeout).
+4. Asserts: `state.db` exists; ≥3 runs completed; ≥1 has non-null `synthetic_loss`; `progress/index.html` rendered; `daemon.log` contains no ERROR lines.
+5. Skips if `ANTHROPIC_API_KEY` not set (so contributors can run unit tests without keys).
+
+Marked `@pytest.mark.integration` and excluded from default `pytest` run; opt in via `pytest -m integration`. Cost: ~$0.10/run in Anthropic spend.
+
+### 9.5 — Manual verification before first deploy
+
+Per the `verification-before-completion` skill, claims of "working" require evidence. Before we say "v1 deployed":
+
+1. **Decouple smoke** — Phase A code paths use `lab.get_config()`:
+   - `python -c "from efferents.lab import LabConfig; ..."` builds a smoke LabConfig in isolation.
+   - Run smoke-lab integration test; observe Coder editing `src/stub_run.py`, smoke passing.
+2. **Intake flow** — fresh Claude Code session reads the hosted `intake.md` and runs through the steps with the smoke lab as input. Observe popper-probe firing, lab.yaml prompted, daemon started, dashboard reachable.
+3. **Status flow** — close the session, open a new one, ask "check on the smoke lab". Confirm `efferents status` output is informative.
+4. **Crash recovery** — `kill -9` the daemon; re-run `efferents start`. Confirm idempotent re-attach, no data lost.
+5. **auto-qml sanity** — `cd ../auto-qml && uv run pytest tests/` against the new efferents. If any QML tests regress, debug or pin auto-qml to a pre-decouple efferents commit until migration.
+
+Document the results in a `docs/superpowers/specs/2026-XX-XX-deployment-verification.md` companion before announcing.
+
+### Out of scope for v1
+- Property-based tests for LabConfig validation
+- Fuzz testing of the stdout-JSON parser
+- Performance benchmarking of the daemon loop
+- Cross-platform CI (macOS only at launch; Linux as it comes up)
