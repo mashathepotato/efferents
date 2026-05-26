@@ -518,3 +518,167 @@ def run(submission_dir: Path) -> None:
 ### Total decouple-work footprint
 
 ~150 lines of new code (`LabConfig` + loader + shim), ~50 lines of edits across `coder.py` + `progress.py` + `analyst.py`. No new dependencies (pydantic optional; can hand-roll dataclass validation since the schema is small).
+
+---
+
+## 6. State + lab directory layout
+
+Two distinct trees: **(A)** the user's source repo at `source.dir` (where Coder writes + commits) — outside the submission, in the user's project. **(B)** the submission + lab dir — daemon's working state, observability, papers. Both essential; they don't overlap.
+
+### Per-user
+
+```
+~/.efferents/
+└── registry.json          # lab_id → submission_dir, lab_root, pid, started_at, status
+```
+
+Single JSON file with a file lock (fcntl). CLI reads/writes it; the daemon never touches it after registration. Keeps daemon-state under `lab/` so a corrupted registry never loses lab data.
+
+### Per submission (everything the daemon owns)
+
+```
+./efferents-submissions/<slug>/
+├── hypothesis.md                # popper-probe output (provenance copy)
+├── lab.yaml                     # efferents lab config (provenance copy)
+└── lab/                         # daemon's lab_root
+    ├── daemon.pid               # PID of detached daemon
+    ├── daemon.log               # stdout+stderr of detached daemon (rolling, 10MB cap)
+    ├── state.db                 # SQLite: runs, campaigns, papers, peer_reviews, …
+    ├── state.json               # cursors, budget tracker counters, supervisor streak
+    ├── lab_notebook.md          # supervisor's running notebook
+    ├── proposed_changes.md      # Researcher → Coder backlog
+    ├── researcher_dialogue.jsonl
+    ├── coder_log.jsonl
+    ├── progress/
+    │   └── index.html           # dashboard (regenerated on every digest)
+    └── papers/                  # writer output, content-addressed by paper_id
+        └── <paper_id>/
+            ├── paper.md
+            └── frontmatter.json
+```
+
+### The user's source repo (lives wherever they put it)
+
+```
+<source.dir>/                    # e.g. ~/Documents/my-research/src/
+├── ...                          # user's existing code
+├── <coder writes new .py here>
+└── ... (must be a git repo; Coder commits each accepted change)
+```
+
+The Coder agent's smoke test runs `lab.config.executor.run_command` *inside the source repo's working dir*. Outputs (logs, generated samples) get written wherever the run command writes — typically into the source repo. The daemon's `lab/state.db` ingests **metric rows only** from the run command's stdout JSON result (see Section 7's contract).
+
+### Path mapping at daemon startup
+
+`daemon.run(submission_dir)` does:
+1. Resolves `submission_dir` to absolute.
+2. `os.chdir(submission_dir)` — so Phase A's hardcoded `./lab/...` paths resolve under the submission.
+3. Resolves `cfg.source.dir` to absolute (it was relative in lab.yaml or absolute) — stored on the LabConfig at load time.
+4. Coder agent always uses the absolute `cfg.source.dir`, never CWD-relative — protects against `cd` drift inside the orchestrator loop.
+
+### Backups and re-attach
+
+- `efferents stop` is graceful; `state.db` and `state.json` survive.
+- `efferents start --submission <same-dir>` re-attaches to the existing `lab/` automatically. Migration runner is idempotent. Registry entry gets a new PID + `started_at`.
+- No automatic backup — user's `lab/` is in their working directory and they can `git`-track it or rsync it if they care.
+
+### Cleanup contract
+
+- `efferents stop` removes nothing.
+- `efferents list` shows `status: stopped` for stale entries (PID dead, registry not updated).
+- No `efferents prune` command in v1. Manual `rm -rf lab/` if user wants a clean restart.
+
+### Out of scope for v1
+
+- Multi-machine state sync (daemon is single-host).
+- Encrypted-at-rest state files.
+- A read-only "lab archive" mode that lets you browse a finished lab's `lab/` after the daemon's gone.
+
+---
+
+## 7. Compute & execution model
+
+### The fundamental constraint
+
+Every Phase-A cycle is: Researcher proposes → Coder edits code → smoke test → if smoke passes, real training run → eval → row in `state.db`. The training run is where compute matters. It's domain-specific (GPU minutes for QML/diffusion, CPU for ablations, whatever the lab needs).
+
+Moltbook's design dodges this because its agents don't *do* anything — they post text. Efferents can't dodge it: empirical results are the whole point.
+
+### Where does compute happen — three reasonable models
+
+**Model A — Local daemon, local compute (Phase A today).**
+Daemon runs on the user's machine. `run_command` invokes a local Python process. User's hardware does the work. Simplest. Sharply limiting for any lab that needs serious GPU.
+
+**Model B — Local daemon, BYO remote compute (recommended for v1).**
+Daemon stays on the user's laptop. `run_command` is a shell template — *anything that returns when training finishes*: `ssh gpu-box "cd /path && python -m foo.run --config {config_path}"`, `modal run my_module.train --config {config_path}`, a sbatch wrapper, whatever. Daemon doesn't care how the work happens; it cares about parsing the result. Requires loosening Phase A's tight coupling between run_command and SQLite (described below).
+
+**Model C — Efferents-provisioned compute (Phase B+).**
+efferents.com (or a per-lab cloud account) spins up VMs on submission. User pays via efferents. Substantial infra; substantial trust ask. Not v1.
+
+**Recommendation: Model B for v1.** Keeps the daemon's deployment story unchanged (`pip install efferents`, run locally), unlocks GPU-backed labs via existing tools the user already knows (ssh, modal, slurm), and doesn't commit us to building cloud infrastructure.
+
+### What Model B requires that Phase A doesn't have
+
+**The problem.** Phase A's current contract is: `run_command` opens `lab/state.db` and writes a row directly via the schemas-defined writer. Works when daemon and run share a filesystem. Breaks the moment training happens on a different host.
+
+**The fix — stdout result contract.** The run command's last action is a single JSON line to stdout:
+
+```json
+{"run_id":"<uuid>","metrics":{"e_w1":0.043,"active_frac_w1":0.012,...},"git_commit":"abc123","elapsed_s":847.2,"artifacts":[{"path":"./lab/samples/run_abc.png","kind":"sample"}]}
+```
+
+Daemon captures stdout (already does, for logging), parses the last `{...}` line, inserts the row. Artifacts are local paths; the daemon expects them readable from the daemon's host. For remote compute, the user is responsible for rsync-back or mounting (e.g., `modal.Mount`, sshfs). Missing artifacts gracefully skipped by the dashboard.
+
+### Daemon-side changes for Model B
+
+Wrap subprocess invocation with:
+
+```python
+def _run_and_capture(cmd: str, timeout_s: int) -> RunResult:
+    proc = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=timeout_s)
+    last_json = _extract_trailing_json(proc.stdout)  # parses last balanced { ... }
+    if last_json is None:
+        return RunResult(ok=False, error="run_command did not emit a JSON result on stdout",
+                         stdout=proc.stdout, stderr=proc.stderr)
+    return RunResult(ok=proc.returncode == 0, metrics=last_json.get("metrics"),
+                     artifacts=last_json.get("artifacts", []), git_commit=last_json.get("git_commit"),
+                     elapsed_s=last_json.get("elapsed_s"), stdout=proc.stdout, stderr=proc.stderr)
+```
+
+Then a small writer that inserts the row into `state.db`.
+
+### Backward compat with auto-qml
+
+auto-qml today writes directly to SQLite. The new stdout contract would skip that row. Two options:
+- **(preferred) Migrate auto-qml's `run.py` to emit JSON on stdout.** ~10-line change in auto-qml. Done in auto-qml's next session.
+- **(fallback) Dual-read.** Daemon checks: did a row appear in state.db for this run_id during the subprocess? If yes, use it. If no, fall back to stdout parsing. Keeps auto-qml working unchanged. Ugly but safe.
+
+Recommend the preferred path — small, clean, and auto-qml's `run.py` is the natural place to own the contract.
+
+### What lab.yaml gains for Model B (optional, defaulted)
+
+```yaml
+executor:
+  run_command: "modal run my_module.train --config {config_path}"
+  smoke_command: "modal run my_module.train --config {config_path} --smoke"
+  config_template: configs/default.yaml
+  run_timeout_s: 7200            # optional; default 7200 (2h)
+  smoke_timeout_s: 300           # optional; default 300 (5m)
+  env_passthrough:               # optional; env vars copied into subprocess
+    - MODAL_TOKEN_ID
+    - MODAL_TOKEN_SECRET
+    - WANDB_API_KEY
+```
+
+`env_passthrough` is the clean way to ship secrets to remote backends without putting them in lab.yaml.
+
+### Documentation impact on intake.md
+
+Add a sentence in Step 2 question #2: "Run command template — anything that takes a config path and emits a JSON metrics object on stdout. Common shapes: local Python, ssh to a GPU box, modal/runpod/slurm submission."
+
+### Out of scope for v1
+
+- Built-in adapters for specific backends (modal, slurm, ssh, kubernetes). The shell template covers all of these; we don't pre-package them.
+- Daemon-side compute provisioning.
+- Cost tracking for compute (we already track Anthropic spend via budget tracker; compute spend is user-tracked).
+- Live log streaming from remote runs to the dashboard. Stdout is captured to `daemon.log`; that's it.
