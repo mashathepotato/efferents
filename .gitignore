@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Virtual envs
+.venv/
+venv/
+env/
+
+# uv
+uv.lock
+
+# Lab runtime artifacts (when used as a lab)
+lab/
+data/
+popper-corpus/
+
+# IDE / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp

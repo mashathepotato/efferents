@@ -1,0 +1,81 @@
+"""Lab identity. The single place that names *this* lab; Phase B sibling
+labs only differ from auto-qml in the constants below."""
+
+LAB_ID: str = "qfm-diffusion"
+DOMAIN: str = "quantum-ml"
+SUBDOMAIN: str | None = "qfm-diffusion-hep"
+PI_HANDLE: str | None = "@mashathepotato"
+CODE_REPO: str = "https://github.com/mashathepotato/auto-qml"
+
+# Peer-review gate (applied AFTER the mechanical should_publish gate in
+# agents/writer.py). When enabled, a paper that clears novelty + ≥5% metric
+# gain enters the 3-reviewer board (critical / neutral / enthusiast); only
+# papers with mean score ≥ MEAN_THRESHOLD and min score ≥ MIN_THRESHOLD are
+# accepted into the journal. Rejected papers stay on disk uncommitted.
+PEER_REVIEW_ENABLED: bool = True
+PEER_REVIEW_ACCEPT_MEAN_THRESHOLD: float = 6.0
+PEER_REVIEW_ACCEPT_MIN_THRESHOLD: int = 4
+
+# -----------------------------------------------------------------------------
+# Multi-student lab (Phase B)
+# -----------------------------------------------------------------------------
+# A "student" is a Researcher persona with its own state cursors, backlog,
+# popper-corpus subdir, and campaign quota. Different students share the same
+# lab (same code, same kb.sqlite, same journal, same reviewer board) but pursue
+# independent research tracks. The orchestrator round-robins over STUDENTS,
+# giving each student one Researcher+Coder pass per N orchestrator iterations.
+#
+# To add a new student: append a dict to STUDENTS and (optionally) drop a
+# custom student prompt at the path named by `prompt_overrides["student"]`.
+# Existing runs/campaigns are automatically attributed to DEFAULT_STUDENT_ID
+# via column defaults; no data migration needed.
+
+DEFAULT_STUDENT_ID: str = "primary"
+MAX_OPEN_CAMPAIGNS_PER_STUDENT: int = 2
+
+STUDENTS: list[dict] = [
+    {
+        "id": "primary",
+        "handle": "@mashathepotato",
+        "focus": (
+            "QFM-conditioning at low data — the headline data-efficiency "
+            "story. Establish that the QFM patch encoding gives a robust "
+            "low-raw_q win over PX, and characterize the regime."
+        ),
+        "prompt_overrides": {},   # uses default agents/prompts/student.md
+    },
+    {
+        "id": "lambda",
+        "handle": "@lambda-tn",
+        "focus": (
+            "Tensor-network conditioning generators (MPS, MERA, PEPS) as a "
+            "classical-simulable alternative to QFM patches. The big "
+            "question: is the data-efficiency advantage from quantum "
+            "amplitude structure, or from any tree-decomposed conditioning "
+            "prior? If TN-conditioned models match QFM's low-raw_q win, the "
+            "'quantum' framing in the paper needs revision. Do NOT propose "
+            "QFM-specific tweaks — that's primary's track; pursue TN-only "
+            "ideas (different bond dimensions, contraction orders, MERA "
+            "depths, PEPS topologies, hybrid TN+attention)."
+        ),
+        # Uses the default agents/prompts/student.md with the focus
+        # prepended. To customize further, set
+        # prompt_overrides={"student": "agents/prompts/student_lambda.md"}
+        # and create that file.
+        "prompt_overrides": {},
+    },
+]
+
+
+def get_student(student_id: str) -> dict:
+    """Look up a student dict by id. Raises KeyError if absent."""
+    for s in STUDENTS:
+        if s["id"] == student_id:
+            return s
+    raise KeyError(f"unknown student_id={student_id!r}; known: {[s['id'] for s in STUDENTS]}")
+
+
+def student_ids() -> list[str]:
+    """All registered student ids, in declaration order. Drives the
+    orchestrator round-robin."""
+    return [s["id"] for s in STUDENTS]
