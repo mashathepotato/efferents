@@ -55,3 +55,23 @@ def test_start_foreground_registers_and_runs(tmp_path, monkeypatch, capsys):
     rec = Registry().get("sample-conjecture")
     assert rec is not None
     assert rec.lab_id == "sample-conjecture"
+
+
+def test_start_detach_writes_pidfile(tmp_path, monkeypatch):
+    """Detach path forks; we test the post-fork bookkeeping via a stubbed daemonize call."""
+    monkeypatch.setenv("EFFERENTS_HOME", str(tmp_path / "home"))
+    sub = tmp_path / "sub"
+    shutil.copytree(SAMPLE, sub)
+
+    fake_child_pid = 4242
+    def fake_daemonize(lab_root, loop):
+        return fake_child_pid
+    monkeypatch.setattr("efferents.cli.daemon.daemonize_and_run", fake_daemonize)
+
+    exit_code = main(["start", "--submission", str(sub), "--detach"])
+    assert exit_code == 0
+
+    from efferents.registry import Registry
+    rec = Registry().get("sample-conjecture")
+    assert rec is not None
+    assert rec.pid == fake_child_pid

@@ -92,8 +92,12 @@ def _cmd_start(args: argparse.Namespace) -> int:
     print(f"lab_id={cfg.lab_id} pid={os.getpid()} dashboard={lab_root}/progress/index.html")
 
     if args.detach:
-        print("error: --detach not implemented yet (Task 13)", file=sys.stderr)
-        return 2
+        child_pid = daemon.daemonize_and_run(lab_root, _orchestrator_loop)
+        rec = reg.get(cfg.lab_id)
+        if rec is not None:
+            rec.pid = child_pid
+            reg.register(rec)  # idempotent replace
+        return 0
 
     try:
         daemon.run_foreground(lab_root, _orchestrator_loop)
