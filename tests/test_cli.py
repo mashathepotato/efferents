@@ -118,3 +118,28 @@ def test_status_unknown_lab(tmp_path, monkeypatch, capsys):
     captured = capsys.readouterr()
     assert exit_code == 1
     assert "not found" in captured.err.lower() or "unknown" in captured.err.lower()
+
+
+def test_stop_marks_registry_stopped(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("EFFERENTS_HOME", str(tmp_path / "home"))
+    from efferents.registry import LabRecord, Registry
+    reg = Registry()
+    reg.register(LabRecord(
+        lab_id="z", submission_dir="/x", lab_root="/x/lab",
+        pid=999999, started_at="t", status="running",
+    ))
+
+    monkeypatch.setattr("efferents.cli.os.kill", lambda pid, sig: None)
+    monkeypatch.setattr("efferents.cli.daemon.is_pid_alive", lambda pid: False)
+
+    exit_code = main(["stop", "--lab-id", "z"])
+    assert exit_code == 0
+    assert reg.get("z").status == "stopped"
+
+
+def test_stop_unknown_lab(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("EFFERENTS_HOME", str(tmp_path / "home"))
+    exit_code = main(["stop", "--lab-id", "ghost"])
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "unknown" in captured.err.lower() or "not found" in captured.err.lower()

@@ -14,7 +14,9 @@ from __future__ import annotations
 import argparse
 import os
 import shutil
+import signal
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -142,6 +144,28 @@ def _cmd_status(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_stop(args: argparse.Namespace) -> int:
+    reg = Registry()
+    rec = reg.get(args.lab_id)
+    if rec is None:
+        print(f"unknown lab_id: {args.lab_id}", file=sys.stderr)
+        return 1
+
+    if daemon.is_pid_alive(rec.pid):
+        os.kill(rec.pid, signal.SIGTERM)
+        for _ in range(100):
+            if not daemon.is_pid_alive(rec.pid):
+                break
+            time.sleep(0.1)
+        if daemon.is_pid_alive(rec.pid):
+            os.kill(rec.pid, signal.SIGKILL)
+            print(f"warning: SIGTERM ignored, sent SIGKILL to PID {rec.pid}", file=sys.stderr)
+
+    reg.update_status(args.lab_id, "stopped")
+    print(f"stopped lab_id={args.lab_id}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="efferents")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -159,6 +183,10 @@ def main(argv: list[str] | None = None) -> int:
     p_status = sub.add_parser("status", help="Show lab status")
     p_status.add_argument("--lab-id", default=None)
     p_status.set_defaults(func=_cmd_status)
+
+    p_stop = sub.add_parser("stop", help="Stop a running lab daemon")
+    p_stop.add_argument("--lab-id", required=True)
+    p_stop.set_defaults(func=_cmd_stop)
 
     args = parser.parse_args(argv)
     return args.func(args)
