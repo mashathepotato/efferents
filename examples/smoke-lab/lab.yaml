@@ -1,0 +1,27 @@
+lab_id: smoke-coefficient
+domain: synthetic
+
+source:
+  dir: ./src/
+  allowed_patterns:
+    - "**/*.py"
+    - "**/*.yaml"
+
+executor:
+  run_command: "python -m src.stub_run --config {config_path}"
+  smoke_command: "python -m src.stub_run --config {config_path} --smoke"
+  config_template: ../configs/default.yaml
+  run_timeout_s: 60
+  smoke_timeout_s: 30
+
+metrics:
+  headline:
+    column: synthetic_loss
+    direction: min
+  panels:
+    - { column: synthetic_loss, label: "Loss" }
+  flat_digest_epsilon: 0.005
+
+budget:
+  daily_cap_usd: 2.0
+  sonnet_default: true
