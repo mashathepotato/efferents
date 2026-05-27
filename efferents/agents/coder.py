@@ -4,7 +4,7 @@ Workflow per call:
     1. Pick the highest-priority pending proposal from lab/proposed_changes.md
        (skipping anything in lab/coder_log.jsonl as either succeeded or
        previously-failed-with-same-content).
-    2. Read full contents of auto_qml/*.py + config/*.yaml.
+    2. Read full contents of source.dir/**/*.py + config_template (per LabConfig).
     3. Ask Opus 4.7 for a JSON edit plan.
     4. Snapshot touched files (in-memory).
     5. Apply edits.
@@ -28,6 +28,7 @@ from typing import Any
 
 import anthropic
 
+from efferents import lab as _lab
 from efferents.agents import librarian
 from efferents.agents.budget import BudgetTracker, CallUsage, model_for
 from efferents.agents.state import (
@@ -41,14 +42,33 @@ from efferents.agents.state import (
 )
 
 PROMPT_PATH = Path(__file__).parent / "prompts" / "coder.md"
-DEFAULT_TARGET_GLOBS = [
-    "auto_qml/*.py",
-    "config/default.yaml",
-    "config/smoke.yaml",
-]
-SMOKE_CONFIG = "config/smoke.yaml"
-SMOKE_TIMEOUT_SECONDS = 180
 MAX_LIT_CALLS_PER_PASS = 3
+
+
+def _target_globs() -> list[str]:
+    """Patterns from LabConfig.source.allowed_patterns are RELATIVE to source.dir;
+    we prepend the absolute source dir to each so callers get absolute globs."""
+    cfg = _lab.get_config()
+    src = str(cfg.source.dir).rstrip("/")
+    out = [f"{src}/{pat}" for pat in cfg.source.allowed_patterns]
+    out.append(str(cfg.executor.config_template))
+    return out
+
+
+def _new_file_path_re():
+    cfg = _lab.get_config()
+    src = re.escape(str(cfg.source.dir).rstrip("/"))
+    return re.compile(rf"^{src}/[A-Za-z_][A-Za-z0-9_]*\.py$")
+
+
+def _smoke_command(config_path: Path) -> str:
+    cfg = _lab.get_config()
+    template = cfg.executor.smoke_command or cfg.executor.run_command
+    return template.format(config_path=str(config_path))
+
+
+def _smoke_timeout() -> int:
+    return _lab.get_config().executor.smoke_timeout_s
 
 
 # -----------------------------------------------------------------------------
@@ -79,8 +99,8 @@ class NewFile:
     content: str
 
 
-# auto_qml/<name>.py only — no nested dirs, no other top-levels.
-_NEW_FILE_PATH_RE = re.compile(r"^auto_qml/[A-Za-z_][A-Za-z0-9_]*\.py$")
+# <source.dir>/<name>.py only — no nested dirs, no other top-levels.
+# Use _new_file_path_re() to get the compiled pattern from LabConfig.
 MAX_NEW_FILES_PER_CALL = 1
 
 
@@ -167,12 +187,25 @@ def select_pending_proposal(
 # -----------------------------------------------------------------------------
 
 
-def gather_source(repo_root: Path, globs: list[str] = DEFAULT_TARGET_GLOBS) -> dict[str, str]:
+def gather_source(repo_root: Path, globs: list[str] | None = None) -> dict[str, str]:
+    if globs is None:
+        globs = _target_globs()
     out: dict[str, str] = {}
     for pattern in globs:
-        for p in sorted(repo_root.glob(pattern)):
-            if p.is_file():
-                out[str(p.relative_to(repo_root))] = p.read_text()
+        # Absolute glob patterns are matched directly; relative ones against repo_root.
+        p_pattern = Path(pattern)
+        if p_pattern.is_absolute():
+            # glob on absolute path: use parent as base and filename as pattern
+            # For absolute patterns we glob from root
+            import glob as _glob
+            for match in sorted(_glob.glob(pattern)):
+                p = Path(match)
+                if p.is_file():
+                    out[str(p)] = p.read_text()
+        else:
+            for p in sorted(repo_root.glob(pattern)):
+                if p.is_file():
+                    out[str(p.relative_to(repo_root))] = p.read_text()
     return out
 
 
@@ -314,7 +347,7 @@ def _apply_edits(edits: list[Edit], repo_root: Path) -> None:
 def _extract_new_files(plan: dict[str, Any]) -> list[NewFile]:
     """Validate and extract optional ``new_files`` from a Coder edit plan.
 
-    Restricts to ``auto_qml/<name>.py`` (no nested dirs) and enforces a
+    Restricts to ``<source.dir>/<name>.py`` (no nested dirs) and enforces a
     per-call cap. Raises ValueError on any malformed entry.
     """
     raw = plan.get("new_files") or []
@@ -324,15 +357,17 @@ def _extract_new_files(plan: dict[str, Any]) -> list[NewFile]:
         raise ValueError(
             f"new_files has {len(raw)} entries; cap is {MAX_NEW_FILES_PER_CALL}/call"
         )
+    path_re = _new_file_path_re()
     out: list[NewFile] = []
     for nf in raw:
         if not isinstance(nf, dict):
             raise ValueError(f"new_files entry must be dict, got {type(nf).__name__}")
         fp = nf.get("file_path", "")
         content = nf.get("content", "")
-        if not isinstance(fp, str) or not _NEW_FILE_PATH_RE.match(fp):
+        if not isinstance(fp, str) or not path_re.match(fp):
+            src_dir = str(_lab.get_config().source.dir)
             raise ValueError(
-                f"new_file path {fp!r} must match auto_qml/<name>.py (no nested dirs)"
+                f"new_file path {fp!r} must match {src_dir}/<name>.py (no nested dirs)"
             )
         if not isinstance(content, str) or not content.strip():
             raise ValueError(f"new_file {fp} has empty content")
@@ -358,19 +393,28 @@ def _write_new_files(new_files: list[NewFile], repo_root: Path) -> None:
 # -----------------------------------------------------------------------------
 
 
-def run_smoke(repo_root: Path, smoke_config: str = SMOKE_CONFIG) -> tuple[bool, str]:
-    """Run config/smoke.yaml end-to-end via the venv. Returns (ok, combined_output)."""
-    cmd = [".venv/bin/python", "-m", "auto_qml.run", "--config", smoke_config]
+def run_smoke(repo_root: Path, config_path: Path | None = None) -> tuple[bool, str]:
+    """Run the lab's smoke command end-to-end. Returns (ok, combined_output).
+
+    config_path defaults to LabConfig.executor.config_template.
+    shell=True because run_command is a shell template, not an argv list.
+    cwd is set to source.dir so relative paths in run_command resolve correctly.
+    """
+    cfg = _lab.get_config()
+    if config_path is None:
+        config_path = cfg.executor.config_template
+    timeout = _smoke_timeout()
     try:
         proc = subprocess.run(
-            cmd,
-            cwd=str(repo_root),
+            _smoke_command(config_path),
+            shell=True,
             capture_output=True,
             text=True,
-            timeout=SMOKE_TIMEOUT_SECONDS,
+            timeout=timeout,
+            cwd=str(cfg.source.dir),
         )
     except subprocess.TimeoutExpired as e:
-        return False, f"smoke timed out after {SMOKE_TIMEOUT_SECONDS}s\n{e}"
+        return False, f"smoke timed out after {timeout}s\n{e}"
     output = (proc.stdout or "") + "\n--- stderr ---\n" + (proc.stderr or "")
     return proc.returncode == 0, output[-4000:]  # tail to avoid huge strings
 
@@ -550,10 +594,12 @@ def implement_proposal(
     new_paths = {nf.file_path for nf in new_files}
     file_paths = sorted(edit_paths | new_paths)
 
-    # Reject out-of-scope edits up front (Coder is restricted to auto_qml/+config/).
+    # Reject out-of-scope edits up front (Coder is restricted to source.dir).
+    _scope_src = str(_lab.get_config().source.dir).rstrip("/") + "/"
+    _scope_cfg = str(_lab.get_config().executor.config_template)
     out_of_scope = [
         fp for fp in file_paths
-        if not (fp.startswith("auto_qml/") or fp.startswith("config/"))
+        if not (fp.startswith(_scope_src) or fp == _scope_cfg)
     ]
     if out_of_scope:
         result = CoderResult(
@@ -601,7 +647,7 @@ def implement_proposal(
             )
             out_of_scope2 = [
                 fp for fp in file_paths2
-                if not (fp.startswith("auto_qml/") or fp.startswith("config/"))
+                if not (fp.startswith(_scope_src) or fp == _scope_cfg)
             ]
             if out_of_scope2:
                 raise ValueError(f"retry out-of-scope edits: {out_of_scope2}")
