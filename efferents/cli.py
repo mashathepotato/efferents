@@ -109,7 +109,17 @@ def _cmd_start(args: argparse.Namespace) -> int:
 
 
 def _cmd_list(args: argparse.Namespace) -> int:
-    print("(list not implemented yet — Task 16)")
+    reg = Registry()
+    records = reg.list()
+    if not records:
+        print("no labs registered")
+        return 0
+    print(f"{'LAB_ID':<24} {'STATUS':<10} {'STARTED':<25} SUBMISSION")
+    for r in records:
+        status = r.status
+        if status == "running" and not daemon.is_pid_alive(r.pid):
+            status = "crashed"
+        print(f"{r.lab_id:<24} {status:<10} {r.started_at:<25} {r.submission_dir}")
     return 0
 
 
@@ -187,6 +197,9 @@ def main(argv: list[str] | None = None) -> int:
     p_stop = sub.add_parser("stop", help="Stop a running lab daemon")
     p_stop.add_argument("--lab-id", required=True)
     p_stop.set_defaults(func=_cmd_stop)
+
+    p_list = sub.add_parser("list", help="List all registered labs")
+    p_list.set_defaults(func=_cmd_list)
 
     args = parser.parse_args(argv)
     return args.func(args)

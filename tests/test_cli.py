@@ -143,3 +143,30 @@ def test_stop_unknown_lab(tmp_path, monkeypatch, capsys):
     captured = capsys.readouterr()
     assert exit_code == 1
     assert "unknown" in captured.err.lower() or "not found" in captured.err.lower()
+
+
+def test_list_empty(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("EFFERENTS_HOME", str(tmp_path / "home"))
+    exit_code = main(["list"])
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "no labs registered" in captured.out.lower() or "LAB_ID" in captured.out
+
+
+def test_list_with_entries(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("EFFERENTS_HOME", str(tmp_path / "home"))
+    from efferents.registry import LabRecord, Registry
+    reg = Registry()
+    reg.register(LabRecord(
+        lab_id="alpha", submission_dir="/a", lab_root="/a/lab",
+        pid=os.getpid(), started_at="2026-05-26T10:00:00Z", status="running",
+    ))
+    reg.register(LabRecord(
+        lab_id="beta", submission_dir="/b", lab_root="/b/lab",
+        pid=999999, started_at="2026-05-25T10:00:00Z", status="running",
+    ))
+    exit_code = main(["list"])
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "alpha" in captured.out
+    assert "beta" in captured.out
