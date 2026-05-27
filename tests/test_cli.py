@@ -75,3 +75,46 @@ def test_start_detach_writes_pidfile(tmp_path, monkeypatch):
     rec = Registry().get("sample-conjecture")
     assert rec is not None
     assert rec.pid == fake_child_pid
+
+
+def test_status_running_lab(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("EFFERENTS_HOME", str(tmp_path / "home"))
+    from efferents.registry import LabRecord, Registry
+    reg = Registry()
+    reg.register(LabRecord(
+        lab_id="x", submission_dir=str(tmp_path / "s"),
+        lab_root=str(tmp_path / "s/lab"), pid=os.getpid(),
+        started_at="2026-05-26T10:00:00Z", status="running",
+    ))
+    (tmp_path / "s" / "lab").mkdir(parents=True)
+    (tmp_path / "s" / "lab" / "state.json").write_text("{}")
+
+    exit_code = main(["status", "--lab-id", "x"])
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "running" in captured.out
+    assert "x" in captured.out
+
+
+def test_status_dead_pid_marks_crashed(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("EFFERENTS_HOME", str(tmp_path / "home"))
+    from efferents.registry import LabRecord, Registry
+    reg = Registry()
+    reg.register(LabRecord(
+        lab_id="y", submission_dir=str(tmp_path / "s"),
+        lab_root=str(tmp_path / "s/lab"), pid=999999,
+        started_at="2026-05-26T10:00:00Z", status="running",
+    ))
+
+    exit_code = main(["status", "--lab-id", "y"])
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "crashed" in captured.out.lower() or "dead" in captured.out.lower()
+
+
+def test_status_unknown_lab(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("EFFERENTS_HOME", str(tmp_path / "home"))
+    exit_code = main(["status", "--lab-id", "nope"])
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "not found" in captured.err.lower() or "unknown" in captured.err.lower()

@@ -106,6 +106,42 @@ def _cmd_start(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_list(args: argparse.Namespace) -> int:
+    print("(list not implemented yet — Task 16)")
+    return 0
+
+
+def _cmd_status(args: argparse.Namespace) -> int:
+    reg = Registry()
+    if args.lab_id is None:
+        return _cmd_list(args)
+    rec = reg.get(args.lab_id)
+    if rec is None:
+        print(f"unknown lab_id: {args.lab_id}", file=sys.stderr)
+        return 1
+
+    alive = daemon.is_pid_alive(rec.pid)
+    status = rec.status
+    if rec.status == "running" and not alive:
+        status = "crashed"
+        reg.update_status(args.lab_id, "crashed")
+
+    lab_root = Path(rec.lab_root)
+    print(f"lab_id={rec.lab_id}")
+    print(f"status={status}")
+    print(f"started_at={rec.started_at}")
+    print(f"pid={rec.pid} (alive={alive})")
+    state_json = lab_root / "state.json"
+    if state_json.exists():
+        mtime = datetime.fromtimestamp(state_json.stat().st_mtime, tz=timezone.utc).isoformat()
+        print(f"last_activity={mtime}")
+    print(f"dashboard=file://{lab_root}/progress/index.html")
+    halt = lab_root / "halt_reason.txt"
+    if halt.exists():
+        print(f"halt_reason={halt.read_text().strip()}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="efferents")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -119,6 +155,10 @@ def main(argv: list[str] | None = None) -> int:
     p_start.add_argument("--detach", action="store_true")
     p_start.add_argument("--lab-root", default=None)
     p_start.set_defaults(func=_cmd_start)
+
+    p_status = sub.add_parser("status", help="Show lab status")
+    p_status.add_argument("--lab-id", default=None)
+    p_status.set_defaults(func=_cmd_status)
 
     args = parser.parse_args(argv)
     return args.func(args)
