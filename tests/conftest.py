@@ -108,3 +108,41 @@ class FakeAnthropic:
 def fake_anthropic_factory():
     """Returns a function that builds a FakeAnthropic from a list of strings."""
     return lambda responses: FakeAnthropic(responses)
+
+
+@pytest.fixture(autouse=True)
+def smoke_lab_config(tmp_path_factory):
+    """Auto-install a minimal LabConfig for every test, then tear down.
+
+    Tests that need a custom LabConfig can call lab.set_config(...) themselves
+    inside the test body; this fixture's teardown still clears it.
+    """
+    from efferents import lab as lab_mod
+    from efferents.lab import (
+        Budget, Executor, Headline, LabConfig, Metrics, Panel, Source,
+    )
+
+    tmp = tmp_path_factory.mktemp("smoke-lab-fixture")
+    src_dir = tmp / "src"
+    src_dir.mkdir()
+    (src_dir / "default.yaml").touch()
+
+    cfg = LabConfig(
+        lab_id="smoke-fixture",
+        domain="test",
+        pi_handle=None,
+        source=Source(dir=src_dir),
+        executor=Executor(
+            run_command="echo {config_path}",
+            smoke_command=None,
+            config_template=src_dir / "default.yaml",
+        ),
+        metrics=Metrics(
+            headline=Headline(column="synthetic_loss", direction="min"),
+            panels=(Panel(column="synthetic_loss", label="Loss"),),
+        ),
+        budget=Budget(),
+    )
+    lab_mod.set_config(cfg)
+    yield cfg
+    lab_mod._active = None
