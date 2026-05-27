@@ -85,3 +85,77 @@ def student_ids() -> list[str]:
     """All registered student ids, in declaration order. Drives the
     orchestrator round-robin."""
     return [s["id"] for s in STUDENTS]
+
+
+# ---------------------------------------------------------------------------
+# LabConfig — new per-submission configuration model. Loaded by the daemon
+# at startup from <submission>/lab.yaml. Coexists with the legacy module
+# constants above; new code reads from `get_config()` instead.
+# ---------------------------------------------------------------------------
+from dataclasses import dataclass, field  # noqa: E402  (kept after legacy block)
+from pathlib import Path  # noqa: E402
+
+
+@dataclass(frozen=True)
+class Headline:
+    column: str
+    direction: str  # "max" | "min"
+
+
+@dataclass(frozen=True)
+class Panel:
+    column: str
+    label: str
+    target: float | None = None
+
+
+@dataclass(frozen=True)
+class Source:
+    dir: Path
+    allowed_patterns: tuple[str, ...] = ("**/*.py",)
+
+
+@dataclass(frozen=True)
+class Executor:
+    run_command: str  # must contain "{config_path}"
+    smoke_command: str | None
+    config_template: Path
+    run_timeout_s: int = 7200
+    smoke_timeout_s: int = 300
+    env_passthrough: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class Metrics:
+    headline: Headline
+    panels: tuple[Panel, ...]
+    flat_digest_epsilon: float = 0.005
+
+
+@dataclass(frozen=True)
+class Budget:
+    daily_cap_usd: float = 10.0
+    sonnet_default: bool = True
+
+
+@dataclass(frozen=True)
+class LabConfig:
+    lab_id: str
+    domain: str
+    pi_handle: str | None
+    source: Source
+    executor: Executor
+    metrics: Metrics
+    budget: Budget
+    default_student_id: str = "primary"
+    max_open_campaigns_per_student: int = 2
+    students: tuple[dict, ...] = field(default_factory=lambda: (
+        {"id": "primary", "handle": None, "focus": "", "prompt_overrides": {}},
+    ))
+    peer_review_enabled: bool = False
+    peer_review_accept_mean_threshold: float = 6.0
+    peer_review_accept_min_threshold: int = 4
+
+
+class SubmissionError(ValueError):
+    """Raised when a submission directory is invalid."""
