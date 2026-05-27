@@ -30,4 +30,5 @@ name = "efferents"
 [tool.pytest.ini_options]
 markers = [
     "slow: integration tests that exec real lab CLIs end-to-end",
+    "integration: end-to-end tests that require ANTHROPIC_API_KEY and execute the daemon",
 ]
