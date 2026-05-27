@@ -51,16 +51,21 @@ _MAX_BEST_SAMPLES = 6
 _MAX_ARCHITECTURES = 12
 _MAX_RUNS_PER_ARCH = 6
 
-# Metrics shown on the trend small-multiples and in the header "best of each" line.
-# (column_name, axis label, target_value | None) — target_value=None means "lower is better"
-# and the y-axis isn't annotated; a numeric target draws a horizontal reference line and
-# changes the "best" selector to nearest-to-target.
-_PANEL_METRICS: list[tuple[str, str, float | None]] = [
-    ("e_w1",                "energy W1 (lower)",          None),
-    ("active_frac_w1",      "active-frac W1 (lower)",     None),
-    ("radial_l2_log",       "radial L2 log (lower)",      None),
-    ("gen_max_to_real_max", "gen_max / real (target 1.0)", 1.0),
-]
+def _panel_metrics() -> list[tuple[str, str, float | None]]:
+    """Return per-lab panel definitions from the active LabConfig.
+
+    Each entry is (column_name, axis_label, target_value | None).
+    target_value=None means lower-is-better; a numeric target draws a
+    horizontal reference line and selects the nearest-to-target row as best.
+    """
+    cfg = _lab.get_config()
+    return [(p.column, p.label, p.target) for p in cfg.metrics.panels]
+
+
+def _headline_metric() -> tuple[str, str]:
+    """Return (column, direction) for the lab's headline metric."""
+    h = _lab.get_config().metrics.headline
+    return (h.column, h.direction)
 
 
 def _metric_best(rows: list[dict], col: str, target: float | None):
@@ -250,7 +255,7 @@ def _trend_png_b64(snap: dict) -> str | None:
     axes = axes.flatten()
 
     n_panels_with_data = 0
-    for ax, (col, label, target) in zip(axes, _PANEL_METRICS):
+    for ax, (col, label, target) in zip(axes, _panel_metrics()):
         xs, ys, cs = [], [], []
         for i, (xlabel, css, rows) in enumerate(positions):
             val, _ = _metric_best(rows, col, target)
@@ -721,7 +726,7 @@ def _render_html(snap: dict, *, paths: LabPaths, context_dir: Path) -> str:
 
     # "Best of each metric" stat row — replaces the single best-W1 stat.
     best_bits = []
-    for col, label, target in _PANEL_METRICS:
+    for col, label, target in _panel_metrics():
         val, _row = _metric_best(scored, col, target)
         if val is None:
             continue
