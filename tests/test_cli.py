@@ -1,5 +1,6 @@
 """efferents CLI subcommand integration tests."""
 from __future__ import annotations
+import os
 import shutil
 from pathlib import Path
 
@@ -32,3 +33,25 @@ def test_validate_unknown_subcommand_exits_2(capsys):
     with pytest.raises(SystemExit) as exc:
         main(["bogus"])
     assert exc.value.code == 2  # argparse-style
+
+
+def test_start_foreground_registers_and_runs(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("EFFERENTS_HOME", str(tmp_path / "home"))
+    sub = tmp_path / "sub"
+    shutil.copytree(SAMPLE, sub)
+
+    called = []
+    def fake_loop():
+        called.append(1)
+    monkeypatch.setattr("efferents.cli._orchestrator_loop", fake_loop)
+
+    exit_code = main(["start", "--submission", str(sub)])
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "lab_id=sample-conjecture" in captured.out
+    assert called == [1]
+
+    from efferents.registry import Registry
+    rec = Registry().get("sample-conjecture")
+    assert rec is not None
+    assert rec.lab_id == "sample-conjecture"
