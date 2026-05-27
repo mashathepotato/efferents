@@ -188,8 +188,7 @@ def _build_labconfig(fm: dict, raw: dict, submission_dir: Path) -> "LabConfig":
     src_dir_str = src_block.get("dir")
     if not src_dir_str:
         raise SubmissionError("lab.yaml: source.dir is required")
-    src_path = Path(src_dir_str)
-    src_dir = (submission_dir / src_path).resolve() if not src_path.is_absolute() else src_path.resolve()
+    src_dir = (submission_dir / src_dir_str).resolve()
     if not src_dir.is_dir():
         raise SubmissionError(f"source.dir does not exist on disk: {src_dir}")
 
@@ -205,12 +204,7 @@ def _build_labconfig(fm: dict, raw: dict, submission_dir: Path) -> "LabConfig":
     config_template_str = exe.get("config_template")
     if not config_template_str:
         raise SubmissionError("lab.yaml: executor.config_template is required")
-    config_template = Path(config_template_str)
-    abs_config_template = (
-        (src_dir / config_template).resolve()
-        if not config_template.is_absolute()
-        else config_template.resolve()
-    )
+    abs_config_template = (src_dir / config_template_str).resolve()
     if not abs_config_template.is_file():
         raise SubmissionError(
             f"executor.config_template not found under source.dir: {abs_config_template}"
@@ -228,10 +222,12 @@ def _build_labconfig(fm: dict, raw: dict, submission_dir: Path) -> "LabConfig":
             f"metrics.headline.direction must be 'max' or 'min'; got {headline_dir!r}"
         )
 
-    panels = tuple(
-        Panel(column=p["column"], label=p.get("label", p["column"]), target=p.get("target"))
-        for p in (metrics_raw.get("panels") or [])
-    )
+    panels_list = []
+    for i, p in enumerate(metrics_raw.get("panels") or []):
+        if not isinstance(p, dict) or "column" not in p:
+            raise SubmissionError(f"metrics.panels[{i}] missing required 'column' field")
+        panels_list.append(Panel(column=p["column"], label=p.get("label", p["column"]), target=p.get("target")))
+    panels = tuple(panels_list)
 
     # --- budget ---
     budget_raw = raw.get("budget") or {}

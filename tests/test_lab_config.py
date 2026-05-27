@@ -1,6 +1,7 @@
 """LabConfig construction and defaults."""
 from __future__ import annotations
 import dataclasses
+import shutil
 from pathlib import Path
 
 import pytest
@@ -12,7 +13,6 @@ from efferents.lab import (
 
 def test_from_submission_happy_path(tmp_path):
     src = Path(__file__).parent / "fixtures" / "sample_submission"
-    import shutil
     sub = tmp_path / "sub"
     shutil.copytree(src, sub)
     cfg = LabConfig.from_submission(sub)
@@ -171,3 +171,36 @@ def test_headline_direction_max():
         budget=Budget(),
     )
     assert cfg.metrics.headline.direction == "max"
+
+
+def test_from_submission_config_template_missing(tmp_path):
+    (tmp_path / "hypothesis.md").write_text(
+        "---\nslug: x\nfalsifiability_gate: passed\nstatus: active\n---\n\nbody"
+    )
+    (tmp_path / "src").mkdir()
+    # NOTE: config_template path is declared but the file is NOT created.
+    (tmp_path / "lab.yaml").write_text(
+        "lab_id: x\ndomain: y\n"
+        "source:\n  dir: ./src/\n"
+        "executor:\n  run_command: 'echo {config_path}'\n  config_template: configs/missing.yaml\n"
+        "metrics:\n  headline:\n    column: m\n    direction: min\n"
+    )
+    with pytest.raises(SubmissionError, match="config_template"):
+        LabConfig.from_submission(tmp_path)
+
+
+def test_from_submission_panel_missing_column(tmp_path):
+    (tmp_path / "hypothesis.md").write_text(
+        "---\nslug: x\nfalsifiability_gate: passed\nstatus: active\n---\n\nbody"
+    )
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "c.yaml").touch()
+    (tmp_path / "lab.yaml").write_text(
+        "lab_id: x\ndomain: y\n"
+        "source:\n  dir: ./src/\n"
+        "executor:\n  run_command: 'echo {config_path}'\n  config_template: c.yaml\n"
+        "metrics:\n  headline:\n    column: m\n    direction: min\n"
+        "  panels:\n    - { label: 'Loss' }\n"  # no column key
+    )
+    with pytest.raises(SubmissionError, match=r"panels\[0\]"):
+        LabConfig.from_submission(tmp_path)
