@@ -1,0 +1,13 @@
+lab_id: sample-conjecture
+domain: synthetic
+source:
+  dir: ./src/
+executor:
+  run_command: "python -m sample.run --config {config_path}"
+  config_template: configs/default.yaml
+metrics:
+  headline:
+    column: synthetic_loss
+    direction: min
+  panels:
+    - { column: synthetic_loss, label: "Loss" }
