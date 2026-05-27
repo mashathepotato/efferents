@@ -63,7 +63,9 @@ def _panel_metrics() -> list[tuple[str, str, float | None]]:
 
 
 def _headline_metric() -> tuple[str, str]:
-    """Return (column, direction) for the lab's headline metric."""
+    # Currently unused by _render_html (all metrics flow through the panels
+    # loop). Exposed for the analyst / orchestrator headline display in
+    # later tasks, which need direction-aware best-of selection.
     h = _lab.get_config().metrics.headline
     return (h.column, h.direction)
 
