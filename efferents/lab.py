@@ -297,3 +297,46 @@ class LabConfig:
         fm = _parse_hypothesis(submission_dir / "hypothesis.md")
         raw = _load_lab_yaml(submission_dir / "lab.yaml")
         return _build_labconfig(fm, raw, submission_dir)
+
+
+# ---------------------------------------------------------------------------
+# Active-config accessors and legacy-constant shim helper.
+# ---------------------------------------------------------------------------
+_active: LabConfig | None = None
+
+
+def set_config(cfg: LabConfig) -> None:
+    """Install the active LabConfig. Called by the daemon at startup."""
+    global _active
+    _active = cfg
+
+
+def get_config() -> LabConfig:
+    """Return the active LabConfig or raise RuntimeError."""
+    if _active is None:
+        raise RuntimeError(
+            "LabConfig not loaded; call set_config() before agent code runs"
+        )
+    return _active
+
+
+def _labconfig_attr_via_shim(name: str):
+    """Resolve a legacy module-level constant from the active LabConfig.
+    Used by the PEP 562 __getattr__ once the static constants are removed."""
+    cfg = get_config()
+    mapping = {
+        "LAB_ID": cfg.lab_id,
+        "DOMAIN": cfg.domain,
+        "SUBDOMAIN": None,
+        "PI_HANDLE": cfg.pi_handle,
+        "CODE_REPO": "",
+        "DEFAULT_STUDENT_ID": cfg.default_student_id,
+        "MAX_OPEN_CAMPAIGNS_PER_STUDENT": cfg.max_open_campaigns_per_student,
+        "STUDENTS": list(cfg.students),
+        "PEER_REVIEW_ENABLED": cfg.peer_review_enabled,
+        "PEER_REVIEW_ACCEPT_MEAN_THRESHOLD": cfg.peer_review_accept_mean_threshold,
+        "PEER_REVIEW_ACCEPT_MIN_THRESHOLD": cfg.peer_review_accept_min_threshold,
+    }
+    if name not in mapping:
+        raise AttributeError(name)
+    return mapping[name]

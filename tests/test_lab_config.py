@@ -204,3 +204,45 @@ def test_from_submission_panel_missing_column(tmp_path):
     )
     with pytest.raises(SubmissionError, match=r"panels\[0\]"):
         LabConfig.from_submission(tmp_path)
+
+
+def test_get_config_raises_before_set():
+    from efferents import lab as lab_mod
+    lab_mod._active = None  # ensure clean state
+    with pytest.raises(RuntimeError, match="LabConfig not loaded"):
+        lab_mod.get_config()
+
+
+def test_set_get_round_trip(tmp_path):
+    src = Path(__file__).parent / "fixtures" / "sample_submission"
+    sub = tmp_path / "sub"
+    shutil.copytree(src, sub)
+    cfg = LabConfig.from_submission(sub)
+    from efferents import lab as lab_mod
+    lab_mod.set_config(cfg)
+    assert lab_mod.get_config() is cfg
+    lab_mod._active = None
+
+
+def test_shim_exposes_lab_id_when_loaded(tmp_path):
+    src = Path(__file__).parent / "fixtures" / "sample_submission"
+    sub = tmp_path / "sub"
+    shutil.copytree(src, sub)
+    cfg = LabConfig.from_submission(sub)
+    from efferents import lab as lab_mod
+    lab_mod.set_config(cfg)
+    assert lab_mod._labconfig_attr_via_shim("LAB_ID") == "sample-conjecture"
+    assert lab_mod._labconfig_attr_via_shim("DOMAIN") == "synthetic"
+    lab_mod._active = None
+
+
+def test_shim_unknown_name_raises_attribute_error(tmp_path):
+    src = Path(__file__).parent / "fixtures" / "sample_submission"
+    sub = tmp_path / "sub"
+    shutil.copytree(src, sub)
+    cfg = LabConfig.from_submission(sub)
+    from efferents import lab as lab_mod
+    lab_mod.set_config(cfg)
+    with pytest.raises(AttributeError):
+        lab_mod._labconfig_attr_via_shim("BOGUS_NAME")
+    lab_mod._active = None
