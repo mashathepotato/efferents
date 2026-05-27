@@ -8,7 +8,7 @@ Workflow per call:
     3. Ask Opus 4.7 for a JSON edit plan.
     4. Snapshot touched files (in-memory).
     5. Apply edits.
-    6. Run smoke test (`python -m auto_qml.run --config config/smoke.yaml`).
+    6. Run smoke test using the lab's configured smoke command (from LabConfig).
     7. If smoke passes: git commit, log success.
     8. If smoke fails: restore snapshot, log failure.
 
@@ -17,6 +17,7 @@ reads recent failures to avoid re-proposing them.
 """
 from __future__ import annotations
 
+import glob
 import json
 import re
 import subprocess
@@ -197,8 +198,7 @@ def gather_source(repo_root: Path, globs: list[str] | None = None) -> dict[str, 
         if p_pattern.is_absolute():
             # glob on absolute path: use parent as base and filename as pattern
             # For absolute patterns we glob from root
-            import glob as _glob
-            for match in sorted(_glob.glob(pattern)):
+            for match in sorted(glob.glob(pattern)):
                 p = Path(match)
                 if p.is_file():
                     out[str(p)] = p.read_text()
@@ -595,8 +595,9 @@ def implement_proposal(
     file_paths = sorted(edit_paths | new_paths)
 
     # Reject out-of-scope edits up front (Coder is restricted to source.dir).
-    _scope_src = str(_lab.get_config().source.dir).rstrip("/") + "/"
-    _scope_cfg = str(_lab.get_config().executor.config_template)
+    _cfg = _lab.get_config()
+    _scope_src = str(_cfg.source.dir).rstrip("/") + "/"
+    _scope_cfg = str(_cfg.executor.config_template)
     out_of_scope = [
         fp for fp in file_paths
         if not (fp.startswith(_scope_src) or fp == _scope_cfg)
