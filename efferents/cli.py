@@ -38,15 +38,20 @@ def _cmd_validate(args: argparse.Namespace) -> int:
 
 
 def _orchestrator_loop() -> None:
-    """Indirection so tests can monkey-patch the loop body without forking.
-    In production, calls efferents.agents.orchestrator.start().
-
-    NOTE: the import of orchestrator is intentionally deferred to avoid
-    eagerly pulling in heavy transitive dependencies at CLI startup. This
-    is a deliberate exception to the "all imports at top" rule.
-    """
+    # Indirection so tests can monkey-patch the loop body without forking.
+    # In production, builds an Orchestrator from the active LabConfig and
+    # runs it. The orchestrator import is deferred to avoid pulling heavy
+    # transitive deps at CLI startup.
     from efferents.agents import orchestrator  # noqa: PLC0415
-    orchestrator.start()
+    cfg = lab_mod.get_config()
+    o = orchestrator.Orchestrator(
+        lab_dir="lab",
+        context_dir="context",
+        daily_cap_usd=cfg.budget.daily_cap_usd,
+        dry_run=False,
+        startup_message=f"efferents daemon for lab_id={cfg.lab_id}",
+    )
+    o.run()
 
 
 def _init_lab_root(submission_dir: Path, lab_root: Path) -> None:
