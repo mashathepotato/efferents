@@ -1,5 +1,6 @@
 """LabConfig construction and defaults."""
 from __future__ import annotations
+import dataclasses
 from pathlib import Path
 
 import pytest
@@ -47,9 +48,24 @@ def test_labconfig_frozen():
         metrics=Metrics(headline=Headline(column="m", direction="min"), panels=()),
         budget=Budget(),
     )
-    with pytest.raises(Exception):  # FrozenInstanceError under dataclasses
+    with pytest.raises(dataclasses.FrozenInstanceError):
         cfg.lab_id = "different"  # type: ignore[misc]
 
 
 def test_submission_error_is_value_error():
     assert issubclass(SubmissionError, ValueError)
+    with pytest.raises(ValueError, match="bad submission"):
+        raise SubmissionError("bad submission")
+
+
+def test_headline_direction_max():
+    h = Headline(column="accuracy", direction="max")
+    assert h.direction == "max"
+    cfg = LabConfig(
+        lab_id="t", domain="d", pi_handle=None,
+        source=Source(dir=Path("/tmp")),
+        executor=Executor(run_command="x {config_path}", smoke_command=None, config_template=Path("c.yaml")),
+        metrics=Metrics(headline=h, panels=()),
+        budget=Budget(),
+    )
+    assert cfg.metrics.headline.direction == "max"

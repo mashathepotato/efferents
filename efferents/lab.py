@@ -94,12 +94,13 @@ def student_ids() -> list[str]:
 # ---------------------------------------------------------------------------
 from dataclasses import dataclass, field  # noqa: E402  (kept after legacy block)
 from pathlib import Path  # noqa: E402
+from typing import Literal  # noqa: E402
 
 
 @dataclass(frozen=True)
 class Headline:
     column: str
-    direction: str  # "max" | "min"
+    direction: Literal["max", "min"]
 
 
 @dataclass(frozen=True)
