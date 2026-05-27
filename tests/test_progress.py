@@ -50,6 +50,7 @@ def lab_with_db(tmp_lab):
     return paths
 
 
+@pytest.mark.skip(reason="QML-specific; lives with auto-qml")
 def test_pre_migration_db_renders_fallback(lab_with_db):
     """No campaigns table → falls back to flat run view without crashing."""
     out = write_progress(lab_with_db)
