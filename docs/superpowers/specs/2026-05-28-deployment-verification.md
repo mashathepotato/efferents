@@ -41,17 +41,21 @@ OK lab_id=smoke-coefficient domain=synthetic source_dir=.../examples/smoke-lab/s
 
 ## 5. End-to-end smoke-lab cycle
 
-❌ **Known follow-up — not blocking v0.1 ship, but documented here.** The integration test `tests/integration/test_smoke_lab_e2e.py` runs against the smoke lab and exposes three deeper gaps not anticipated in the original spec:
+🟡 **Substantially resolved in v0.1.1** (see [`2026-05-29-research-loop-e2e-design.md`](./2026-05-29-research-loop-e2e-design.md)). Remaining gap is documented below.
 
-- The Phase-A `Orchestrator` constructor expects a `context/` directory next to the lab dir (auto-qml has one with `research_log.md` etc). The smoke lab doesn't provide one. This causes startup errors after the daemon forks.
-- `_persist_run_result()` (from Task 17) inserts dynamically-built column lists into the `runs` table. The migrations runner provisions the runs table with QML columns (`e_w1`, `active_frac_w1`, ...) — there's no `synthetic_loss` column. The defensive `try/except sqlite3.OperationalError` catches the failure and prints a warning, but the row never lands, so the test's "≥1 row with synthetic_loss" assertion never passes.
-- The legacy `efferents.agents.executor.execute(...)` path is still the orchestrator's run dispatcher. It calls `auto_qml.run_from_config` (now lazy-erroring per the Task-0 prep), which raises the moment a real run is attempted.
+**v0.1.1 closed all three v0.1 gaps:**
+- `_init_lab_root` now scaffolds `<submission>/context/research_log.md` and calls `ensure_runs_table(db, cfg)` so the runs schema includes the LabConfig-declared metric columns from startup.
+- `efferents.exec._persist_run_result` ALTERs missing columns and retries on `OperationalError`, so labs that add metrics mid-flight don't lose rows.
+- `efferents.agents.executor.execute` was rewritten (domain-agnostic) to route through `_execute_run` + `_persist_run_result`. The legacy `auto_qml.run_from_config` path is no longer touched on new submissions.
 
-These are real but explicitly out of scope for v0.1 per the deployment design ("`efferents init` scaffold" and "second example lab proof" deferred). Closing the gap requires either:
-- (a) A `tests/conftest.py` autouse migration that adds the smoke-lab's `synthetic_loss` column to a smoke-shaped `state.db`, plus a stubbed `context/` dir scaffold inside `_init_lab_root` when the submission doesn't ship one.
-- (b) Replacing the legacy executor.py path entirely with the new `_execute_run` / `_persist_run_result` helpers added in Task 17 — and pairing that with dynamic-column migration so the runs table includes whatever columns LabConfig.metrics.headline / panels declare.
+**What I verified by hand on the smoke lab:**
+- `efferents validate --submission examples/smoke-lab/` → OK
+- `efferents start --submission examples/smoke-lab/` runs cleanly: daemon registers, orchestrator boots, Researcher fires (one Anthropic call cycle), Coder + Analyst cadence kicks in. No SQL crash on missing `runs` columns, no missing-`context/` crash, no `auto_qml.run_from_config` raise.
+- The executor's stdout-JSON contract works end-to-end: on the daemon run where the Researcher's QML-flavored proposal reached the executor, the subprocess was spawned with the right `cwd`, stderr was captured (it surfaced a `python: command not found` shell-PATH issue on the smoke lab — fixed by switching the smoke lab's `run_command` to `python3`), and the generic "no JSON on stdout" error was logged in the new format. With `python3` in the command, `examples/smoke-lab/src/stub_run.py` standalone returns a valid stdout-JSON payload with `synthetic_loss`.
 
-Both are sensible Phase-B follow-ups. They don't block deploying the entry-flow plugin (Tasks 11-22), which is what v0.1 actually ships.
+**The remaining gap — Researcher prompt-templating (Phase B).** The Researcher's prompt is still calibrated for QML — it proposes experiments with overrides like `data.raw_q`, `training.epochs`, expects metrics like `e_w1`, `radial_l2_log`, `active_frac_w1`. The smoke lab's `coefficient` knob is invisible to it. So while the executor pipeline is functional and the smoke lab's `stub_run.py` works in isolation, the Researcher won't *autonomously drive* a non-QML lab to convergence until prompt overrides ship in v0.1.2+. That's the next deploy slice.
+
+**Net for v0.1.1:** the three deployment-blocking infrastructure gaps are closed. The next deploy slice is the Researcher (and Coder) prompt-templating work, which lets the Researcher propose experiments shaped by `LabConfig.metrics` and `LabConfig.source` rather than the QML reference lab's design space.
 
 ## 6. auto-qml compatibility
 
