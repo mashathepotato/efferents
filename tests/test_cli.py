@@ -56,6 +56,22 @@ def test_start_foreground_registers_and_runs(tmp_path, monkeypatch, capsys):
     assert rec is not None
     assert rec.lab_id == "sample-conjecture"
 
+    # _init_lab_root must have provisioned runs table and context scaffold
+    import sqlite3
+    db = sub / "lab" / "state.db"
+    assert db.exists()
+    conn = sqlite3.connect(db)
+    try:
+        cols = {row[1] for row in conn.execute("PRAGMA table_info(runs)")}
+    finally:
+        conn.close()
+    assert "run_id" in cols
+    assert "synthetic_loss" in cols, f"expected synthetic_loss column, got {cols}"
+
+    context_log = sub / "context" / "research_log.md"
+    assert context_log.exists()
+    assert "sample-conjecture research log" in context_log.read_text()
+
 
 def test_start_detach_writes_pidfile(tmp_path, monkeypatch):
     """Detach path forks; we test the post-fork bookkeeping via a stubbed daemonize call."""
