@@ -24,7 +24,16 @@ from efferents.agents.state import LabPaths, notebook_append, now_iso
 # fail until the framework either (a) imports the lab-provided
 # `run_from_config(config: dict) -> list[dict]` via a config-loaded
 # module, or (b) refactors the executor to subprocess instead.
-from auto_qml.run import run_from_config  # type: ignore[import-not-found]
+try:
+    from auto_qml.run import run_from_config  # type: ignore[import-not-found]
+except ImportError:
+    def run_from_config(*args, **kwargs):  # type: ignore[no-redef]
+        raise RuntimeError(
+            "executor.py requires the auto_qml reference lab; this Phase-A path "
+            "is being replaced by the stdout-result contract in efferents.exec. "
+            "See docs/superpowers/specs/2026-05-26-efferents-deployment-design.md "
+            "section 7."
+        )
 
 
 DEFAULT_CONFIG_PATH = Path("config/default.yaml")

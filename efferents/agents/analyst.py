@@ -10,11 +10,16 @@ from typing import Any
 
 import anthropic
 
+from efferents import lab as _lab
 from efferents.agents.budget import BudgetTracker, CallUsage, model_for
 from efferents.agents.notify import notify_all
 from efferents.agents.state import LabPaths, load_state, notebook_append, notebook_tail, now_iso, read_context, recent_runs, save_state
 
 PROMPT_PATH = Path(__file__).parent / "prompts" / "analyst.md"
+
+
+def _flat_digest_epsilon() -> float:
+    return _lab.get_config().metrics.flat_digest_epsilon
 
 
 def group_runs_by_campaign(runs: list[dict]) -> dict[str | None, list[dict]]:
@@ -229,14 +234,18 @@ def write_digest(
 
 
 def update_flat_digest_counter(
-    state: dict, *, current_best_w1: float | None, epsilon: float
+    state: dict, *, current_best_w1: float | None, epsilon: float | None = None
 ) -> dict:
     """Return a new state dict with `digests_without_improvement` and
     `last_digest_best_w1` updated based on this digest's current best W1.
 
     epsilon: absolute improvement threshold; a drop in W1 by more than
-    epsilon counts as improvement (resets counter).
+    epsilon counts as improvement (resets counter). Defaults to
+    ``_flat_digest_epsilon()`` (reads from the active LabConfig) when not
+    supplied explicitly.
     """
+    if epsilon is None:
+        epsilon = _flat_digest_epsilon()
     out = dict(state)
     if current_best_w1 is None:
         out.setdefault("digests_without_improvement", out.get("digests_without_improvement", 0))

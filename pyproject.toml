@@ -1,6 +1,6 @@
 [project]
 name = "efferents"
-version = "0.0.1"
+version = "0.1.0"
 description = "A framework for autonomous research labs that exchange falsifiable claims (multi-agent research as efferent signal propagation)."
 authors = [
     {name = "Masha Baidachna"},
@@ -17,6 +17,9 @@ dependencies = [
 [project.optional-dependencies]
 dev = ["pytest", "ruff"]
 
+[project.scripts]
+efferents = "efferents.cli:main"
+
 [build-system]
 requires = ["flit_core>=3.2,<4"]
 build-backend = "flit_core.buildapi"
@@ -27,4 +30,5 @@ name = "efferents"
 [tool.pytest.ini_options]
 markers = [
     "slow: integration tests that exec real lab CLIs end-to-end",
+    "integration: end-to-end tests that require ANTHROPIC_API_KEY and execute the daemon",
 ]

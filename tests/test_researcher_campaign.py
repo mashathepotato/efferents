@@ -94,6 +94,7 @@ def _dialog_responses(student_response: str) -> list[str]:
     ]
 
 
+@pytest.mark.skip(reason="QML-specific; lives with auto-qml")
 def test_new_campaign_calls_gate_and_inserts_row(
     paths, fake_anthropic_factory, tmp_path, monkeypatch
 ):
@@ -125,6 +126,7 @@ def test_new_campaign_calls_gate_and_inserts_row(
     assert proposals[0]["campaign_id"] == opens[0]["id"]
 
 
+@pytest.mark.skip(reason="QML-specific; lives with auto-qml")
 def test_cap_blocks_third_open_campaign(
     paths, fake_anthropic_factory, tmp_path, monkeypatch
 ):
