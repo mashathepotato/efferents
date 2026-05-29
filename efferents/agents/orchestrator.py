@@ -367,9 +367,17 @@ class Orchestrator:
             try:
                 self.step()
             except Exception as e:
+                import traceback as _tb
+                tb = _tb.format_exc(limit=12)
+                # Traceback goes to a separate file because notebook_append
+                # post-processes entries and triple-backtick blocks don't
+                # always survive — having the raw trace on disk is more useful
+                # for debugging than a possibly-truncated notebook entry.
+                (self.paths.root / "last_traceback.txt").write_text(tb)
                 notebook_append(
                     self.paths.notebook,
-                    f"## {now_iso()} — orchestrator step FAILED: {type(e).__name__}: {e}\n",
+                    f"## {now_iso()} — orchestrator step FAILED: {type(e).__name__}: {e} "
+                    f"(see lab/last_traceback.txt)\n",
                 )
                 # Cool-off then continue.
                 time.sleep(60)

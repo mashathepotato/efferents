@@ -76,20 +76,16 @@ def now_iso() -> str:
 
 
 def recent_runs(db_path: Path, n: int = 30) -> list[dict[str, Any]]:
+    # SELECT * lets the schema be lab-defined (per LabConfig.metrics + Phase A's
+    # base meta columns). Downstream consumers use r.get(...) for QML-specific
+    # columns and tolerate absence — see researcher.py:_saturation_report.
     if not db_path.exists():
         return []
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     try:
         rows = conn.execute(
-            """
-            SELECT run_id, started_at, seed, model, raw_q, epochs, aug_depth,
-                   aug_shared_unitary, cond_drop_p, eval_kind, eval_n,
-                   val_x0_mse, e_w1, active_frac_w1, radial_l2, radial_l2_log,
-                   duration_seconds, config_hash, notes, samples_png,
-                   campaign_id, researcher_mode
-            FROM runs ORDER BY started_at DESC LIMIT ?
-            """,
+            "SELECT * FROM runs ORDER BY started_at DESC LIMIT ?",
             (n,),
         ).fetchall()
     finally:

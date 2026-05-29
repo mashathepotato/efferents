@@ -161,13 +161,19 @@ def _saturation_report(paths: LabPaths, *, n: int = 50) -> dict[str, Any]:
     conn = sqlite3.connect(paths.runs_db)
     conn.row_factory = sqlite3.Row
     try:
-        rows = conn.execute(
-            "SELECT model, raw_q, eval_kind, config_hash, "
-            "       e_w1, radial_l2_log, active_frac_w1 "
-            "FROM runs WHERE e_w1 IS NOT NULL "
-            "ORDER BY started_at DESC LIMIT ?",
-            (n,),
-        ).fetchall()
+        try:
+            rows = conn.execute(
+                "SELECT model, raw_q, eval_kind, config_hash, "
+                "       e_w1, radial_l2_log, active_frac_w1 "
+                "FROM runs WHERE e_w1 IS NOT NULL "
+                "ORDER BY started_at DESC LIMIT ?",
+                (n,),
+            ).fetchall()
+        except sqlite3.OperationalError:
+            # Lab schema doesn't have the QML-shaped columns this report needs
+            # (e.g., a non-QML lab). Treat as "no saturation evidence".
+            # Phase B: rewrite this report to read columns from LabConfig.
+            return {"saturated_axes": [], "score": 0, "evidence": []}
     finally:
         conn.close()
 
