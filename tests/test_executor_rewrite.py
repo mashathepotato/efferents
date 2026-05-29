@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import json
-import os
 import sqlite3
 from pathlib import Path
 
@@ -102,9 +101,14 @@ def test_execute_happy_path_writes_row_and_notebook(tmp_path, monkeypatch):
 
 
 def test_execute_nonzero_exit_returns_failure(tmp_path, monkeypatch):
+    # Exercise the real returncode!=0 path: emit valid JSON, then exit non-zero.
+    # Without this, the test short-circuits on "no JSON" and never reaches the
+    # `ok = proc.returncode == 0` check inside _run_and_capture.
     monkeypatch.chdir(tmp_path)
-    cmd = "echo no-json-here && exit 1"
-    cfg = _install_smoke(tmp_path, cmd)
+    src = tmp_path / "src"
+    src.mkdir(exist_ok=True)
+    run_cmd = _make_run_script(src, {"synthetic_loss": 0.42}, exit_code=1)
+    cfg = _install_smoke(tmp_path, run_cmd)
     paths = _make_paths(tmp_path)
     ensure_runs_table(tmp_path / "lab" / "state.db", cfg)
 
@@ -115,14 +119,16 @@ def test_execute_nonzero_exit_returns_failure(tmp_path, monkeypatch):
     )
     assert outcome["ok"] is False
     assert outcome["name"] == "fail-1"
-    assert outcome.get("error")
-
+    # _persist_run_result still writes the row because metrics were emitted;
+    # the orchestrator-side ok=False signals "treat this run as failed
+    # downstream" while the metric trace is preserved for analyst inspection.
     conn = sqlite3.connect(tmp_path / "lab" / "state.db")
     try:
-        count = conn.execute("SELECT COUNT(*) FROM runs").fetchone()[0]
+        rows = list(conn.execute("SELECT run_id, synthetic_loss FROM runs"))
     finally:
         conn.close()
-    assert count == 0
+    assert len(rows) == 1
+    assert rows[0][1] == 0.42
 
 
 def test_execute_no_json_returns_failure(tmp_path, monkeypatch):
