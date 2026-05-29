@@ -58,7 +58,7 @@ def test_start_foreground_registers_and_runs(tmp_path, monkeypatch, capsys):
 
     # _init_lab_root must have provisioned runs table and context scaffold
     import sqlite3
-    db = sub / "lab" / "state.db"
+    db = sub / "lab" / "runs.sqlite"
     assert db.exists()
     conn = sqlite3.connect(db)
     try:

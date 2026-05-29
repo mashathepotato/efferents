@@ -69,7 +69,7 @@ def test_execute_happy_path_writes_row_and_notebook(tmp_path, monkeypatch):
     run_cmd = _make_run_script(src, {"synthetic_loss": 0.42})
     cfg = _install_smoke(tmp_path, run_cmd)
     paths = _make_paths(tmp_path)
-    ensure_runs_table(tmp_path / "lab" / "state.db", cfg)
+    ensure_runs_table(tmp_path / "lab" / "runs.sqlite", cfg)
 
     outcome = executor.execute(
         paths=paths,
@@ -84,7 +84,7 @@ def test_execute_happy_path_writes_row_and_notebook(tmp_path, monkeypatch):
     # Orchestrator-side run_id wins over the run_command payload's run_id
     assert outcome["rows"][0]["run_id"] != "ignored"
 
-    conn = sqlite3.connect(tmp_path / "lab" / "state.db")
+    conn = sqlite3.connect(tmp_path / "lab" / "runs.sqlite")
     try:
         rows = list(conn.execute("SELECT run_id, synthetic_loss FROM runs"))
     finally:
@@ -110,7 +110,7 @@ def test_execute_nonzero_exit_returns_failure(tmp_path, monkeypatch):
     run_cmd = _make_run_script(src, {"synthetic_loss": 0.42}, exit_code=1)
     cfg = _install_smoke(tmp_path, run_cmd)
     paths = _make_paths(tmp_path)
-    ensure_runs_table(tmp_path / "lab" / "state.db", cfg)
+    ensure_runs_table(tmp_path / "lab" / "runs.sqlite", cfg)
 
     outcome = executor.execute(
         paths=paths,
@@ -122,7 +122,7 @@ def test_execute_nonzero_exit_returns_failure(tmp_path, monkeypatch):
     # _persist_run_result still writes the row because metrics were emitted;
     # the orchestrator-side ok=False signals "treat this run as failed
     # downstream" while the metric trace is preserved for analyst inspection.
-    conn = sqlite3.connect(tmp_path / "lab" / "state.db")
+    conn = sqlite3.connect(tmp_path / "lab" / "runs.sqlite")
     try:
         rows = list(conn.execute("SELECT run_id, synthetic_loss FROM runs"))
     finally:
@@ -136,7 +136,7 @@ def test_execute_no_json_returns_failure(tmp_path, monkeypatch):
     cmd = "echo plain-text-no-json"
     cfg = _install_smoke(tmp_path, cmd)
     paths = _make_paths(tmp_path)
-    ensure_runs_table(tmp_path / "lab" / "state.db", cfg)
+    ensure_runs_table(tmp_path / "lab" / "runs.sqlite", cfg)
 
     outcome = executor.execute(
         paths=paths,
@@ -154,7 +154,7 @@ def test_execute_writes_rendered_config_yaml(tmp_path, monkeypatch):
     run_cmd = _make_run_script(src, {"synthetic_loss": 0.1})
     cfg = _install_smoke(tmp_path, run_cmd)
     paths = _make_paths(tmp_path)
-    ensure_runs_table(tmp_path / "lab" / "state.db", cfg)
+    ensure_runs_table(tmp_path / "lab" / "runs.sqlite", cfg)
 
     outcome = executor.execute(
         paths=paths,

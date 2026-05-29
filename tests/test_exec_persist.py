@@ -9,7 +9,7 @@ from efferents.exec import RunResult, _execute_run, _persist_run_result
 def test_persist_run_result_inserts_metrics(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     (tmp_path / "lab").mkdir()
-    db = tmp_path / "lab" / "state.db"
+    db = tmp_path / "lab" / "runs.sqlite"
     conn = sqlite3.connect(db)
     conn.execute(
         "CREATE TABLE runs (run_id TEXT PRIMARY KEY, started_at TEXT, ended_at TEXT, "
@@ -35,7 +35,7 @@ def test_persist_run_result_inserts_metrics(tmp_path, monkeypatch):
 def test_persist_run_result_skips_when_no_metrics(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     (tmp_path / "lab").mkdir()
-    db = tmp_path / "lab" / "state.db"
+    db = tmp_path / "lab" / "runs.sqlite"
     conn = sqlite3.connect(db)
     conn.execute(
         "CREATE TABLE runs (run_id TEXT PRIMARY KEY, started_at TEXT, ended_at TEXT, "
@@ -56,7 +56,7 @@ def test_persist_run_result_skips_when_no_metrics(tmp_path, monkeypatch):
 def test_persist_run_result_adds_missing_column_and_retries(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     (tmp_path / "lab").mkdir()
-    db = tmp_path / "lab" / "state.db"
+    db = tmp_path / "lab" / "runs.sqlite"
     conn = sqlite3.connect(db)
     # Pre-create table WITHOUT the synthetic_loss column — _persist_run_result
     # must ALTER + retry.

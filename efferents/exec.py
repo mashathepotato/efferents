@@ -126,14 +126,14 @@ def _execute_run(config_path: Path) -> RunResult:
 
 
 def _persist_run_result(result: RunResult, run_id: str, config_path: Path) -> None:
-    """Insert a row into lab/state.db from a RunResult.
+    """Insert a row into lab/runs.sqlite from a RunResult.
 
     Skips when result.metrics is None (failed run with no parseable metrics).
     If a metric column doesn't exist, ALTER TABLE to add it and retry once.
     """
     if not result.metrics:
         return
-    db_path = Path("lab/state.db")
+    db_path = Path("lab/runs.sqlite")
     cols = ["run_id", "started_at", "ended_at", "config_path"]
     now = datetime.now(timezone.utc).isoformat()
     vals: list = [run_id, now, now, str(config_path)]

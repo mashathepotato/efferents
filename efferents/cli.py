@@ -71,8 +71,8 @@ def _init_lab_root(submission_dir: Path, lab_root: Path) -> None:
         apply_campaigns_migration,
         ensure_runs_table,
     )
-    apply_campaigns_migration(lab_root / "state.db")
-    ensure_runs_table(lab_root / "state.db", lab_mod.get_config())
+    apply_campaigns_migration(lab_root / "runs.sqlite")
+    ensure_runs_table(lab_root / "runs.sqlite", lab_mod.get_config())
 
     context_dir = submission_dir / "context"
     context_dir.mkdir(exist_ok=True)

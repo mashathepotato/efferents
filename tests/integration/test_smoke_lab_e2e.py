@@ -36,7 +36,7 @@ def test_smoke_lab_runs_end_to_end(tmp_path, monkeypatch):
         text=True,
     )
 
-    db = sub / "lab" / "state.db"
+    db = sub / "lab" / "runs.sqlite"
     deadline = time.time() + 90
     runs = 0
     while time.time() < deadline:
