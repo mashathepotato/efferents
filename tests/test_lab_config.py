@@ -246,3 +246,70 @@ def test_shim_unknown_name_raises_attribute_error(tmp_path):
     with pytest.raises(AttributeError):
         lab_mod._labconfig_attr_via_shim("BOGUS_NAME")
     lab_mod._active = None
+
+
+def test_from_submission_bad_headline_column_name(tmp_path):
+    (tmp_path / "hypothesis.md").write_text(
+        "---\nslug: x\nfalsifiability_gate: passed\nstatus: active\n---\n\nbody"
+    )
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "c.yaml").touch()
+    (tmp_path / "lab.yaml").write_text(
+        "lab_id: x\ndomain: y\n"
+        "source:\n  dir: ./src/\n"
+        "executor:\n  run_command: 'echo {config_path}'\n  config_template: c.yaml\n"
+        "metrics:\n  headline:\n    column: 'bad name; drop table runs;--'\n    direction: min\n"
+    )
+    with pytest.raises(SubmissionError, match="column"):
+        LabConfig.from_submission(tmp_path)
+
+
+def test_from_submission_bad_panel_column_name(tmp_path):
+    (tmp_path / "hypothesis.md").write_text(
+        "---\nslug: x\nfalsifiability_gate: passed\nstatus: active\n---\n\nbody"
+    )
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "c.yaml").touch()
+    (tmp_path / "lab.yaml").write_text(
+        "lab_id: x\ndomain: y\n"
+        "source:\n  dir: ./src/\n"
+        "executor:\n  run_command: 'echo {config_path}'\n  config_template: c.yaml\n"
+        "metrics:\n  headline:\n    column: loss\n    direction: min\n"
+        "  panels:\n    - { column: '1bad', label: 'Bad' }\n"
+    )
+    with pytest.raises(SubmissionError, match="column"):
+        LabConfig.from_submission(tmp_path)
+
+
+def test_from_submission_dot_in_column_name_rejected(tmp_path):
+    (tmp_path / "hypothesis.md").write_text(
+        "---\nslug: x\nfalsifiability_gate: passed\nstatus: active\n---\n\nbody"
+    )
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "c.yaml").touch()
+    (tmp_path / "lab.yaml").write_text(
+        "lab_id: x\ndomain: y\n"
+        "source:\n  dir: ./src/\n"
+        "executor:\n  run_command: 'echo {config_path}'\n  config_template: c.yaml\n"
+        "metrics:\n  headline:\n    column: 'foo.bar'\n    direction: min\n"
+    )
+    with pytest.raises(SubmissionError, match="column"):
+        LabConfig.from_submission(tmp_path)
+
+
+def test_from_submission_accepts_underscore_and_digits_after_first(tmp_path):
+    (tmp_path / "hypothesis.md").write_text(
+        "---\nslug: x\nfalsifiability_gate: passed\nstatus: active\n---\n\nbody"
+    )
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "c.yaml").touch()
+    (tmp_path / "lab.yaml").write_text(
+        "lab_id: x\ndomain: y\n"
+        "source:\n  dir: ./src/\n"
+        "executor:\n  run_command: 'echo {config_path}'\n  config_template: c.yaml\n"
+        "metrics:\n  headline:\n    column: synthetic_loss_2\n    direction: min\n"
+        "  panels:\n    - { column: _internal, label: 'I' }\n"
+    )
+    cfg = LabConfig.from_submission(tmp_path)
+    assert cfg.metrics.headline.column == "synthetic_loss_2"
+    assert cfg.metrics.panels[0].column == "_internal"

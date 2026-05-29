@@ -146,6 +146,7 @@ class SubmissionError(ValueError):
 
 
 _FRONTMATTER_RE = re.compile(r"^---\n(.*?)\n---\n", re.DOTALL)
+_COL_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
 def _parse_hypothesis(path: Path) -> dict:
@@ -221,11 +222,21 @@ def _build_labconfig(fm: dict, raw: dict, submission_dir: Path) -> "LabConfig":
         raise SubmissionError(
             f"metrics.headline.direction must be 'max' or 'min'; got {headline_dir!r}"
         )
+    if not _COL_NAME_RE.match(headline_col):
+        raise SubmissionError(
+            f"metrics.headline.column {headline_col!r} must match [A-Za-z_][A-Za-z0-9_]* "
+            f"(SQL identifier rules)"
+        )
 
     panels_list = []
     for i, p in enumerate(metrics_raw.get("panels") or []):
         if not isinstance(p, dict) or "column" not in p:
             raise SubmissionError(f"metrics.panels[{i}] missing required 'column' field")
+        if not _COL_NAME_RE.match(p["column"]):
+            raise SubmissionError(
+                f"metrics.panels[{i}].column {p['column']!r} must match "
+                f"[A-Za-z_][A-Za-z0-9_]* (SQL identifier rules)"
+            )
         panels_list.append(Panel(column=p["column"], label=p.get("label", p["column"]), target=p.get("target")))
     panels = tuple(panels_list)
 
