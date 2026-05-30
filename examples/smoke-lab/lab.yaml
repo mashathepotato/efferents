@@ -8,8 +8,8 @@ source:
     - "**/*.yaml"
 
 executor:
-  run_command: "python -m src.stub_run --config {config_path}"
-  smoke_command: "python -m src.stub_run --config {config_path} --smoke"
+  run_command: "python3 -m src.stub_run --config {config_path}"
+  smoke_command: "python3 -m src.stub_run --config {config_path} --smoke"
   config_template: ../configs/default.yaml
   run_timeout_s: 60
   smoke_timeout_s: 30

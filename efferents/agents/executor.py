@@ -1,45 +1,27 @@
-"""Executor agent: pops a proposal, builds a config, runs auto_qml.run, logs.
+"""Executor agent: render a proposal's config, run it, persist + log.
 
-No Anthropic call. Pure mechanical step. Resilient to crashes — if auto_qml.run
-raises, we capture the traceback, mark the proposal as failed in the notebook,
-and move on. The Researcher will see the failure in its next call and adjust.
+The execute() signature and return shape are preserved for the
+orchestrator's downstream consumers. Internals route through
+efferents.exec._execute_run + _persist_run_result, and the notebook
+formatter renders dynamic columns from RunResult.metrics — no domain-
+specific (QML) references survive.
 """
 from __future__ import annotations
 
 import copy
 import time
-import traceback
+import uuid
 from pathlib import Path
 from typing import Any
 
 import yaml
 
+from efferents import lab as _lab
 from efferents.agents.state import LabPaths, notebook_append, now_iso
-
-# TODO(framework): this import couples the executor to one specific lab's
-# CLI. The framework's executor should subprocess out a lab-configured
-# command (lab.EXECUTOR_COMMAND or similar) and parse its result, not
-# import a lab module directly. See CLAUDE.md "Coder path scope" /
-# "executor refactor" for the decoupling plan. Runtime invocation will
-# fail until the framework either (a) imports the lab-provided
-# `run_from_config(config: dict) -> list[dict]` via a config-loaded
-# module, or (b) refactors the executor to subprocess instead.
-try:
-    from auto_qml.run import run_from_config  # type: ignore[import-not-found]
-except ImportError:
-    def run_from_config(*args, **kwargs):  # type: ignore[no-redef]
-        raise RuntimeError(
-            "executor.py requires the auto_qml reference lab; this Phase-A path "
-            "is being replaced by the stdout-result contract in efferents.exec. "
-            "See docs/superpowers/specs/2026-05-26-efferents-deployment-design.md "
-            "section 7."
-        )
+from efferents.exec import _execute_run, _persist_run_result, RunResult
 
 
-DEFAULT_CONFIG_PATH = Path("config/default.yaml")
-
-
-def load_default_config(path: str | Path = DEFAULT_CONFIG_PATH) -> dict[str, Any]:
+def load_default_config(path: str | Path) -> dict[str, Any]:
     with Path(path).open() as f:
         return yaml.safe_load(f)
 
@@ -65,6 +47,7 @@ def execute(
     base_config: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Run one proposal end-to-end. Returns {ok, name, rows | error}."""
+    cfg = _lab.get_config()
     name = proposal.get("name", "unnamed")
     overrides = dict(proposal.get("config_overrides", {}) or {})
     if proposal.get("campaign_id"):
@@ -73,53 +56,54 @@ def execute(
         overrides["run.researcher_mode"] = proposal["mode"]
     if proposal.get("student_id"):
         overrides["run.student_id"] = proposal["student_id"]
-    base = base_config or load_default_config()
-    cfg = apply_overrides(base, overrides)
 
-    # Stamp the run name + notes for traceability.
-    cfg.setdefault("run", {})["name"] = name
-    cfg.setdefault("logging", {})["notes"] = (
-        (cfg["logging"].get("notes") or "") + f" | hypothesis: {proposal.get('hypothesis', '')}"
-    ).strip(" |")
+    base = base_config or load_default_config(cfg.executor.config_template)
+    rendered = apply_overrides(base, overrides)
+    rendered.setdefault("run", {})["name"] = name
 
-    lit_context = proposal.get("lit_context") or []
-    if not isinstance(lit_context, list):
-        lit_context = []
+    run_id = uuid.uuid4().hex
+    config_dir = paths.root / "configs"
+    config_dir.mkdir(exist_ok=True)
+    config_path = config_dir / f"run_{run_id}.yaml"
+    with config_path.open("w") as f:
+        yaml.safe_dump(rendered, f)
 
     started = now_iso()
     t0 = time.monotonic()
-    try:
-        rows = run_from_config(
-            cfg,
-            config_path=f"<proposal:{name}>",
-            lit_context=lit_context,
-        )
-        duration = time.monotonic() - t0
-        notebook_append(
-            paths.notebook,
-            _format_outcome(
-                name=name,
-                hypothesis=proposal.get("hypothesis", ""),
-                expected=proposal.get("expected", ""),
-                overrides=overrides,
-                rows=rows,
-                duration=duration,
-                started=started,
-            ),
-        )
-        return {"ok": True, "name": name, "rows": rows, "duration_seconds": duration}
-    except Exception as e:
-        tb = traceback.format_exc(limit=8)
-        duration = time.monotonic() - t0
-        notebook_append(
-            paths.notebook,
-            f"## {started} — RUN FAILED: {name}\n\n"
-            f"**Hypothesis**: {proposal.get('hypothesis', '')}\n\n"
-            f"**Overrides**: `{overrides}`\n\n"
-            f"**Error**: `{type(e).__name__}: {e}`\n\n"
-            f"```\n{tb}\n```\n",
-        )
-        return {"ok": False, "name": name, "error": str(e), "traceback": tb, "duration_seconds": duration}
+    result = _execute_run(config_path)
+    duration = time.monotonic() - t0
+
+    _persist_run_result(result, run_id, config_path)
+
+    notebook_append(
+        paths.notebook,
+        _format_outcome(
+            name=name,
+            hypothesis=proposal.get("hypothesis", ""),
+            expected=proposal.get("expected", ""),
+            overrides=overrides,
+            result=result,
+            duration=duration,
+            started=started,
+        ),
+    )
+
+    if result.ok:
+        row: dict[str, Any] = {"run_id": run_id, "name": name}
+        if result.metrics:
+            row.update(result.metrics)
+        if result.git_commit:
+            row["git_commit"] = result.git_commit
+        return {"ok": True, "name": name, "rows": [row], "duration_seconds": duration}
+
+    err_tail = (result.stderr or "")[-200:]
+    return {
+        "ok": False,
+        "name": name,
+        "error": result.error or err_tail or "run failed",
+        "traceback": "",
+        "duration_seconds": duration,
+    }
 
 
 def _format_outcome(
@@ -128,7 +112,7 @@ def _format_outcome(
     hypothesis: str,
     expected: str,
     overrides: dict[str, Any],
-    rows: list[dict[str, Any]],
+    result: RunResult,
     duration: float,
     started: str,
 ) -> str:
@@ -143,28 +127,26 @@ def _format_outcome(
         "",
         f"**Duration**: {duration:.1f}s",
         "",
-        "| model | eval_kind | val_x0_mse | E_w1 | radial_l2_log | active_frac_w1 | amp_ratio |",
-        "|---|---|---|---|---|---|---|",
     ]
-    for r in rows:
-        amp = r.get("gen_max_to_real_max")
-        # Re-calibrated 2026-05-25 after May-10 recipe validation:
-        # true wallpaper sits at amp ≈ 0.001–0.005; healthy sparse-but-dim
-        # output (e.g. May-10 QFM at raw_q=64) sits at amp ≈ 0.05–0.25.
-        # < 0.02 → wallpaper, 0.02–0.04 → DIM (probably bad), >= 0.04 → healthy.
-        amp_str = "N/A" if amp is None else (
-            f"**{amp:.3g}⚠WALLPAPER**" if amp < 0.02 else
-            f"**{amp:.3g} DIM**" if amp < 0.04 else f"{amp:.3g}"
-        )
-        lines.append(
-            "| {model} | {eval_kind} | {v:.4g} | {e:.4g} | {l:.4g} | {a:.4g} | {amp} |".format(
-                model=r["model"],
-                eval_kind=r["eval_kind"],
-                v=r["val_x0_mse"] if r["val_x0_mse"] is not None else float("nan"),
-                e=r["E_w1"],
-                l=r["radial_l2_log"],
-                a=r["active_frac_w1"],
-                amp=amp_str,
-            )
-        )
+    if result.metrics:
+        cols = list(result.metrics.keys())
+        lines.append("| " + " | ".join(cols) + " |")
+        lines.append("|" + "|".join("---" for _ in cols) + "|")
+
+        def _fmt(v: Any) -> str:
+            if isinstance(v, float):
+                return f"{v:.4g}"
+            if isinstance(v, int):
+                return str(v)
+            return str(v)
+
+        lines.append("| " + " | ".join(_fmt(result.metrics[c]) for c in cols) + " |")
+    else:
+        lines.append(f"**Error**: {result.error or 'no metrics emitted'}")
+        if result.stderr:
+            tail = result.stderr[-1024:]
+            lines.append("")
+            lines.append("```")
+            lines.append(tail)
+            lines.append("```")
     return "\n".join(lines)

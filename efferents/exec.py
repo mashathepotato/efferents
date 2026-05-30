@@ -10,8 +10,13 @@ from __future__ import annotations
 
 import json
 import os
+import sqlite3
 import subprocess
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from pathlib import Path
+
+from efferents import lab as _lab
 
 
 @dataclass
@@ -106,3 +111,66 @@ def _run_and_capture(
         stdout=proc.stdout,
         stderr=proc.stderr,
     )
+
+
+def _execute_run(config_path: Path) -> RunResult:
+    """Render the lab's run_command and execute it, parsing stdout JSON."""
+    cfg = _lab.get_config()
+    cmd = cfg.executor.run_command.format(config_path=str(config_path))
+    return _run_and_capture(
+        cmd,
+        timeout_s=cfg.executor.run_timeout_s,
+        cwd=str(cfg.source.dir),
+        env_passthrough=cfg.executor.env_passthrough,
+    )
+
+
+def _persist_run_result(result: RunResult, run_id: str, config_path: Path) -> None:
+    """Insert a row into lab/runs.sqlite from a RunResult.
+
+    Skips when result.metrics is None (failed run with no parseable metrics).
+    If a metric column doesn't exist, ALTER TABLE to add it and retry once.
+    """
+    if not result.metrics:
+        return
+    db_path = Path("lab/runs.sqlite")
+    cols = ["run_id", "started_at", "ended_at", "config_path"]
+    now = datetime.now(timezone.utc).isoformat()
+    vals: list = [run_id, now, now, str(config_path)]
+    for k, v in result.metrics.items():
+        cols.append(k)
+        vals.append(v)
+    if result.git_commit:
+        cols.append("git_commit")
+        vals.append(result.git_commit)
+    if result.elapsed_s is not None:
+        cols.append("duration_seconds")
+        vals.append(result.elapsed_s)
+
+    placeholders = ",".join("?" for _ in vals)
+    col_list = ",".join(cols)
+    sql = f"INSERT INTO runs ({col_list}) VALUES ({placeholders})"
+
+    with sqlite3.connect(db_path) as conn:
+        try:
+            conn.execute(sql, vals)
+            conn.commit()
+            return
+        except sqlite3.OperationalError as e:
+            msg = str(e)
+            if "no such column" not in msg.lower() and "has no column named" not in msg.lower():
+                print(f"warning: could not persist metric row: {e}")
+                return
+            existing = {row[1] for row in conn.execute("PRAGMA table_info(runs)")}
+            for col in cols:
+                if col not in existing:
+                    try:
+                        conn.execute(f"ALTER TABLE runs ADD COLUMN {col} REAL")
+                    except sqlite3.OperationalError as alter_err:
+                        print(f"warning: could not add column {col}: {alter_err}")
+                        return
+            try:
+                conn.execute(sql, vals)
+                conn.commit()
+            except sqlite3.OperationalError as retry_err:
+                print(f"warning: persist retry failed: {retry_err}")

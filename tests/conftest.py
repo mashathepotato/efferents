@@ -144,5 +144,18 @@ def smoke_lab_config(tmp_path_factory):
         budget=Budget(),
     )
     lab_mod.set_config(cfg)
-    yield cfg
-    lab_mod._active = None
+    # Provision lab/runs.sqlite with the smoke schema so persistence-touching
+    # tests don't have to bootstrap it themselves.
+    import os
+    lab_dir = tmp / "lab"
+    lab_dir.mkdir(exist_ok=True)
+    from efferents.migrations.runner import ensure_runs_table
+    ensure_runs_table(lab_dir / "state.db", cfg)
+    # Chdir so relative "lab/runs.sqlite" lookups in _persist_run_result resolve.
+    prev_cwd = os.getcwd()
+    os.chdir(tmp)
+    try:
+        yield cfg
+    finally:
+        os.chdir(prev_cwd)
+        lab_mod._active = None

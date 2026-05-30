@@ -67,3 +67,38 @@ def apply_campaigns_migration(db_path: str | Path) -> None:
         conn.commit()
     finally:
         conn.close()
+
+
+_RUNS_BASE_DDL = """
+CREATE TABLE IF NOT EXISTS runs (
+    run_id TEXT PRIMARY KEY,
+    started_at TEXT NOT NULL,
+    ended_at TEXT,
+    config_path TEXT,
+    campaign_id TEXT,
+    researcher_mode TEXT,
+    student_id TEXT DEFAULT 'primary',
+    git_commit TEXT,
+    duration_seconds REAL
+);
+"""
+
+
+def ensure_runs_table(db_path, cfg) -> None:
+    """Create the runs table if absent; add REAL columns for any LabConfig
+    metric not already present. Idempotent.
+
+    db_path: str | Path. cfg: LabConfig.
+    """
+    db_path = Path(db_path)
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.executescript(_RUNS_BASE_DDL)
+        existing = {row[1] for row in conn.execute("PRAGMA table_info(runs)")}
+        metric_cols = {cfg.metrics.headline.column,
+                       *(p.column for p in cfg.metrics.panels)}
+        for col in sorted(metric_cols - existing):
+            conn.execute(f"ALTER TABLE runs ADD COLUMN {col} REAL")
+        conn.commit()
+    finally:
+        conn.close()

@@ -67,8 +67,23 @@ def _init_lab_root(submission_dir: Path, lab_root: Path) -> None:
     if not state_json.exists():
         state_json.write_text("{}")
 
-    from efferents.migrations import runner as _mig  # noqa: PLC0415
-    _mig.apply_campaigns_migration(lab_root / "state.db")
+    from efferents.migrations.runner import (  # noqa: PLC0415
+        apply_campaigns_migration,
+        ensure_runs_table,
+    )
+    apply_campaigns_migration(lab_root / "runs.sqlite")
+    ensure_runs_table(lab_root / "runs.sqlite", lab_mod.get_config())
+
+    context_dir = submission_dir / "context"
+    context_dir.mkdir(exist_ok=True)
+    research_log = context_dir / "research_log.md"
+    if not research_log.exists():
+        cfg = lab_mod.get_config()
+        research_log.write_text(
+            f"# {cfg.lab_id} research log\n\n"
+            "*(empty — populate to guide the Researcher; "
+            "the lab will operate from the hypothesis if left blank)*\n"
+        )
 
 
 def _cmd_start(args: argparse.Namespace) -> int:
@@ -80,9 +95,9 @@ def _cmd_start(args: argparse.Namespace) -> int:
         return 1
 
     lab_root = Path(args.lab_root).resolve() if args.lab_root else (sub / "lab").resolve()
-    _init_lab_root(sub, lab_root)
 
     lab_mod.set_config(cfg)
+    _init_lab_root(sub, lab_root)
     os.chdir(sub)
 
     started_at = datetime.now(timezone.utc).isoformat()

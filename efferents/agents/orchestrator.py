@@ -10,7 +10,6 @@ nothing is corrupted.
 from __future__ import annotations
 
 import signal
-import sqlite3
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -40,7 +39,6 @@ from efferents.agents.state import (
     now_iso,
 )
 from efferents import lab as _lab
-from efferents.exec import RunResult, _run_and_capture
 from efferents.migrations.runner import apply_campaigns_migration
 
 _VALID_MODES = {"refine", "moonshot", "devils_advocate", "escape_to_code"}
@@ -369,9 +367,17 @@ class Orchestrator:
             try:
                 self.step()
             except Exception as e:
+                import traceback as _tb
+                tb = _tb.format_exc(limit=12)
+                # Traceback goes to a separate file because notebook_append
+                # post-processes entries and triple-backtick blocks don't
+                # always survive — having the raw trace on disk is more useful
+                # for debugging than a possibly-truncated notebook entry.
+                (self.paths.root / "last_traceback.txt").write_text(tb)
                 notebook_append(
                     self.paths.notebook,
-                    f"## {now_iso()} — orchestrator step FAILED: {type(e).__name__}: {e}\n",
+                    f"## {now_iso()} — orchestrator step FAILED: {type(e).__name__}: {e} "
+                    f"(see lab/last_traceback.txt)\n",
                 )
                 # Cool-off then continue.
                 time.sleep(60)
@@ -382,45 +388,3 @@ class Orchestrator:
         if not self.restart_requested:
             notify_all(title="auto-qml stopped", message=f"orchestrator exited after {i} iterations")
 
-
-def _execute_run(config_path: Path) -> RunResult:
-    """Render the lab's run_command and execute it, parsing stdout JSON."""
-    cfg = _lab.get_config()
-    cmd = cfg.executor.run_command.format(config_path=str(config_path))
-    return _run_and_capture(
-        cmd,
-        timeout_s=cfg.executor.run_timeout_s,
-        cwd=str(cfg.source.dir),
-        env_passthrough=cfg.executor.env_passthrough,
-    )
-
-
-def _persist_run_result(result: RunResult, run_id: str, config_path: Path) -> None:
-    """Insert a row into lab/state.db from a RunResult.
-
-    Skips when result.metrics is None (failed run with no parseable metrics).
-    Tolerates columns that don't exist in the runs table by warning.
-    """
-    if not result.metrics:
-        return
-    db_path = Path("lab/state.db")
-    cols = ["run_id", "started_at", "ended_at", "config_path"]
-    now_iso = datetime.now(timezone.utc).isoformat()
-    vals: list = [run_id, now_iso, now_iso, str(config_path)]
-    for k, v in result.metrics.items():
-        cols.append(k)
-        vals.append(v)
-    if result.git_commit:
-        cols.append("git_commit")
-        vals.append(result.git_commit)
-    if result.elapsed_s is not None:
-        cols.append("duration_seconds")
-        vals.append(result.elapsed_s)
-    placeholders = ",".join("?" for _ in vals)
-    col_list = ",".join(cols)
-    with sqlite3.connect(db_path) as conn:
-        try:
-            conn.execute(f"INSERT INTO runs ({col_list}) VALUES ({placeholders})", vals)
-            conn.commit()
-        except sqlite3.OperationalError as e:
-            print(f"warning: could not persist metric row: {e}")
