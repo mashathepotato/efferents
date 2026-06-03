@@ -25,25 +25,8 @@ from efferents.agents import analyst, coder, researcher, writer
 from efferents.agents.budget import BudgetTracker
 from efferents.agents.orchestrator import Orchestrator
 from efferents.agents.state import init_lab, lab_paths, load_state, recent_runs, runs_count
+from efferents.envfile import load_dotenv as _load_dotenv
 from efferents.migrations.runner import apply_campaigns_migration
-
-
-def _load_dotenv(path: str | Path = ".env") -> None:
-    """Tiny .env loader (no python-dotenv dependency). KEY=VALUE per line.
-
-    .env values OVERRIDE existing env vars — per-project keys win over shell-wide
-    settings. This is intentional: the project's .env should be the source of
-    truth for the agent loop's spend.
-    """
-    p = Path(path)
-    if not p.exists():
-        return
-    for line in p.read_text().splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        k, _, v = line.partition("=")
-        os.environ[k.strip()] = v.strip().strip('"').strip("'")
 
 
 def _make_client_or_die() -> anthropic.Anthropic:
