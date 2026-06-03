@@ -371,21 +371,34 @@ def _campaign_row(db: Path, campaign_id: str) -> dict[str, Any] | None:
     return dict(row) if row else None
 
 
-def _campaign_runs(db: Path, campaign_id: str) -> list[dict[str, Any]]:
-    """All e_w1-valued runs for this campaign, ordered best (lowest) first."""
+def _campaign_runs(db: Path, campaign_id: str, metric: str | None = None) -> list[dict[str, Any]]:
+    """All runs for this campaign, ordered best (lowest) first by metric.
+
+    If *metric* is None (or the column doesn't exist in the runs table) the
+    query falls back to ordering by started_at and returns all rows.
+    """
     import sqlite3
     if not db.exists():
         return []
     conn = sqlite3.connect(db)
     conn.row_factory = sqlite3.Row
     try:
-        rows = conn.execute(
-            """SELECT run_id, seed, model, raw_q, e_w1, config_yaml
-               FROM runs
-               WHERE campaign_id = ? AND e_w1 IS NOT NULL
-               ORDER BY e_w1 ASC""",
-            (campaign_id,),
-        ).fetchall()
+        # Detect available columns so we can order by metric only when present.
+        cols = {row[1] for row in conn.execute("PRAGMA table_info(runs)").fetchall()}
+        if metric and metric in cols:
+            rows = conn.execute(
+                f"""SELECT * FROM runs
+                   WHERE campaign_id = ? AND {metric} IS NOT NULL
+                   ORDER BY {metric} ASC""",
+                (campaign_id,),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                """SELECT * FROM runs
+                   WHERE campaign_id = ?
+                   ORDER BY started_at ASC""",
+                (campaign_id,),
+            ).fetchall()
     finally:
         conn.close()
     return [dict(r) for r in rows]
@@ -421,8 +434,8 @@ def export_paper_bundle(
         paper/rebuttal.md
         journal_entry.md         (this campaign's block from paper/journal.md)
         hypothesis.md            (from popper-corpus/<student_id>/<slug>/)
-        recipe.yaml              (config_yaml of the best e_w1 run)
-        metric_provenance.json   (run_id, e_w1, seed for each campaign run)
+        recipe.yaml              (config_yaml of the best run by campaign metric)
+        metric_provenance.json   (run_id, <metric>, seed for each campaign run)
 
     Missing pieces (no hypothesis file, no runs, etc.) are skipped silently;
     the manifest's `files` list reflects what's actually present. Returns
@@ -467,13 +480,23 @@ def export_paper_bundle(
     hypothesis_hash_db = campaign_row.get("hypothesis_hash") or ""
     hypothesis_path_str = campaign_row.get("hypothesis_path") or ""
 
+    # Resolve which metric column to use: campaign row first, then lab config
+    # fallback, then hard-coded legacy default.
+    try:
+        from efferents import lab as _lab_cfg
+        _cfg = _lab_cfg.get_config()
+        _default_metric = _cfg.metrics.headline.column
+    except (RuntimeError, AttributeError):
+        _default_metric = "e_w1"
+    metric = campaign_row.get("headline_metric") or _default_metric
+
     # Hypothesis lookup. hypothesis_path is stored relative to the repo root
     # (paths.root.parent / hypothesis_path), as written by the popper-gate.
     repo_root = paper_dir.parent
     hyp_path = repo_root / hypothesis_path_str if hypothesis_path_str else None
 
     journal_entry_md = _journal_entry_block(journal_path, campaign_id)
-    runs = _campaign_runs(db, campaign_id)
+    runs = _campaign_runs(db, campaign_id, metric=metric)
     candidate_run = runs[0] if runs else None
     recipe_yaml = candidate_run.get("config_yaml") if candidate_run else None
 
@@ -502,9 +525,8 @@ def export_paper_bundle(
     # Stage files into a tmp dir, write manifest, tar it up.
     files_in_bundle: list[str] = []
     metric_provenance: list[dict[str, Any]] = [
-        {"run_id": r.get("run_id"), "e_w1": r.get("e_w1"),
-         "seed": r.get("seed"), "model": r.get("model"),
-         "raw_q": r.get("raw_q")}
+        {"run_id": r.get("run_id"), metric: r.get(metric),
+         "seed": r.get("seed"), "model": r.get("model")}
         for r in runs
     ]
 
@@ -563,7 +585,7 @@ def export_paper_bundle(
             "scores_line": decision_block.get("scores_line"),
             "n_runs": len(runs),
             "primary_metric": (
-                {"name": "e_w1", "value": runs[0]["e_w1"],
+                {"name": metric, "value": runs[0].get(metric),
                  "run_id": runs[0]["run_id"]}
                 if runs else None
             ),
