@@ -64,7 +64,10 @@ def execute(
     run_id = uuid.uuid4().hex
     config_dir = paths.root / "configs"
     config_dir.mkdir(exist_ok=True)
-    config_path = config_dir / f"run_{run_id}.yaml"
+    # Resolve to an absolute path: the run command executes with cwd =
+    # source.dir, which is generally NOT the daemon's cwd, so a relative
+    # config path would not resolve for the subprocess.
+    config_path = (config_dir / f"run_{run_id}.yaml").resolve()
     with config_path.open("w") as f:
         yaml.safe_dump(rendered, f)
 

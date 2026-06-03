@@ -209,7 +209,7 @@ def write_digest(
         # Push the TL;DR (first ~300 chars after the heading) to the phone.
         tl = _extract_tldr(text)
         notified = notify_all(
-            title="auto-qml digest",
+            title=f"{_lab.get_config().lab_id} digest",
             message=f"{tl}\n\nFull: {digest_path}",
         )
 

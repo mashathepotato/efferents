@@ -95,6 +95,15 @@ def _seconds_until_next_utc_day() -> float:
     return (midnight - now).total_seconds()
 
 
+def _lab_label() -> str:
+    """Notification title prefix — the active lab_id, so a user running
+    several labs gets distinct notifications. Falls back to 'efferents'."""
+    try:
+        return _lab.get_config().lab_id
+    except Exception:
+        return "efferents"
+
+
 class Orchestrator:
     def __init__(
         self,
@@ -140,7 +149,7 @@ class Orchestrator:
             state = load_state(self.paths.state)
             last_coder = state.get("last_coder_ts")
             if not last_coder or _hours_since(last_coder) > 0.05:  # >3 minutes
-                notify_all(title="auto-qml started", message=startup_message)
+                notify_all(title=f"{_lab_label()} started", message=startup_message)
 
     def _handle_signal(self, signum: int, _frame: Any) -> None:
         self._stop = True
@@ -265,7 +274,7 @@ class Orchestrator:
     def _sleep_paused(self, reason: str) -> None:
         secs = _seconds_until_next_utc_day()
         notebook_append(self.paths.notebook, f"## {now_iso()} — pausing: {reason}. Sleeping {secs/3600:.1f}h.\n")
-        notify_all(title="auto-qml paused", message=reason)
+        notify_all(title=f"{_lab_label()} paused", message=reason)
         # Sleep in 60-second chunks so SIGTERM/SIGINT can interrupt.
         end = time.monotonic() + secs
         while not self._stop and time.monotonic() < end:
@@ -311,7 +320,7 @@ class Orchestrator:
             save_state(self.paths.state, state)
             if result.ok:
                 notify_all(
-                    title="auto-qml: code committed",
+                    title=f"{_lab_label()}: code committed",
                     message=f"{result.name}: {result.summary or ''} ({result.commit_sha}) — orchestrator restarting to load new code",
                 )
                 # Trigger a self-restart so the running process picks up the
@@ -386,5 +395,5 @@ class Orchestrator:
         # Don't push "stopped" if we're just restarting for a Coder commit —
         # the user already got "code committed; restarting" 2s ago.
         if not self.restart_requested:
-            notify_all(title="auto-qml stopped", message=f"orchestrator exited after {i} iterations")
+            notify_all(title=f"{_lab_label()} stopped", message=f"orchestrator exited after {i} iterations")
 
