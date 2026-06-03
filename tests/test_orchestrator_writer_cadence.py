@@ -114,3 +114,39 @@ def test_budget_pause_short_circuits(tmp_path, monkeypatch):
     assert calls == []
     state = load_state(o.paths.state)
     assert "last_paper_runs" not in state or state.get("last_paper_runs") == 0
+
+
+def test_step_calls_maybe_write_before_close_stale(tmp_path, monkeypatch):
+    o = _make_orch(tmp_path)
+    _seed_campaign(o)
+
+    order = []
+    monkeypatch.setattr(o, "_refill_queue", lambda: 0)
+    monkeypatch.setattr(orch, "queue_pop", lambda q: None)  # force no-proposal branch
+    monkeypatch.setattr(o, "_maybe_digest", lambda: order.append("digest"))
+    monkeypatch.setattr(o, "_maybe_code", lambda: order.append("code"))
+    monkeypatch.setattr(o, "_maybe_write", lambda: order.append("write"))
+    monkeypatch.setattr(orch, "close_stale_campaigns", lambda *a, **k: order.append("close") or [])
+    monkeypatch.setattr(orch.time, "sleep", lambda s: None)
+
+    result = o.step()
+    assert result["event"] == "no_proposal"
+    assert "write" in order
+    assert order.index("write") < order.index("close")
+
+
+def test_step_ran_branch_calls_maybe_write(tmp_path, monkeypatch):
+    o = _make_orch(tmp_path)
+    _seed_campaign(o)
+
+    called = []
+    monkeypatch.setattr(o, "_refill_queue", lambda: 0)
+    monkeypatch.setattr(orch, "queue_pop", lambda q: {"name": "p"})  # force ran branch
+    monkeypatch.setattr(orch.executor, "execute", lambda **k: {"ok": True, "name": "p"})
+    monkeypatch.setattr(o, "_maybe_digest", lambda: None)
+    monkeypatch.setattr(o, "_maybe_code", lambda: None)
+    monkeypatch.setattr(o, "_maybe_write", lambda: called.append("write"))
+
+    result = o.step()
+    assert result["event"] == "ran"
+    assert called == ["write"]

@@ -404,6 +404,7 @@ class Orchestrator:
             # should pick them up rather than waiting for a run that won't come.
             self._maybe_digest()
             self._maybe_code()
+            self._maybe_write()
             closed = close_stale_campaigns(self.paths.runs_db, lab_id=_lab.LAB_ID)
             if closed:
                 notebook_append(
@@ -417,6 +418,7 @@ class Orchestrator:
         outcome = executor.execute(paths=self.paths, proposal=proposal)
         self._maybe_digest()
         self._maybe_code()
+        self._maybe_write()
         return {"event": "ran", "added": n_added, "outcome_ok": outcome.get("ok"), "name": outcome.get("name")}
 
     def run(self, *, max_iterations: int | None = None) -> None:
