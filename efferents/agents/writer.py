@@ -124,6 +124,27 @@ def _resolve_code_sha() -> str | None:
         return None
 
 
+def _best_metric(runs: list[dict], col: str, direction: str) -> float | None:
+    """Return the best value of `col` across runs. min when direction=='min',
+    max otherwise. None when no run carries the column."""
+    vals = [r[col] for r in runs if r.get(col) is not None]
+    if not vals:
+        return None
+    return min(vals) if direction == "min" else max(vals)
+
+
+def _resolve_campaign_metric(
+    campaign: dict, *, default: tuple[str, str]
+) -> tuple[str, str]:
+    """Resolve (metric, direction) for a campaign, preferring the
+    campaign-declared values and falling back to `default` when null."""
+    metric = campaign.get("headline_metric") or default[0]
+    direction = campaign.get("headline_direction") or default[1]
+    if direction not in ("min", "max"):
+        direction = default[1]
+    return metric, direction
+
+
 def compose_paper(
     *,
     client: Any,
@@ -247,10 +268,6 @@ def write_phase_a_paper(
             conn.close()
         return [dict(r) for r in rows]
 
-    def _best_e_w1(runs: list[dict]) -> float | None:
-        vals = [r["e_w1"] for r in runs if r.get("e_w1") is not None]
-        return min(vals) if vals else None
-
     def _load_existing_claims() -> list[str]:
         """Stub: return novelty_claim strings from prior paper frontmatter files."""
         paper_dir = paths.paper
@@ -274,22 +291,31 @@ def write_phase_a_paper(
     campaign_runs = _load_campaign_runs(campaign_id)
     other_runs = _load_other_runs(campaign_id)
 
-    candidate_value = _best_e_w1(campaign_runs)
-    baseline_value = _best_e_w1(other_runs)
+    from efferents import lab as _lab_cfg  # local import; cfg may be unset in unit tests
+    try:
+        _default = (_lab_cfg.get_config().metrics.headline.column,
+                    _lab_cfg.get_config().metrics.headline.direction)
+    except Exception:
+        _default = ("e_w1", "min")
+    metric, direction = _resolve_campaign_metric(campaign, default=_default)
+
+    candidate_value = _best_metric(campaign_runs, metric, direction)
+    baseline_value = _best_metric(other_runs, metric, direction)
 
     # If no campaign runs, nothing to publish.
     if candidate_value is None:
         return None
 
-    # If no baseline, use a liberal fallback so the gate can still pass.
+    # If no baseline, assume headroom in the improving direction so the gate
+    # can still pass. min → baseline 20% higher; max → 20% lower.
     if baseline_value is None:
-        baseline_value = candidate_value * 1.2  # assume 20% headroom
+        baseline_value = candidate_value * (1.2 if direction == "min" else 0.8)
 
     existing_claims = _load_existing_claims()
     novelty_claim = campaign.get("question", "").strip() or campaign_id
 
     gate_inputs = GateInputs(
-        primary_metric_name="e_w1",
+        primary_metric_name=metric,
         baseline_value=baseline_value,
         candidate_value=candidate_value,
         novelty_claim=novelty_claim,
@@ -305,7 +331,7 @@ def write_phase_a_paper(
         msg = (
             f"\n### Writer gate: skipped {campaign_id}\n\n"
             f"Gate rejected: {reason}\n"
-            f"candidate e_w1={candidate_value:.4f}, baseline={baseline_value:.4f}\n"
+            f"candidate {metric}={candidate_value:.4f}, baseline={baseline_value:.4f}\n"
         )
         try:
             with notebook.open("a") as f:
@@ -318,15 +344,15 @@ def write_phase_a_paper(
     runs_by_seed: dict[int, list[float]] = {}
     run_ids: list[str] = []
     for r in campaign_runs:
-        if r.get("e_w1") is None:
+        if r.get(metric) is None:
             continue
         seed = r.get("seed", 0) or 0
-        runs_by_seed.setdefault(seed, []).append(r["e_w1"])
+        runs_by_seed.setdefault(seed, []).append(r[metric])
         run_ids.append(r["run_id"])
 
     metric_provenance = [
         {
-            "name": "e_w1",
+            "name": metric,
             "value": candidate_value,
             "delta_vs_baseline": candidate_value - baseline_value,
             "runs": run_ids or [campaign_id],
@@ -378,11 +404,13 @@ def write_phase_a_paper(
 
     delta_pct = (
         100.0 * (baseline_value - candidate_value) / baseline_value
-        if baseline_value > 0 else 0.0
+        if direction == "min" and baseline_value
+        else (100.0 * (candidate_value - baseline_value) / baseline_value
+              if baseline_value else 0.0)
     )
     headline = (
-        f"{novelty_claim} — e_w1 {candidate_value:.3f} vs baseline {baseline_value:.3f} "
-        f"({delta_pct:+.1f}%)"
+        f"{novelty_claim} — {metric} {candidate_value:.3f} vs baseline "
+        f"{baseline_value:.3f} ({delta_pct:+.1f}%)"
     )
 
     try:
