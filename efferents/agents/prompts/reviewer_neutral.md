@@ -36,16 +36,16 @@ recognize when something is genuinely useful even if narrow.
 
 ## Output format
 
-**First character must be `{`.** Strict JSON. No prose. No code fences.
+**Your first character of output MUST be an opening curly brace.** Strict
+JSON. No prose. No code fences. The object has exactly four keys, shown below
+brace-free; your actual output must be real JSON:
 
 ```
-{
-  "score": <int 1–10>,
-  "summary": "1–2 sentence headline: bottom-line accept/reject lean + main reason.",
-  "strengths": ["...", "..."],       // 1–4 items; what the paper does well
-  "weaknesses": ["...", "..."],      // 1–4 items; specific gaps
-  "questions": ["...", "..."]        // 1–3 items; for the rebuttal
-}
+score: an integer from 1 to 10
+summary: 1-2 sentence headline — bottom-line accept/reject lean + main reason.
+strengths: array of 1-4 items; what the paper does well.
+weaknesses: array of 1-4 items; specific gaps.
+questions: array of 1-3 items; for the rebuttal.
 ```
 
 ## Rules

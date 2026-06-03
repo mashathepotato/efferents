@@ -22,6 +22,7 @@ from pathlib import Path
 
 from efferents import daemon
 from efferents import lab as lab_mod
+from efferents.envfile import load_dotenv
 from efferents.lab import LabConfig, SubmissionError
 from efferents.registry import LabRecord, Registry
 
@@ -95,6 +96,11 @@ def _cmd_start(args: argparse.Namespace) -> int:
         return 1
 
     lab_root = Path(args.lab_root).resolve() if args.lab_root else (sub / "lab").resolve()
+
+    # Load the submission's .env (if any) so the daemon — including a detached
+    # child, which inherits this process's os.environ — can resolve
+    # ANTHROPIC_API_KEY without it being exported in the launching shell.
+    load_dotenv(sub / ".env")
 
     lab_mod.set_config(cfg)
     _init_lab_root(sub, lab_root)

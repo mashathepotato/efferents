@@ -8,8 +8,10 @@ source:
     - "**/*.yaml"
 
 executor:
-  run_command: "python3 -m src.stub_run --config {config_path}"
-  smoke_command: "python3 -m src.stub_run --config {config_path} --smoke"
+  # Executed with cwd = source.dir (./src), so the module is `stub_run`,
+  # not `src.stub_run`. config_path is passed absolute, so cwd doesn't affect it.
+  run_command: "python3 -m stub_run --config {config_path}"
+  smoke_command: "python3 -m stub_run --config {config_path} --smoke"
   config_template: ../configs/default.yaml
   run_timeout_s: 60
   smoke_timeout_s: 30

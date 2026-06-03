@@ -69,10 +69,7 @@ from efferents.agents.state import (
     save_state,
 )
 from efferents import lab as _lab
-
-PROMPTS_DIR = Path(__file__).parent / "prompts"
-STUDENT_PROMPT_PATH = PROMPTS_DIR / "student.md"
-SUPERVISOR_PROMPT_PATH = PROMPTS_DIR / "supervisor.md"
+from efferents.agents.prompts.loader import load_prompt
 
 
 def _slugify(text: str) -> str:
@@ -410,7 +407,7 @@ def _supervisor_brief(
     student_id: str = "primary",
 ) -> dict[str, Any]:
     """Turn 1: Supervisor reads state and produces an agenda JSON."""
-    system_text = SUPERVISOR_PROMPT_PATH.read_text()
+    system_text = load_prompt("supervisor", extras={"hypothesis_body": ""})
     system = [{
         "type": "text", "text": system_text,
         "cache_control": {"type": "ephemeral"},
@@ -565,22 +562,24 @@ def _student_propose(
 
     Returns (raw_text, parsed_dict_or_empty, consulted_topic_ids).
     """
-    # Look up a per-student prompt override; fall back to the default.
-    prompt_path = STUDENT_PROMPT_PATH
+    # Per-student prompt override → explicit override_path; else lab/framework default.
+    override_path = None
     try:
         student = _lab.get_student(student_id)
     except KeyError:
         student = None
     if student:
-        override = (student.get("prompt_overrides") or {}).get("student")
-        if override:
-            candidate = Path(override) if Path(override).is_absolute() else Path(__file__).parent.parent / override
-            if candidate.exists():
-                prompt_path = candidate
-    system_text = prompt_path.read_text()
+        ov = (student.get("prompt_overrides") or {}).get("student")
+        if ov:
+            cand = Path(ov) if Path(ov).is_absolute() else Path(__file__).parent.parent / ov
+            if cand.exists():
+                override_path = cand
+    system_text = load_prompt(
+        "student", extras={"hypothesis_body": ""}, override_path=override_path
+    )
     # If the student dict has a `focus`, prepend it so this student's prompt
     # carries its area-of-interest cleanly without needing a full prompt clone.
-    if student and student.get("focus") and prompt_path == STUDENT_PROMPT_PATH:
+    if student and student.get("focus") and override_path is None:
         system_text = (
             f"## Your focus (student: {student_id})\n\n{student['focus']}\n\n"
             "Stay within this focus when picking proposals; tell the Supervisor "
@@ -669,7 +668,7 @@ def _supervisor_review(
     saturation: dict[str, Any],
 ) -> dict[str, Any]:
     """Turn 3: Supervisor critiques the Student output."""
-    system_text = SUPERVISOR_PROMPT_PATH.read_text()
+    system_text = load_prompt("supervisor", extras={"hypothesis_body": ""})
     system = [{
         "type": "text", "text": system_text,
         "cache_control": {"type": "ephemeral"},

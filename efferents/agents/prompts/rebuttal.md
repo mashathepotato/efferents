@@ -60,7 +60,7 @@ the rebuttal.
 - Concise. The editor reads this in a few minutes. Long rebuttals signal
   defensiveness.
 - Specific. "We disagree with reviewer 1" is bad; "Reviewer 1 claims the
-  raw_q=64 result is single-seed (true for run a3f1), but the headline
+  headline result is single-seed (true for run a3f1), but the headline
   number comes from the seed-averaged subset (runs a3f1, c2e4, d8b9; see
   Table 2)" is good.
 - No fluff. Don't thank the reviewers; don't apologize. Just respond.

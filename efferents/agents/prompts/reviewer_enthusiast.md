@@ -36,16 +36,18 @@ afloat.
 
 ## Output format
 
-**First character must be `{`.** Strict JSON. No prose. No code fences.
+**Your first character of output MUST be an opening curly brace.** Strict
+JSON. No prose. No code fences. The object has exactly four keys, shown below
+brace-free; your actual output must be real JSON:
 
 ```
-{
-  "score": <int 1–10>,
-  "summary": "1–2 sentence headline: what's exciting about this + your bottom-line score.",
-  "strengths": ["...", "..."],       // 2–5 items; specific things that work
-  "weaknesses": ["...", "..."],      // 1–3 items; constructive gaps
-  "questions": ["...", "..."]        // 1–3 items; for the rebuttal — questions whose answers would make the paper better
-}
+score: an integer from 1 to 10
+summary: 1-2 sentence headline — what's exciting about this + your bottom-line
+  score.
+strengths: array of 2-5 items; specific things that work.
+weaknesses: array of 1-3 items; constructive gaps.
+questions: array of 1-3 items; for the rebuttal — questions whose answers would
+  make the paper better.
 ```
 
 ## Rules

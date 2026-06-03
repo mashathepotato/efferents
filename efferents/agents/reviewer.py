@@ -25,9 +25,8 @@ from typing import Any, Literal
 import anthropic
 
 from efferents.agents.budget import BudgetTracker, CallUsage, model_for
+from efferents.agents.prompts.loader import load_prompt
 from efferents.agents.state import parse_json_with_one_retry
-
-PROMPTS_DIR = Path(__file__).parent / "prompts"
 
 Persona = Literal["critical", "neutral", "enthusiast"]
 PERSONAS: tuple[Persona, ...] = ("critical", "neutral", "enthusiast")
@@ -64,7 +63,7 @@ class Review:
 
 
 def _prompt_for(persona: Persona) -> str:
-    return (PROMPTS_DIR / f"reviewer_{persona}.md").read_text()
+    return load_prompt(f"reviewer_{persona}")
 
 
 def review(

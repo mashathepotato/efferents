@@ -32,6 +32,7 @@ import anthropic
 from efferents import lab as _lab
 from efferents.agents import librarian
 from efferents.agents.budget import BudgetTracker, CallUsage, model_for
+from efferents.agents.prompts.loader import load_prompt
 from efferents.agents.state import (
     LabPaths,
     append_jsonl,
@@ -42,7 +43,6 @@ from efferents.agents.state import (
     retry_hint,
 )
 
-PROMPT_PATH = Path(__file__).parent / "prompts" / "coder.md"
 MAX_LIT_CALLS_PER_PASS = 3
 
 
@@ -251,7 +251,7 @@ def get_edit_plan(
     max_tokens: int = 12288,
 ) -> dict[str, Any]:
     chosen = model or model_for("coder") or "claude-opus-4-7"
-    system_prompt_text = PROMPT_PATH.read_text()
+    system_prompt_text = load_prompt("coder")
     system_prompt = [{
         "type": "text", "text": system_prompt_text,
         "cache_control": {"type": "ephemeral"},

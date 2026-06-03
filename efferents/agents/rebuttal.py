@@ -19,9 +19,8 @@ from typing import Any
 import anthropic
 
 from efferents.agents.budget import BudgetTracker, CallUsage, model_for
+from efferents.agents.prompts.loader import load_prompt
 from efferents.agents.reviewer import Review
-
-PROMPT_PATH = Path(__file__).parent / "prompts" / "rebuttal.md"
 
 
 def _reviews_block(reviews: list[Review]) -> str:
@@ -55,7 +54,7 @@ def write_rebuttal(
 
     paper_md = paper_path.read_text()
     system = [{
-        "type": "text", "text": PROMPT_PATH.read_text(),
+        "type": "text", "text": load_prompt("rebuttal"),
         "cache_control": {"type": "ephemeral"},
     }]
 

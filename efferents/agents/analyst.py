@@ -13,9 +13,8 @@ import anthropic
 from efferents import lab as _lab
 from efferents.agents.budget import BudgetTracker, CallUsage, model_for
 from efferents.agents.notify import notify_all
+from efferents.agents.prompts.loader import load_prompt
 from efferents.agents.state import LabPaths, load_state, notebook_append, notebook_tail, now_iso, read_context, recent_runs, save_state
-
-PROMPT_PATH = Path(__file__).parent / "prompts" / "analyst.md"
 
 
 def _flat_digest_epsilon() -> float:
@@ -164,7 +163,7 @@ def write_digest(
 ) -> dict[str, Any]:
     ctx = read_context(context_dir)
     rows = recent_runs(paths.runs_db, n=n_recent)
-    system_prompt = PROMPT_PATH.read_text()
+    system_prompt = load_prompt("analyst")
 
     groups = group_runs_by_campaign(rows)
     campaign_blocks = _format_campaign_blocks(groups, paths.runs_db)
@@ -210,7 +209,7 @@ def write_digest(
         # Push the TL;DR (first ~300 chars after the heading) to the phone.
         tl = _extract_tldr(text)
         notified = notify_all(
-            title="auto-qml digest",
+            title=f"{_lab.get_config().lab_id} digest",
             message=f"{tl}\n\nFull: {digest_path}",
         )
 
