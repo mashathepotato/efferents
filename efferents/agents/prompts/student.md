@@ -373,3 +373,11 @@ new_campaign:                       # omit entirely if not opening one
 ```
 
 If you do not open a new campaign, omit `new_campaign`.
+
+When you declare a `new_campaign`, also design its eval:
+- `headline_metric`: the single metric name (a valid identifier: letters,
+  digits, underscores) that would corroborate or refute this hypothesis.
+- `direction`: `"min"` if lower is better, `"max"` if higher is better.
+Your run command MUST emit this metric under the stdout `metrics` JSON object.
+If you omit these, the lab falls back to its default headline metric
+(`{headline_metric}`, optimized toward `{headline_direction}`).

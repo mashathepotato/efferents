@@ -69,11 +69,27 @@ from efferents.agents.state import (
     save_state,
 )
 from efferents import lab as _lab
+from efferents.lab import _COL_NAME_RE  # SQL-identifier sanitizer
 from efferents.agents.prompts.loader import load_prompt
 
 
 def _slugify(text: str) -> str:
     return re.sub(r"[^a-z0-9-]+", "-", text.lower()).strip("-")
+
+
+def _campaign_metric_from_proposal(
+    new_campaign: dict,
+) -> tuple[str | None, str | None]:
+    """Extract + validate (headline_metric, direction) from a Student's
+    new_campaign declaration. Returns (None, None) when absent or invalid,
+    so the campaign falls back to the LabConfig default."""
+    metric = (new_campaign.get("headline_metric") or "").strip()
+    direction = (new_campaign.get("direction") or "").strip()
+    if not metric or not _COL_NAME_RE.match(metric):
+        return (None, None)
+    if direction not in ("min", "max"):
+        return (None, None)
+    return (metric, direction)
 
 MAX_LIT_CALLS_PER_PASS = 5
 PER_CALL_COST_CAP_USD = 1.00
@@ -909,6 +925,7 @@ def propose(
         )
         if gate_result.ok:
             campaign_id = "c-" + uuid.uuid4().hex[:10]
+            _hm, _hd = _campaign_metric_from_proposal(new_campaign)
             _campaign_insert(
                 paths.runs_db,
                 id=campaign_id,
@@ -917,6 +934,8 @@ def propose(
                 hypothesis_path=str(gate_result.path.relative_to(paths.root.parent)),
                 hypothesis_hash=gate_result.hash,
                 student_id=student_id,
+                headline_metric=_hm,
+                headline_direction=_hd,
             )
             new_campaign_id = campaign_id
             notebook_append(
