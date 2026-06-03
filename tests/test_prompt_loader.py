@@ -101,3 +101,19 @@ def test_explicit_override_path_wins(tmp_path):
     explicit.write_text("EXPLICIT {lab_id}")
     out = load_prompt("student", override_path=explicit)
     assert out == "EXPLICIT smoke"
+
+
+@pytest.mark.parametrize("name", ["student", "supervisor", "researcher"])
+def test_researcher_trio_renders_clean(tmp_path, name):
+    _install(tmp_path)
+    extras = {"hypothesis_body": "Increasing coefficient lowers loss.",
+              "hypothesis_slug": "coeff"}
+    out = load_prompt(name, extras=extras)
+    # No unrendered single-brace placeholders survive
+    assert "{" not in out.replace("{{", "").replace("}}", "")
+    assert "}" not in out.replace("{{", "").replace("}}", "")
+    # Headline metric is woven in
+    assert "synthetic_loss" in out
+    # No QML residue
+    for tok in ("e_w1", "raw_q", "amp_ratio", "QFM", "auto_qml"):
+        assert tok not in out
