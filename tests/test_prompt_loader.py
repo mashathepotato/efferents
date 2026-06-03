@@ -117,3 +117,13 @@ def test_researcher_trio_renders_clean(tmp_path, name):
     # No QML residue
     for tok in ("e_w1", "raw_q", "amp_ratio", "QFM", "auto_qml"):
         assert tok not in out
+
+
+@pytest.mark.parametrize("name", ["coder", "writer"])
+def test_medium_prompts_render_clean(tmp_path, name):
+    _install(tmp_path)
+    out = load_prompt(name)
+    assert "{" not in out.replace("{{", "").replace("}}", "")
+    assert "}" not in out.replace("{{", "").replace("}}", "")
+    for tok in ("e_w1", "raw_q", "amp_ratio", "QFM", "auto_qml", "gen_max"):
+        assert tok not in out
