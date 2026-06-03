@@ -54,3 +54,28 @@ def test_best_metric_reads_campaign_runs(tmp_path):
     rows = [dict(r) for r in conn.execute("SELECT * FROM runs WHERE campaign_id='c1'")]
     conn.close()
     assert _best_metric(rows, "synthetic_loss", "min") == 0.1
+
+
+from efferents.agents.writer import GateInputs, should_publish
+
+
+def test_should_publish_max_direction_accepts_improvement():
+    inp = GateInputs(primary_metric_name="acc", baseline_value=0.70,
+                     candidate_value=0.90, novelty_claim="higher acc",
+                     direction="max")
+    ok, reason = should_publish(inp, gain_threshold=0.05)
+    assert ok, reason
+
+
+def test_should_publish_min_direction_unchanged():
+    inp = GateInputs(primary_metric_name="loss", baseline_value=0.50,
+                     candidate_value=0.40, novelty_claim="lower loss",
+                     direction="min")
+    ok, _ = should_publish(inp, gain_threshold=0.05)
+    assert ok
+
+
+def test_resolve_campaign_metric_invalid_direction_falls_back():
+    from efferents.agents.writer import _resolve_campaign_metric
+    campaign = {"headline_metric": "acc", "headline_direction": "ascending"}
+    assert _resolve_campaign_metric(campaign, default=("e_w1", "min")) == ("acc", "min")

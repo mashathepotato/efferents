@@ -60,6 +60,7 @@ class GateInputs:
     novelty_claim: str
     existing_lab_claims: list[str] = field(default_factory=list)
     refutation_of_corroborated: str | None = None
+    direction: str = "min"
 
 
 def should_publish(
@@ -69,7 +70,8 @@ def should_publish(
 
     Pass conditions (either is sufficient to satisfy the gain half):
       - candidate_value strictly better than baseline by at least
-        gain_threshold (relative; lower-is-better metric assumed).
+        gain_threshold (relative; direction is honored: "min" for
+        lower-is-better metrics, "max" for higher-is-better metrics).
       - refutation_of_corroborated is set (refuting a previously-
         corroborated claim is publishable without gain).
 
@@ -87,7 +89,10 @@ def should_publish(
 
     if inputs.baseline_value <= 0:
         return (False, "non-positive baseline_value; cannot compute relative gain")
-    rel = (inputs.baseline_value - inputs.candidate_value) / inputs.baseline_value
+    if inputs.direction == "max":
+        rel = (inputs.candidate_value - inputs.baseline_value) / inputs.baseline_value
+    else:
+        rel = (inputs.baseline_value - inputs.candidate_value) / inputs.baseline_value
     if rel < gain_threshold:
         return (False, f"insufficient gain: {rel:.3%} < {gain_threshold:.1%}")
 
@@ -293,9 +298,9 @@ def write_phase_a_paper(
 
     from efferents import lab as _lab_cfg  # local import; cfg may be unset in unit tests
     try:
-        _default = (_lab_cfg.get_config().metrics.headline.column,
-                    _lab_cfg.get_config().metrics.headline.direction)
-    except Exception:
+        _cfg = _lab_cfg.get_config()
+        _default = (_cfg.metrics.headline.column, _cfg.metrics.headline.direction)
+    except RuntimeError:
         _default = ("e_w1", "min")
     metric, direction = _resolve_campaign_metric(campaign, default=_default)
 
@@ -321,6 +326,7 @@ def write_phase_a_paper(
         novelty_claim=novelty_claim,
         existing_lab_claims=existing_claims,
         refutation_of_corroborated=campaign.get("refutation_of_corroborated"),
+        direction=direction,
     )
 
     ok, reason = should_publish(gate_inputs, gain_threshold=gain_threshold)
@@ -404,9 +410,9 @@ def write_phase_a_paper(
 
     delta_pct = (
         100.0 * (baseline_value - candidate_value) / baseline_value
-        if direction == "min" and baseline_value
+        if direction == "min" and baseline_value != 0.0
         else (100.0 * (candidate_value - baseline_value) / baseline_value
-              if baseline_value else 0.0)
+              if baseline_value != 0.0 else 0.0)
     )
     headline = (
         f"{novelty_claim} — {metric} {candidate_value:.3f} vs baseline "
