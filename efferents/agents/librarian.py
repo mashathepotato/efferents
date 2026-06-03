@@ -24,9 +24,8 @@ from typing import Any
 import anthropic
 
 from efferents.agents.budget import BudgetTracker, CallUsage, model_for
+from efferents.agents.prompts.loader import load_prompt
 from efferents.agents.state import LabPaths, append_jsonl, parse_json_loose
-
-PROMPT_PATH = Path(__file__).parent / "prompts" / "librarian.md"
 
 KB_SCHEMA = """
 CREATE TABLE IF NOT EXISTS kb_topics (
@@ -314,7 +313,7 @@ def _call_llm(
     max_tokens: int = 4096,
 ) -> tuple[dict[str, Any], float, str]:
     """Returns (parsed_json, cost_usd, raw_text)."""
-    system_prompt = PROMPT_PATH.read_text()
+    system_prompt = load_prompt("librarian")
     chosen = model or model_for("librarian")
     if chosen is None:
         raise RuntimeError("No model configured for Librarian")

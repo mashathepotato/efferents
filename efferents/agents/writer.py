@@ -42,6 +42,7 @@ from typing import Any
 import yaml as _yaml
 
 from efferents import lab as _lab
+from efferents.agents.prompts.loader import load_prompt
 from efferents.schemas.paper_frontmatter import (
     PaperFrontmatter,
     REQUIRED_SECTIONS_IN_ORDER,
@@ -967,8 +968,6 @@ def regenerate_related_section(
 
 # ----------------------- LLM-driven outputs -----------------------
 
-PROMPT_PATH = Path(__file__).parent / "prompts" / "writer.md"
-
 # Section markers in the LLM response. The prompt asks for these exact headers.
 SECTIONS = ("TL;DR", "FINDINGS_LOG_BLOCK", "NOTES_BULLETS", "RESULTS_PROSE")
 
@@ -1092,7 +1091,7 @@ def run_llm_phase(
     if chosen is None:
         raise RuntimeError("No model configured for Writer")
 
-    system_prompt = PROMPT_PATH.read_text()
+    system_prompt = load_prompt("writer")
     resp = client.messages.create(
         model=chosen,
         max_tokens=max_tokens,
