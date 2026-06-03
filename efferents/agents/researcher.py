@@ -83,8 +83,10 @@ def _campaign_metric_from_proposal(
     """Extract + validate (headline_metric, direction) from a Student's
     new_campaign declaration. Returns (None, None) when absent or invalid,
     so the campaign falls back to the LabConfig default."""
-    metric = (new_campaign.get("headline_metric") or "").strip()
-    direction = (new_campaign.get("direction") or "").strip()
+    raw_metric = new_campaign.get("headline_metric")
+    metric = raw_metric.strip() if isinstance(raw_metric, str) else ""
+    raw_dir = new_campaign.get("direction")
+    direction = raw_dir.strip() if isinstance(raw_dir, str) else ""
     if not metric or not _COL_NAME_RE.match(metric):
         return (None, None)
     if direction not in ("min", "max"):
@@ -926,6 +928,13 @@ def propose(
         if gate_result.ok:
             campaign_id = "c-" + uuid.uuid4().hex[:10]
             _hm, _hd = _campaign_metric_from_proposal(new_campaign)
+            if new_campaign.get("headline_metric") and _hm is None:
+                notebook_append(
+                    paths.notebook,
+                    f"## {now_iso()} — proposed headline_metric "
+                    f"{new_campaign.get('headline_metric')!r}/{new_campaign.get('direction')!r} "
+                    f"was invalid; campaign falls back to the lab default.\n",
+                )
             _campaign_insert(
                 paths.runs_db,
                 id=campaign_id,

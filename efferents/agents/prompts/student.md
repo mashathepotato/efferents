@@ -370,6 +370,8 @@ proposals:
 new_campaign:                       # omit entirely if not opening one
   question: "..."
   draft_hypothesis: "..."
+  headline_metric: "your_metric_name"   # valid identifier: letters/digits/underscores
+  direction: "min"                        # "min" (lower better) or "max" (higher better)
 ```
 
 If you do not open a new campaign, omit `new_campaign`.

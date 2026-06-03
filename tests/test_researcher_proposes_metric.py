@@ -18,3 +18,13 @@ def test_bad_direction_drops_to_none():
 
 def test_missing_metric_is_none():
     assert _campaign_metric_from_proposal({}) == (None, None)
+
+
+def test_non_string_metric_drops_to_none():
+    nc = {"headline_metric": 42, "direction": "min"}
+    assert _campaign_metric_from_proposal(nc) == (None, None)
+
+
+def test_non_string_direction_drops_to_none():
+    nc = {"headline_metric": "loss", "direction": 0}
+    assert _campaign_metric_from_proposal(nc) == (None, None)
