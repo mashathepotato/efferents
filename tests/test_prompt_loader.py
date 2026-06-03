@@ -127,3 +127,19 @@ def test_medium_prompts_render_clean(tmp_path, name):
     assert "}" not in out.replace("{{", "").replace("}}", "")
     for tok in ("e_w1", "raw_q", "amp_ratio", "QFM", "auto_qml", "gen_max"):
         assert tok not in out
+
+
+ALL_PROMPTS = [
+    "student", "supervisor", "researcher", "coder", "writer",
+    "librarian", "analyst", "reviewer_critical", "reviewer_neutral",
+    "reviewer_enthusiast", "rebuttal",
+]
+
+
+@pytest.mark.parametrize("name", ALL_PROMPTS)
+def test_every_framework_prompt_renders(tmp_path, name):
+    _install(tmp_path)
+    extras = {"hypothesis_body": "h", "hypothesis_slug": "s"}
+    out = load_prompt(name, extras=extras)
+    assert "{" not in out.replace("{{", "").replace("}}", "")
+    assert "}" not in out.replace("{{", "").replace("}}", "")

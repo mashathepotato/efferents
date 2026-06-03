@@ -34,23 +34,26 @@ summary.
 
 ## Output format
 
-**First character must be `{`.** Strict JSON. No prose. No code fences.
+**Your first character of output MUST be an opening curly brace.** Strict
+JSON. No prose. No code fences. The object has exactly four keys, shown below
+brace-free; your actual output must be real JSON:
 
 ```
-{
-  "score": <int 1–10>,
-  "summary": "1–2 sentence headline: what's the strongest concern + bottom-line score rationale.",
-  "strengths": ["...", "..."],       // 0–3 items; what the paper DID get right
-  "weaknesses": ["...", "..."],      // 1–5 items; concrete, paper-specific, cite numbers when relevant
-  "questions": ["...", "..."]        // 1–3 items; for the rebuttal — questions that would change your score if answered convincingly
-}
+score: an integer from 1 to 10
+summary: 1-2 sentence headline — the strongest concern + bottom-line score
+  rationale.
+strengths: array of 0-3 items; what the paper DID get right.
+weaknesses: array of 1-5 items; concrete, paper-specific, cite numbers when
+  relevant.
+questions: array of 1-3 items; for the rebuttal — questions that would change
+  your score if answered convincingly.
 ```
 
 ## Rules
 
-- Be specific. "Methodology is weak" is useless. "raw_q=64 used 1 seed
-  (run a3f1); the bimodality at this regime (research_log 2026-05-09 finding
-  3) means 1-seed claims here are noise" is useful.
+- Be specific. "Methodology is weak" is useless. "The headline condition used
+  1 seed (run a3f1); the bimodality at this regime (research_log 2026-05-09
+  finding 3) means 1-seed claims here are noise" is useful.
 - Cite by run_id, bib_key, or paper section.
 - If the paper genuinely has no major problems, say so and score above 6.
   Don't lowball for sport.
