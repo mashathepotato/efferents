@@ -313,3 +313,31 @@ def test_from_submission_accepts_underscore_and_digits_after_first(tmp_path):
     cfg = LabConfig.from_submission(tmp_path)
     assert cfg.metrics.headline.column == "synthetic_loss_2"
     assert cfg.metrics.panels[0].column == "_internal"
+
+
+def test_prompts_dir_set_when_directory_exists(tmp_path):
+    src = Path(__file__).parent / "fixtures" / "sample_submission"
+    sub = tmp_path / "sub"
+    shutil.copytree(src, sub)
+    (sub / "prompts").mkdir()
+    cfg = LabConfig.from_submission(sub)
+    assert cfg.prompts_dir == sub / "prompts"
+
+
+def test_prompts_dir_none_when_absent(tmp_path):
+    src = Path(__file__).parent / "fixtures" / "sample_submission"
+    sub = tmp_path / "sub"
+    shutil.copytree(src, sub)
+    cfg = LabConfig.from_submission(sub)
+    assert cfg.prompts_dir is None
+
+
+def test_prompts_dir_defaults_none_on_direct_construction():
+    cfg = LabConfig(
+        lab_id="t", domain="d", pi_handle=None,
+        source=Source(dir=Path("/tmp")),
+        executor=Executor(run_command="x {config_path}", smoke_command=None, config_template=Path("c.yaml")),
+        metrics=Metrics(headline=Headline(column="m", direction="min"), panels=()),
+        budget=Budget(),
+    )
+    assert cfg.prompts_dir is None

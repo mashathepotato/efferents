@@ -250,6 +250,9 @@ def _build_labconfig(fm: dict, raw: dict, submission_dir: Path) -> "LabConfig":
             "lab_id missing; provide it in lab.yaml or hypothesis.md slug"
         )
 
+    prompts_dir_candidate = submission_dir / "prompts"
+    prompts_dir = prompts_dir_candidate if prompts_dir_candidate.is_dir() else None
+
     return LabConfig(
         lab_id=lab_id,
         domain=raw.get("domain", "unspecified"),
@@ -275,6 +278,7 @@ def _build_labconfig(fm: dict, raw: dict, submission_dir: Path) -> "LabConfig":
             daily_cap_usd=float(budget_raw.get("daily_cap_usd", 10.0)),
             sonnet_default=bool(budget_raw.get("sonnet_default", True)),
         ),
+        prompts_dir=prompts_dir,
     )
 
 
@@ -295,6 +299,7 @@ class LabConfig:
     peer_review_enabled: bool = False
     peer_review_accept_mean_threshold: float = 6.0
     peer_review_accept_min_threshold: int = 4
+    prompts_dir: Path | None = None
 
     @classmethod
     def from_submission(cls, submission_dir: Path | str) -> "LabConfig":
