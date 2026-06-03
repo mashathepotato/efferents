@@ -41,6 +41,10 @@ _NEW_RUN_COLUMNS = (
 # a column in DDL, so we PRAGMA first and ALTER only when missing.
 _NEW_CAMPAIGN_COLUMNS = (
     ("student_id", "TEXT DEFAULT 'primary'"),
+    # v0.1.3: the agent-proposed headline metric for this campaign. Null →
+    # consumers fall back to LabConfig.metrics.headline.
+    ("headline_metric", "TEXT"),
+    ("headline_direction", "TEXT"),
 )
 
 

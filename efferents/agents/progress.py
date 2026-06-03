@@ -51,15 +51,47 @@ _MAX_BEST_SAMPLES = 6
 _MAX_ARCHITECTURES = 12
 _MAX_RUNS_PER_ARCH = 6
 
-def _panel_metrics() -> list[tuple[str, str, float | None]]:
-    """Return per-lab panel definitions from the active LabConfig.
+_META_COLUMNS = frozenset({
+    "run_id", "started_at", "ended_at", "config_path", "campaign_id",
+    "researcher_mode", "student_id", "git_commit", "duration_seconds", "seed",
+    "config_yaml", "eval_kind",
+})
+
+
+def _discover_metric_columns(db_path, *, meta=_META_COLUMNS) -> list[str]:
+    """Metric columns present in the runs table, minus known meta columns."""
+    import sqlite3 as _sqlite3
+    from pathlib import Path as _Path
+    db_path = _Path(db_path)
+    if not db_path.exists():
+        return []
+    conn = _sqlite3.connect(db_path)
+    try:
+        cols = [row[1] for row in conn.execute("PRAGMA table_info(runs)")]
+    except _sqlite3.OperationalError:
+        return []
+    finally:
+        conn.close()
+    return [c for c in cols if c not in meta]
+
+
+def _panel_metrics(db_path=None) -> list[tuple[str, str, float | None]]:
+    """Per-lab panel definitions: LabConfig panels unioned with any metric
+    columns actually observed in the runs table (agent-proposed metrics the
+    lab never declared still appear).
 
     Each entry is (column_name, axis_label, target_value | None).
     target_value=None means lower-is-better; a numeric target draws a
     horizontal reference line and selects the nearest-to-target row as best.
     """
     cfg = _lab.get_config()
-    return [(p.column, p.label, p.target) for p in cfg.metrics.panels]
+    panels = [(p.column, p.label, p.target) for p in cfg.metrics.panels]
+    declared = {p[0] for p in panels}
+    if db_path is not None:
+        for col in _discover_metric_columns(db_path):
+            if col not in declared:
+                panels.append((col, col, None))
+    return panels
 
 
 def _headline_metric() -> tuple[str, str]:
@@ -223,7 +255,7 @@ _STATUS_COLORS = {
 }
 
 
-def _trend_png_b64(snap: dict) -> str | None:
+def _trend_png_b64(snap: dict, db_path=None) -> str | None:
     """Render a 2x2 small-multiples trend chart (one panel per metric).
 
     Each panel: x = campaign opened-at order (or recent-run order when no
@@ -257,7 +289,7 @@ def _trend_png_b64(snap: dict) -> str | None:
     axes = axes.flatten()
 
     n_panels_with_data = 0
-    for ax, (col, label, target) in zip(axes, _panel_metrics()):
+    for ax, (col, label, target) in zip(axes, _panel_metrics(db_path)):
         xs, ys, cs = [], [], []
         for i, (xlabel, css, rows) in enumerate(positions):
             val, _ = _metric_best(rows, col, target)
@@ -728,7 +760,7 @@ def _render_html(snap: dict, *, paths: LabPaths, context_dir: Path) -> str:
 
     # "Best of each metric" stat row — replaces the single best-W1 stat.
     best_bits = []
-    for col, label, target in _panel_metrics():
+    for col, label, target in _panel_metrics(paths.runs_db):
         val, _row = _metric_best(scored, col, target)
         if val is None:
             continue
@@ -748,7 +780,7 @@ def _render_html(snap: dict, *, paths: LabPaths, context_dir: Path) -> str:
 <div class="meta" style="margin-top: -16px;">best so far &middot; {best_line}</div>
 """.strip()
 
-    trend_b64 = _trend_png_b64(snap)
+    trend_b64 = _trend_png_b64(snap, paths.runs_db)
     trend_html = (
         f'<div class="trend"><img src="data:image/png;base64,{trend_b64}" alt="trend"></div>'
         if trend_b64

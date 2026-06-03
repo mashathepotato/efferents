@@ -58,7 +58,32 @@ def test_smoke_lab_runs_end_to_end(tmp_path, monkeypatch):
     except subprocess.TimeoutExpired:
         proc.kill()
 
+    # v0.1.3 acceptance: the agent-proposed-eval path reached the DB through the
+    # real daemon. Any campaign the Researcher opened carries a headline_metric;
+    # for the smoke lab the only sensible metric is synthetic_loss. We assert
+    # correctness *when* a metric was proposed (robust to LLM timing/variation:
+    # a null headline_metric just means the fallback applied that round).
+    proposed_metrics: list[str] = []
+    if db.exists():
+        try:
+            conn = sqlite3.connect(db)
+            conn.row_factory = sqlite3.Row
+            proposed_metrics = [
+                r["headline_metric"]
+                for r in conn.execute(
+                    "SELECT headline_metric FROM campaigns WHERE headline_metric IS NOT NULL"
+                )
+            ]
+            conn.close()
+        except sqlite3.OperationalError:
+            pass
+
     out, _ = proc.communicate()
     assert runs >= 1, (
         f"no synthetic_loss rows after 90s.\nstdout/stderr:\n{out}"
+    )
+    # When the Researcher did propose a metric, it must be the smoke lab's.
+    assert all(m == "synthetic_loss" for m in proposed_metrics), (
+        f"unexpected proposed headline_metric(s): {proposed_metrics}\n"
+        f"stdout/stderr:\n{out}"
     )

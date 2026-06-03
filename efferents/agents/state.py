@@ -324,30 +324,32 @@ def campaign_insert(
     hypothesis_hash: str,
     opened_at: str | None = None,
     student_id: str = "primary",
+    headline_metric: str | None = None,
+    headline_direction: str | None = None,
 ) -> None:
     conn = sqlite3.connect(db_path)
     try:
-        # Detect whether the campaigns table has the Phase B student_id column.
-        # Pre-migration DBs (in old tests / fresh-without-migration setups)
-        # don't have it; in that case fall back to the 6-column INSERT so the
-        # caller doesn't blow up.
+        # Detect which optional columns the campaigns table has. Pre-migration
+        # DBs (old tests / fresh-without-migration) lack student_id and the
+        # v0.1.3 metric columns; build the INSERT from whatever is present so
+        # the caller never blows up.
         cols = {r[1] for r in conn.execute("PRAGMA table_info(campaigns)").fetchall()}
+        names = ["id", "lab_id", "question", "hypothesis_path", "hypothesis_hash", "opened_at"]
+        values = [id, lab_id, question, hypothesis_path, hypothesis_hash, opened_at or now_iso()]
         if "student_id" in cols:
-            conn.execute(
-                """INSERT INTO campaigns
-                     (id, lab_id, question, hypothesis_path, hypothesis_hash, opened_at, student_id)
-                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                (id, lab_id, question, hypothesis_path, hypothesis_hash,
-                 opened_at or now_iso(), student_id),
-            )
-        else:
-            conn.execute(
-                """INSERT INTO campaigns
-                     (id, lab_id, question, hypothesis_path, hypothesis_hash, opened_at)
-                   VALUES (?, ?, ?, ?, ?, ?)""",
-                (id, lab_id, question, hypothesis_path, hypothesis_hash,
-                 opened_at or now_iso()),
-            )
+            names.append("student_id")
+            values.append(student_id)
+        if "headline_metric" in cols:
+            names.append("headline_metric")
+            values.append(headline_metric)
+        if "headline_direction" in cols:
+            names.append("headline_direction")
+            values.append(headline_direction)
+        placeholders = ", ".join("?" for _ in names)
+        conn.execute(
+            f"INSERT INTO campaigns ({', '.join(names)}) VALUES ({placeholders})",
+            values,
+        )
         conn.commit()
     finally:
         conn.close()
