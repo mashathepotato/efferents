@@ -19,13 +19,14 @@ import re as _re
 
 import anthropic
 
-from efferents.agents import analyst, coder, executor, researcher
+from efferents.agents import analyst, coder, executor, researcher, writer
 from efferents.agents.budget import BudgetTracker
 from efferents.agents.notify import notify_all
 from efferents.agents.state import (
     LabPaths,
     StudentStateView,
     campaign_close,
+    campaign_open_list,
     campaign_stale_open,
     init_lab,
     lab_paths,
@@ -115,6 +116,8 @@ class Orchestrator:
         hours_per_digest: float = 4.0,
         runs_per_coder: int = 8,
         hours_per_coder: float = 6.0,
+        runs_per_paper: int = 20,
+        hours_per_paper: float = 6.0,
         dry_run: bool = False,
         startup_message: str | None = None,
     ):
@@ -127,6 +130,8 @@ class Orchestrator:
         self.hours_per_digest = hours_per_digest
         self.runs_per_coder = runs_per_coder
         self.hours_per_coder = hours_per_coder
+        self.runs_per_paper = runs_per_paper
+        self.hours_per_paper = hours_per_paper
         self.dry_run = dry_run
         self._stop = False
         # Set to True after a successful Coder commit. The wrapper script
@@ -337,6 +342,52 @@ class Orchestrator:
                 f"## {now_iso()} — Coder step FAILED: {type(e).__name__}: {e}\n",
             )
 
+    def _maybe_write(self) -> None:
+        if self.dry_run or self.client is None:
+            return
+        state = load_state(self.paths.state)
+        n_runs = runs_count(self.paths.runs_db)
+        last_runs = int(state.get("last_paper_runs", 0))
+        last_ts = state.get("last_paper_ts")
+        if (n_runs - last_runs) < self.runs_per_paper and _hours_since(last_ts) < self.hours_per_paper:
+            return
+        if self.budget.should_pause():
+            return  # do NOT bump the cursor; retry when budget frees
+
+        lab_root = self.paths.runs_db.parent
+        wpaths = writer.writer_paths(
+            lab=lab_root,
+            paper=lab_root / "paper",
+            reports=lab_root / "reports",
+            context=self.context_dir,
+        )
+        for campaign in campaign_open_list(self.paths.runs_db, _lab.LAB_ID):
+            cid = campaign["id"]
+            if (wpaths.paper / f"{cid}.md").exists():
+                continue  # one paper per campaign; no re-write / re-review
+            try:
+                artifact = writer.write_phase_a_paper(
+                    wpaths, campaign, client=self.client, budget=self.budget,
+                )
+                if artifact is not None:
+                    notify_all(
+                        title=f"{_lab_label()}: paper composed",
+                        message=f"campaign {cid}",
+                    )
+                    notebook_append(
+                        self.paths.notebook,
+                        f"## {now_iso()} — Writer composed a paper for {cid}\n",
+                    )
+            except Exception as e:
+                notebook_append(
+                    self.paths.notebook,
+                    f"## {now_iso()} — Writer step FAILED for {cid}: {type(e).__name__}: {e}\n",
+                )
+
+        state["last_paper_runs"] = n_runs
+        state["last_paper_ts"] = now_iso()
+        save_state(self.paths.state, state)
+
     def step(self) -> dict[str, Any]:
         """One iteration. Returns telemetry dict.
 
@@ -353,6 +404,7 @@ class Orchestrator:
             # should pick them up rather than waiting for a run that won't come.
             self._maybe_digest()
             self._maybe_code()
+            self._maybe_write()
             closed = close_stale_campaigns(self.paths.runs_db, lab_id=_lab.LAB_ID)
             if closed:
                 notebook_append(
@@ -366,6 +418,7 @@ class Orchestrator:
         outcome = executor.execute(paths=self.paths, proposal=proposal)
         self._maybe_digest()
         self._maybe_code()
+        self._maybe_write()
         return {"event": "ran", "added": n_added, "outcome_ok": outcome.get("ok"), "name": outcome.get("name")}
 
     def run(self, *, max_iterations: int | None = None) -> None:
