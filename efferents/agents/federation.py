@@ -371,11 +371,13 @@ def _campaign_row(db: Path, campaign_id: str) -> dict[str, Any] | None:
     return dict(row) if row else None
 
 
-def _campaign_runs(db: Path, campaign_id: str, metric: str | None = None) -> list[dict[str, Any]]:
-    """All runs for this campaign, ordered best (lowest) first by metric.
+def _campaign_runs(db: Path, campaign_id: str, metric: str | None = None, direction: str = "min") -> list[dict[str, Any]]:
+    """All runs for this campaign, ordered best-first by metric+direction.
 
-    If *metric* is None (or the column doesn't exist in the runs table) the
-    query falls back to ordering by started_at and returns all rows.
+    *direction* controls sort order: "min" means lower is better (ASC),
+    "max" means higher is better (DESC).  If *metric* is None (or the column
+    doesn't exist in the runs table) the query falls back to ordering by
+    started_at and returns all rows.
     """
     import sqlite3
     if not db.exists():
@@ -386,10 +388,11 @@ def _campaign_runs(db: Path, campaign_id: str, metric: str | None = None) -> lis
         # Detect available columns so we can order by metric only when present.
         cols = {row[1] for row in conn.execute("PRAGMA table_info(runs)").fetchall()}
         if metric and metric in cols:
+            order = "ASC" if direction == "min" else "DESC"
             rows = conn.execute(
                 f"""SELECT * FROM runs
                    WHERE campaign_id = ? AND {metric} IS NOT NULL
-                   ORDER BY {metric} ASC""",
+                   ORDER BY {metric} {order}""",
                 (campaign_id,),
             ).fetchall()
         else:
@@ -480,15 +483,16 @@ def export_paper_bundle(
     hypothesis_hash_db = campaign_row.get("hypothesis_hash") or ""
     hypothesis_path_str = campaign_row.get("hypothesis_path") or ""
 
-    # Resolve which metric column to use: campaign row first, then lab config
-    # fallback, then hard-coded legacy default.
+    # Resolve which metric column and direction to use: campaign row first,
+    # then lab config fallback, then hard-coded legacy default.
     try:
         from efferents import lab as _lab_cfg
         _cfg = _lab_cfg.get_config()
-        _default_metric = _cfg.metrics.headline.column
+        _default = (_cfg.metrics.headline.column, _cfg.metrics.headline.direction)
     except (RuntimeError, AttributeError):
-        _default_metric = "e_w1"
-    metric = campaign_row.get("headline_metric") or _default_metric
+        _default = ("e_w1", "min")
+    metric = campaign_row.get("headline_metric") or _default[0]
+    direction = campaign_row.get("headline_direction") or _default[1]
 
     # Hypothesis lookup. hypothesis_path is stored relative to the repo root
     # (paths.root.parent / hypothesis_path), as written by the popper-gate.
@@ -496,7 +500,7 @@ def export_paper_bundle(
     hyp_path = repo_root / hypothesis_path_str if hypothesis_path_str else None
 
     journal_entry_md = _journal_entry_block(journal_path, campaign_id)
-    runs = _campaign_runs(db, campaign_id, metric=metric)
+    runs = _campaign_runs(db, campaign_id, metric=metric, direction=direction)
     candidate_run = runs[0] if runs else None
     recipe_yaml = candidate_run.get("config_yaml") if candidate_run else None
 
@@ -526,7 +530,8 @@ def export_paper_bundle(
     files_in_bundle: list[str] = []
     metric_provenance: list[dict[str, Any]] = [
         {"run_id": r.get("run_id"), metric: r.get(metric),
-         "seed": r.get("seed"), "model": r.get("model")}
+         "seed": r.get("seed"), "model": r.get("model"),
+         "direction": direction}
         for r in runs
     ]
 
