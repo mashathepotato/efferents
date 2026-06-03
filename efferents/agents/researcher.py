@@ -71,6 +71,7 @@ from efferents.agents.state import (
 from efferents import lab as _lab
 from efferents.lab import _COL_NAME_RE  # SQL-identifier sanitizer
 from efferents.agents.prompts.loader import load_prompt
+from efferents.agents.progress import _discover_metric_columns
 
 
 def _slugify(text: str) -> str:
@@ -148,6 +149,14 @@ def _stdev(xs: list[float]) -> float:
 PRIMARY_METRICS = ("e_w1", "radial_l2_log", "active_frac_w1")
 
 
+def _observed_metric_columns(db_path) -> list[str]:
+    """Metric columns present in runs, for saturation analysis. Falls back
+    to the QML PRIMARY_METRICS set only when discovery yields nothing
+    (no runs table / empty schema)."""
+    found = _discover_metric_columns(db_path)
+    return found or list(PRIMARY_METRICS)
+
+
 def _saturation_report(paths: LabPaths, *, n: int = 50) -> dict[str, Any]:
     """Detect saturated experimental axes across all primary metrics.
 
@@ -192,6 +201,8 @@ def _saturation_report(paths: LabPaths, *, n: int = 50) -> dict[str, Any]:
     finally:
         conn.close()
 
+    metrics = _observed_metric_columns(paths.runs_db)
+
     # Bucket: (model, raw_q, eval_kind) -> {config_hash: {metric: [vals]}}
     buckets: dict[tuple[str, int, str], dict[str, dict[str, list[float]]]] = (
         defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
@@ -199,8 +210,11 @@ def _saturation_report(paths: LabPaths, *, n: int = 50) -> dict[str, Any]:
     for r in rows:
         key = (str(r["model"]), int(r["raw_q"] or 0), str(r["eval_kind"] or "unknown"))
         ch = str(r["config_hash"])
-        for m in PRIMARY_METRICS:
-            v = r[m]
+        for m in metrics:
+            try:
+                v = r[m]
+            except IndexError:
+                continue
             if v is not None:
                 buckets[key][ch][m].append(float(v))
 
@@ -238,9 +252,9 @@ def _saturation_report(paths: LabPaths, *, n: int = 50) -> dict[str, Any]:
     saturated_axes: list[str] = []
     evidence: list[dict[str, Any]] = []
     for (model, raw_q, eval_kind), per_hash in buckets.items():
-        per_metric = {m: _metric_status(per_hash, m) for m in PRIMARY_METRICS}
+        per_metric = {m: _metric_status(per_hash, m) for m in metrics}
         n_sat = sum(1 for s in per_metric.values() if s["saturated"])
-        is_saturated = n_sat >= 2  # ≥ 2 of 3 primary metrics stuck
+        is_saturated = n_sat >= max(1, (len(metrics) + 1) // 2)
         # Total runs in this bucket (any metric).
         all_vals = sum(
             (per_hash[ch].get("e_w1", []) for ch in per_hash), []
