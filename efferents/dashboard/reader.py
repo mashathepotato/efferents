@@ -8,7 +8,10 @@ socket.
 from __future__ import annotations
 
 import json
+import sqlite3
 from pathlib import Path
+
+_ACTIVITY_BODY_PREVIEW = 300
 
 from efferents import daemon
 from efferents import lab as lab_mod
@@ -48,7 +51,7 @@ def read_runs(lab_root: Path, n: int = 30) -> dict:
     series = [
         {"started_at": r["started_at"], "value": r["value"]}
         for r in reversed(runs)
-        if r["value"] is not None
+        if r["value"] is not None and r["started_at"] is not None
     ]
     return {"headline": {"column": column, "direction": direction},
             "runs": runs, "series": series}
@@ -57,10 +60,14 @@ def read_runs(lab_root: Path, n: int = 30) -> dict:
 def read_papers(lab_root: Path) -> list[dict]:
     lab_root = Path(lab_root)
     paths: list[Path] = []
+    seen: set[str] = set()
     for name in ("paper", "papers"):  # writer uses 'paper'; CLI pre-creates 'papers'
         d = lab_root / name
         if d.exists():
-            paths.extend(sorted(d.glob("*.md")))
+            for p in sorted(d.glob("*.md")):
+                if p.name not in seen:
+                    seen.add(p.name)
+                    paths.append(p)
     return [c.model_dump() for c in render_feed(paths)]
 
 
@@ -75,11 +82,13 @@ def read_activity(lab_root: Path, n: int = 20) -> list[dict]:
         if not block:
             continue
         head, _, body = block.partition("\n")
-        timestamp, _, title = head.partition(" — ")
+        timestamp, sep, title = head.partition(" — ")
+        if not sep:
+            continue
         entries.append({
             "timestamp": timestamp.strip(),
             "title": title.strip(),
-            "body": body.strip()[:300],
+            "body": body.strip()[:_ACTIVITY_BODY_PREVIEW],
         })
     entries.reverse()
     return entries[:n]
@@ -107,7 +116,7 @@ def _current_hypothesis(lab_root: Path, lab_id: str) -> dict:
     if db.exists():
         try:
             campaigns = state_mod.campaign_open_list(db, lab_id)
-        except Exception:
+        except (sqlite3.OperationalError, sqlite3.DatabaseError):
             campaigns = []
         if campaigns:
             latest = max(campaigns, key=lambda c: c.get("opened_at", ""))
@@ -124,7 +133,7 @@ def _current_hypothesis(lab_root: Path, lab_id: str) -> dict:
 
 
 def _section(markdown: str, name: str) -> str:
-    """Return the text under a `## {name}` heading, up to the next `##`."""
+    """Return the text under a `## {name}` heading, up to the next `## ` heading."""
     lines = markdown.splitlines()
     out: list[str] = []
     capturing = False

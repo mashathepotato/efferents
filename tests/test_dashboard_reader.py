@@ -83,3 +83,26 @@ def test_read_activity_parses_notebook(tmp_path, smoke_lab_config):
 
 def test_read_activity_empty_when_no_notebook(tmp_path, smoke_lab_config):
     assert reader.read_activity(tmp_path) == []
+
+
+def test_read_papers_reads_plural_papers_dir(tmp_path, smoke_lab_config):
+    papers_dir = tmp_path / "papers"
+    papers_dir.mkdir()
+    (papers_dir / "camp-2.md").write_text(
+        "---\nlab_id: smoke-fixture\ncampaign_id: camp-2\n"
+        "novelty_claim: Another finding.\npublished_at: 2026-06-10\n"
+        "status: preprint\n---\n\n# T2\n\nbody\n"
+    )
+    papers = reader.read_papers(tmp_path)
+    assert [p["campaign_id"] for p in papers] == ["camp-2"]
+
+
+def test_read_activity_ignores_notebook_preamble(tmp_path, smoke_lab_config):
+    (tmp_path / "lab_notebook.md").write_text(
+        "# Lab notebook\n\nAgent-only, append-only narrative.\n\n"
+        "Initialized 2026-06-01T09:00:00+00:00.\n\n"
+        "## 2026-06-01T10:00:00+00:00 — orchestrator start\n\nefferents daemon\n\n"
+    )
+    acts = reader.read_activity(tmp_path)
+    assert len(acts) == 1
+    assert acts[0]["title"] == "orchestrator start"
