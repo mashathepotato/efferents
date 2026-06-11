@@ -206,10 +206,12 @@ def _cmd_serve(args: argparse.Namespace) -> int:
     from efferents.dashboard import server as dash_server
 
     lab_root = Path(args.lab_root).resolve()
-    # `_init_lab_root` copies hypothesis.md + lab.yaml into the lab root, so an
-    # initialized lab root is itself a valid "submission" for config loading.
+    # `_init_lab_root` copies hypothesis.md + lab.yaml into the lab root.  The
+    # lab root is a valid config source, but source.dir and config_template in
+    # that copied lab.yaml are relative to the *submission* root, not lab/.
+    # We don't need to run code here (serve is read-only), so skip path checks.
     try:
-        cfg = LabConfig.from_submission(lab_root)
+        cfg = LabConfig.from_submission(lab_root, check_paths=False)
     except SubmissionError as e:
         print(f"could not load lab config from {lab_root}: {e}", file=sys.stderr)
         return 1
