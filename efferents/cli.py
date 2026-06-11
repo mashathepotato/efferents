@@ -202,7 +202,25 @@ def _cmd_stop(args: argparse.Namespace) -> int:
     return 0
 
 
-def main(argv: list[str] | None = None) -> int:
+def _cmd_serve(args: argparse.Namespace) -> int:
+    from efferents.dashboard import server as dash_server
+
+    lab_root = Path(args.lab_root).resolve()
+    # `_init_lab_root` copies hypothesis.md + lab.yaml into the lab root.  The
+    # lab root is a valid config source, but source.dir and config_template in
+    # that copied lab.yaml are relative to the *submission* root, not lab/.
+    # We don't need to run code here (serve is read-only), so skip path checks.
+    try:
+        cfg = LabConfig.from_submission(lab_root, check_paths=False)
+    except SubmissionError as e:
+        print(f"could not load lab config from {lab_root}: {e}", file=sys.stderr)
+        return 1
+    lab_mod.set_config(cfg)
+    dash_server.serve(lab_root, port=args.port, open_browser=not args.no_open)
+    return 0
+
+
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="efferents")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
@@ -227,6 +245,19 @@ def main(argv: list[str] | None = None) -> int:
     p_list = sub.add_parser("list", help="List all registered labs")
     p_list.set_defaults(func=_cmd_list)
 
+    p_serve = sub.add_parser("serve", help="Start the read-only web dashboard")
+    p_serve.add_argument("--lab-root", default="lab",
+                         help="Initialized lab directory (relative to cwd)")
+    p_serve.add_argument("--port", type=int, default=8800)
+    p_serve.add_argument("--no-open", action="store_true",
+                         help="Do not auto-open the browser")
+    p_serve.set_defaults(func=_cmd_serve)
+
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = build_parser()
     args = parser.parse_args(argv)
     return args.func(args)
 

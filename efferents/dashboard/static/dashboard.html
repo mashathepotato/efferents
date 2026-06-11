@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>efferents — lab dashboard</title>
+  <link rel="stylesheet" href="/static/dashboard.css">
+</head>
+<body>
+  <header id="topbar">
+    <div><b id="lab-id">…</b> <span id="domain" class="muted"></span></div>
+    <div class="topbar-right">
+      <span id="status-badge" class="badge">…</span>
+      <span id="budget" class="muted"></span>
+    </div>
+  </header>
+
+  <main>
+    <section class="col-main">
+      <div class="card">
+        <div class="label">Current hypothesis <span id="student" class="muted"></span></div>
+        <div id="question"></div>
+        <div id="claim" class="muted small"></div>
+        <div id="falsifier" class="muted small"></div>
+      </div>
+
+      <div class="card">
+        <div class="label" id="metric-label">Headline metric</div>
+        <svg id="trend" viewBox="0 0 100 40" preserveAspectRatio="none"></svg>
+        <div id="trend-caption" class="muted small"></div>
+      </div>
+
+      <div class="card">
+        <div class="label">Recent runs</div>
+        <table id="runs"><tbody></tbody></table>
+      </div>
+    </section>
+
+    <section class="col-side">
+      <div class="card">
+        <div class="label accent">Papers</div>
+        <div id="papers"></div>
+      </div>
+      <div class="card">
+        <div class="label">Agent activity</div>
+        <div id="activity"></div>
+      </div>
+    </section>
+  </main>
+
+  <script src="/static/dashboard.js"></script>
+</body>
+</html>

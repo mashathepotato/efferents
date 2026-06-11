@@ -63,6 +63,29 @@ def test_from_submission_source_dir_missing(tmp_path):
         LabConfig.from_submission(tmp_path)
 
 
+def test_from_submission_check_paths_false_skips_existence_checks(tmp_path):
+    # Neither source.dir nor config_template exist on disk. With check_paths
+    # disabled (read-only serve use), from_submission must still succeed —
+    # the copied lab.yaml in an initialized lab/ dir has paths rooted at the
+    # parent submission, not lab/.
+    (tmp_path / "hypothesis.md").write_text(
+        "---\nslug: x\nfalsifiability_gate: passed\nstatus: active\n---\n\nbody"
+    )
+    (tmp_path / "lab.yaml").write_text(
+        "lab_id: x\ndomain: y\n"
+        "source:\n  dir: ./nonexistent/\n"
+        "executor:\n  run_command: 'echo {config_path}'\n  config_template: missing.yaml\n"
+        "metrics:\n  headline:\n    column: m\n    direction: min\n"
+    )
+    # Default (check_paths=True) still rejects the missing source.dir.
+    with pytest.raises(SubmissionError, match="source.dir"):
+        LabConfig.from_submission(tmp_path)
+    # check_paths=False loads successfully.
+    cfg = LabConfig.from_submission(tmp_path, check_paths=False)
+    assert cfg.lab_id == "x"
+    assert cfg.metrics.headline.column == "m"
+
+
 def test_from_submission_run_command_missing_placeholder(tmp_path):
     (tmp_path / "hypothesis.md").write_text(
         "---\nslug: x\nfalsifiability_gate: passed\nstatus: active\n---\n\nbody"

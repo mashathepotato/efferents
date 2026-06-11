@@ -182,15 +182,22 @@ def _load_lab_yaml(path: Path) -> dict:
     return data
 
 
-def _build_labconfig(fm: dict, raw: dict, submission_dir: Path) -> "LabConfig":
-    """Construct a LabConfig from parsed hypothesis frontmatter + lab.yaml data."""
+def _build_labconfig(
+    fm: dict, raw: dict, submission_dir: Path, check_paths: bool = True
+) -> "LabConfig":
+    """Construct a LabConfig from parsed hypothesis frontmatter + lab.yaml data.
+
+    ``check_paths=False`` skips existence checks for source.dir and
+    config_template.  Use this when loading config for read-only purposes (e.g.
+    the dashboard serve command) where the source tree may be rooted elsewhere.
+    """
     # --- source.dir ---
     src_block = raw.get("source") or {}
     src_dir_str = src_block.get("dir")
     if not src_dir_str:
         raise SubmissionError("lab.yaml: source.dir is required")
     src_dir = (submission_dir / src_dir_str).resolve()
-    if not src_dir.is_dir():
+    if check_paths and not src_dir.is_dir():
         raise SubmissionError(f"source.dir does not exist on disk: {src_dir}")
 
     # --- executor ---
@@ -206,7 +213,7 @@ def _build_labconfig(fm: dict, raw: dict, submission_dir: Path) -> "LabConfig":
     if not config_template_str:
         raise SubmissionError("lab.yaml: executor.config_template is required")
     abs_config_template = (src_dir / config_template_str).resolve()
-    if not abs_config_template.is_file():
+    if check_paths and not abs_config_template.is_file():
         raise SubmissionError(
             f"executor.config_template not found under source.dir: {abs_config_template}"
         )
@@ -302,17 +309,24 @@ class LabConfig:
     prompts_dir: Path | None = None
 
     @classmethod
-    def from_submission(cls, submission_dir: Path | str) -> "LabConfig":
+    def from_submission(
+        cls, submission_dir: Path | str, check_paths: bool = True
+    ) -> "LabConfig":
         """Load a LabConfig from a submission directory.
 
         The directory must contain:
           - hypothesis.md  (with YAML frontmatter; falsifiability_gate must be 'passed')
           - lab.yaml       (executor, source, metrics configuration)
+
+        Pass ``check_paths=False`` to skip source.dir / config_template existence
+        checks.  Useful when loading config for read-only purposes (e.g. the
+        dashboard serve command invoked against an already-initialised lab/ dir
+        whose source tree is rooted in the parent submission directory).
         """
         submission_dir = Path(submission_dir).resolve()
         fm = _parse_hypothesis(submission_dir / "hypothesis.md")
         raw = _load_lab_yaml(submission_dir / "lab.yaml")
-        return _build_labconfig(fm, raw, submission_dir)
+        return _build_labconfig(fm, raw, submission_dir, check_paths=check_paths)
 
 
 # ---------------------------------------------------------------------------
