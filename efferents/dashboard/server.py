@@ -8,6 +8,7 @@ POST/PUT routes and nothing here mutates lab state.
 from __future__ import annotations
 
 import json
+import logging
 import webbrowser
 from functools import partial
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -16,6 +17,8 @@ from pathlib import Path
 from efferents.dashboard import reader
 
 STATIC_DIR = Path(__file__).parent / "static"
+
+_log = logging.getLogger(__name__)
 
 _CONTENT_TYPES = {
     ".html": "text/html; charset=utf-8",
@@ -33,23 +36,25 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):  # noqa: N802 (stdlib naming)
         try:
-            if self.path in ("/", "/index.html"):
+            path = self.path.split("?", 1)[0]
+            if path in ("/", "/index.html"):
                 return self._send_file(STATIC_DIR / "dashboard.html")
-            if self.path == "/api/state":
+            if path == "/api/state":
                 return self._send_json(reader.read_state(self.lab_root))
-            if self.path == "/api/runs":
+            if path == "/api/runs":
                 return self._send_json(reader.read_runs(self.lab_root))
-            if self.path == "/api/papers":
+            if path == "/api/papers":
                 return self._send_json(reader.read_papers(self.lab_root))
-            if self.path == "/api/activity":
+            if path == "/api/activity":
                 return self._send_json(reader.read_activity(self.lab_root))
-            if self.path.startswith("/static/"):
-                target = (STATIC_DIR / self.path[len("/static/"):]).resolve()
+            if path.startswith("/static/"):
+                target = (STATIC_DIR / path[len("/static/"):]).resolve()
                 if STATIC_DIR in target.parents and target.is_file():
                     return self._send_file(target)
             self.send_error(404)
-        except Exception as exc:  # read-only server: report, don't crash
-            self.send_error(500, str(exc))
+        except Exception:  # read-only server: log server-side, return generic 500
+            _log.exception("dashboard request failed: %s", self.path)
+            self.send_error(500)
 
     def _send_json(self, obj) -> None:
         body = json.dumps(obj).encode()
@@ -60,6 +65,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def _send_file(self, path: Path) -> None:
+        if not path.is_file():
+            return self.send_error(404)
         data = path.read_bytes()
         self.send_response(200)
         self.send_header("Content-Type",
@@ -86,4 +93,7 @@ def serve(lab_root: Path, port: int = 8800, open_browser: bool = True) -> None:
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
+        pass
+    finally:
         httpd.shutdown()
+        httpd.server_close()

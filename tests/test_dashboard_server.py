@@ -1,3 +1,4 @@
+import http.client
 import json
 import sqlite3
 import threading
@@ -33,6 +34,7 @@ def running_server(tmp_path, smoke_lab_config):
     thread.start()
     yield port
     httpd.shutdown()
+    httpd.server_close()
 
 
 def _get(port: int, path: str):
@@ -70,3 +72,12 @@ def test_unknown_path_404(running_server):
     with pytest.raises(urllib.error.HTTPError) as exc:
         urllib.request.urlopen(f"http://127.0.0.1:{running_server}/nope")
     assert exc.value.code == 404
+
+
+def test_static_traversal_blocked(running_server):
+    conn = http.client.HTTPConnection("127.0.0.1", running_server)
+    conn.request("GET", "/static/../../../etc/passwd")
+    resp = conn.getresponse()
+    resp.read()
+    conn.close()
+    assert resp.status == 404
