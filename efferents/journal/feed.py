@@ -14,6 +14,7 @@ import yaml
 from pydantic import BaseModel
 
 _REQUIRED = ("lab_id", "campaign_id", "novelty_claim", "published_at", "status")
+_MAX_TITLE_LEN = 80
 
 
 class FeedCard(BaseModel):
@@ -30,7 +31,10 @@ def render_feed(paper_paths: list[Path]) -> list[FeedCard]:
     """Parse paper markdown files into feed cards, newest-first.
 
     Malformed papers (no frontmatter, missing required fields, bad YAML) are
-    skipped, never raised.
+    skipped, never raised.  Papers are sorted by ``published_at`` as a plain
+    string; this assumes the ISO-8601 ``YYYY-MM-DD`` format the writer emits
+    via ``date.today().isoformat()``, so lexicographic order equals
+    chronological order.
     """
     cards: list[FeedCard] = []
     for path in paper_paths:
@@ -60,7 +64,7 @@ def _card_from_path(path: Path) -> FeedCard | None:
         lab_id=str(meta["lab_id"]),
         campaign_id=str(meta["campaign_id"]),
         title=_extract_title(body, novelty),
-        summary=novelty,
+        summary=novelty,       # mirrors novelty_claim intentionally; seam for a richer abstract later
         novelty_claim=novelty,
         status=str(meta["status"]),
         published_at=str(meta["published_at"]),
@@ -80,6 +84,6 @@ def _split_frontmatter(text: str) -> tuple[str | None, str]:
 def _extract_title(body: str, fallback: str) -> str:
     for line in body.splitlines():
         stripped = line.strip()
-        if stripped.startswith("# ") or stripped == "#":
+        if stripped.startswith("# "):
             return stripped.lstrip("#").strip()
-    return fallback[:80]
+    return fallback[:_MAX_TITLE_LEN]

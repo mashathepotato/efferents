@@ -66,3 +66,10 @@ def test_render_feed_title_falls_back_to_novelty_claim(tmp_path):
     paper = _write(tmp_path / "camp-1.md", no_heading)
     cards = render_feed([paper])
     assert cards[0].title == "Coefficient near 0.79 minimizes synthetic loss."
+
+
+def test_render_feed_skips_unreadable_path(tmp_path):
+    good = _write(tmp_path / "camp-1.md", VALID_PAPER)
+    missing_path = tmp_path / "does-not-exist.md"
+    cards = render_feed([missing_path, good])
+    assert [c.campaign_id for c in cards] == ["camp-1"]
