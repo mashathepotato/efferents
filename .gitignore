@@ -32,3 +32,5 @@ popper-corpus/
 .idea/
 .vscode/
 *.swp
+
+.superpowers/
