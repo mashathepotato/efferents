@@ -8,6 +8,7 @@ socket.
 from __future__ import annotations
 
 import json
+import math
 import sqlite3
 from pathlib import Path
 
@@ -41,11 +42,14 @@ def read_runs(lab_root: Path, n: int = 30) -> dict:
     cfg = lab_mod.get_config()
     column = cfg.metrics.headline.column
     direction = cfg.metrics.headline.direction
+    def _finite(x):
+        return x if isinstance(x, (int, float)) and not isinstance(x, bool) and math.isfinite(x) else None
+
     db = lab_root / "runs.sqlite"
     rows = state_mod.recent_runs(db, n) if db.exists() else []
     runs = [
         {"run_id": r.get("run_id"), "started_at": r.get("started_at"),
-         "value": r.get(column)}
+         "value": _finite(r.get(column))}
         for r in rows
     ]
     series = [

@@ -106,3 +106,24 @@ def test_read_activity_ignores_notebook_preamble(tmp_path, smoke_lab_config):
     acts = reader.read_activity(tmp_path)
     assert len(acts) == 1
     assert acts[0]["title"] == "orchestrator start"
+
+
+def test_read_runs_coerces_non_numeric_metric_to_none(tmp_path, smoke_lab_config):
+    db = tmp_path / "runs.sqlite"
+    conn = sqlite3.connect(db)
+    conn.execute(
+        "CREATE TABLE runs (run_id TEXT PRIMARY KEY, started_at TEXT, "
+        "ended_at TEXT, synthetic_loss REAL)"
+    )
+    conn.executemany(
+        "INSERT INTO runs (run_id, started_at, synthetic_loss) VALUES (?, ?, ?)",
+        [("r1", "2026-06-01T10:00:00", "oops"),   # non-numeric stored in REAL col
+         ("r2", "2026-06-01T10:01:00", 0.04)],
+    )
+    conn.commit()
+    conn.close()
+    out = reader.read_runs(tmp_path)
+    by_id = {r["run_id"]: r["value"] for r in out["runs"]}
+    assert by_id["r1"] is None
+    assert by_id["r2"] == 0.04
+    assert [pt["value"] for pt in out["series"]] == [0.04]
