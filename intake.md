@@ -105,7 +105,7 @@ seed: 42
 lab_id: trial
 domain: synthetic
 source:
-  dir: ./executor/
+  dir: ../executor/
   allowed_patterns: ["**/*.py", "**/*.yaml"]
 executor:
   run_command: "python3 -m stub_run --config {config_path}"
