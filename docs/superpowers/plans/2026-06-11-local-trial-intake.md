@@ -214,7 +214,7 @@ seed: 42
 lab_id: trial
 domain: synthetic
 source:
-  dir: ./executor/
+  dir: ../executor/
   allowed_patterns: ["**/*.py", "**/*.yaml"]
 executor:
   run_command: "python3 -m stub_run --config {config_path}"
@@ -348,7 +348,7 @@ cat > submission/lab.yaml <<'YAML'
 lab_id: trial
 domain: synthetic
 source:
-  dir: ./executor/
+  dir: ../executor/
   allowed_patterns: ["**/*.py", "**/*.yaml"]
 executor:
   run_command: "python3 -m stub_run --config {config_path}"
@@ -457,5 +457,5 @@ Report to the user: the branch raw URL is live for testing; after merging to `ma
 
 - **Spec coverage:** intake.md contract + 7 steps → Task 2. Embedded kit (stub_run.py, configs/default.yaml, submission/lab.yaml, run_trial.py) → Task 2 Step 1, verified in Task 3. Packaging precondition (wheel ships dashboard) → Task 1. Push + raw-URL pointer → Task 4. Disposable footprint (only intake.md committed; efferents/ untouched) → File Structure table; no task modifies `efferents/` except the conditional flit include in Task 1 Step 4 (build config only, if needed). Error handling (missing key, failed gate, empty run) → encoded in intake.md Steps 0/3/5.
 - **Placeholder scan:** all embedded files are verbatim (stub_run.py from the smoke-lab original; run_trial.py and lab.yaml from the spec). No TBD/TODO. The one conditional (Task 1 Step 4) is gated on an explicit check, with exact toml to add.
-- **Consistency:** `run_trial.py` uses `lab_dir="lab"`/`context_dir="context"` after `os.chdir(SUB)`, and `_init_lab_root(SUB, SUB/"lab")` — both resolve to the same `submission/lab`. `submission/lab.yaml` `source.dir: ./executor/` + `config_template: ../configs/default.yaml` resolve to sibling `executor/` and `configs/` of `submission/`, matching the Task 3 scaffold layout. The dashboard view path `efferents serve --lab-root submission/lab` matches where `run_trial.py` writes. `Orchestrator(max_iterations=…)` matches the verified keyword signature.
+- **Consistency:** `run_trial.py` uses `lab_dir="lab"`/`context_dir="context"` after `os.chdir(SUB)`, and `_init_lab_root(SUB, SUB/"lab")` — both resolve to the same `submission/lab`. `submission/lab.yaml` `source.dir: ../executor/` (relative to `submission/`, the dir holding `lab.yaml`) resolves to the project-root `executor/`; `config_template: ../configs/default.yaml` (relative to `source.dir`) then resolves to the project-root `configs/default.yaml` — matching the Task 3 scaffold layout (executor/, configs/ as siblings of submission/). The dashboard view path `efferents serve --lab-root submission/lab` matches where `run_trial.py` writes. `Orchestrator(max_iterations=…)` matches the verified keyword signature.
 ```

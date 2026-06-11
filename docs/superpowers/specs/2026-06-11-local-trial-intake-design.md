@@ -118,7 +118,7 @@ contents are embedded as fenced code blocks the agent writes verbatim.
 lab_id: trial
 domain: synthetic
 source:
-  dir: ./executor/
+  dir: ../executor/
   allowed_patterns: ["**/*.py", "**/*.yaml"]
 executor:
   run_command: "python3 -m stub_run --config {config_path}"
@@ -134,10 +134,13 @@ budget:
   daily_cap_usd: 2.0
 ```
 
-`source.dir` = `./executor/` (so the run command's cwd has `stub_run` importable);
-`config_template` = `../configs/default.yaml` (relative to `source.dir`, i.e.
-`submission/configs/default.yaml`). `LabConfig.from_submission(submission)` thus
-validates real paths — no `check_paths=False` needed; the scaffolded files exist.
+`source.dir` = `../executor/` — resolved relative to the dir holding `lab.yaml`
+(`submission/`), so it points at the project-root `executor/` (sibling of
+`submission/`), whose cwd has `stub_run` importable. `config_template` =
+`../configs/default.yaml` is then resolved relative to `source.dir`
+(`project/executor/`), giving the project-root `configs/default.yaml`.
+`LabConfig.from_submission(submission)` thus validates real paths — no
+`check_paths=False` needed; the scaffolded files exist.
 
 ### `executor/stub_run.py` and `configs/default.yaml` (embedded)
 
