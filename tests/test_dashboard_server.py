@@ -81,3 +81,13 @@ def test_static_traversal_blocked(running_server):
     resp.read()
     conn.close()
     assert resp.status == 404
+
+
+def test_root_serves_dashboard_html(running_server):
+    with urllib.request.urlopen(
+        f"http://127.0.0.1:{running_server}/"
+    ) as resp:
+        assert resp.status == 200
+        assert resp.headers["Content-Type"].startswith("text/html")
+        html = resp.read().decode()
+    assert "dashboard.js" in html
