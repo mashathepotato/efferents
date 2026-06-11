@@ -1,5 +1,5 @@
 :root { --bg:#0d0f12; --panel:#161a1f; --line:#2a2f37; --fg:#e6e8eb;
-        --muted:#8b939c; --accent:#88f; --ok:#4a9; --warn:#c84; }
+        --muted:#8b939c; --accent:#88f; --ok:#4a9; }
 * { box-sizing: border-box; }
 body { margin:0; background:var(--bg); color:var(--fg);
        font:14px/1.5 -apple-system, system-ui, sans-serif; }

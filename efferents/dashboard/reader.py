@@ -12,12 +12,12 @@ import math
 import sqlite3
 from pathlib import Path
 
-_ACTIVITY_BODY_PREVIEW = 300
-
 from efferents import daemon
 from efferents import lab as lab_mod
 from efferents.agents import state as state_mod
 from efferents.journal.feed import render_feed
+
+_ACTIVITY_BODY_PREVIEW = 300
 
 
 def read_state(lab_root: Path) -> dict:
