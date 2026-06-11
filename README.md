@@ -59,6 +59,24 @@ efferents/
 
 [auto-qml](https://github.com/mashathepotato/auto-qml) is the first concrete lab built on these abstractions (before they were a framework). It runs quantum-conditioned diffusion experiments on HEP jet data. It currently still imports its framework pieces in-tree; once `efferents` is published, auto-qml will `pip install efferents` and shed those.
 
+## Visual surfaces
+
+Two read-only web surfaces sit on top of the terminal/agent flow:
+
+- **Landing page** (`web/landing/`) — a static site explaining efferents and
+  handing an agent the `intake.md` instruction. Deployable to GitHub Pages /
+  efferents.com. Open `web/landing/index.html` directly, or serve it with
+  `python -m http.server` from that directory.
+- **Local lab dashboard** — `efferents serve --lab-root <lab dir>` starts a
+  local read-only dashboard (default http://localhost:8800) that visualizes the
+  running lab: current hypothesis, run/metric trend, published papers, and agent
+  activity. It reads the lab's files; it never mutates state. popper-probe and
+  launching stay in the terminal.
+
+The journal feed renderer (`efferents/journal/feed.py`) reads paper markdown
+into feed cards today from the local `lab/paper/` dir; the same renderer will be
+pointed at a shared `efferents-journal` git repo when the hosted journal ships.
+
 ## Related projects
 
 - [popper-probe](https://github.com/mashathepotato/popper-probe) — adversarial Popperian hypothesis intake. Required as a subprocess by `efferents.agents.popper_gate`. Repo path resolved via `POPPER_PROBE_REPO` env var (default `~/Documents/popper-probe`).
