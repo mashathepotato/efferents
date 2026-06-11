@@ -206,6 +206,8 @@ def _cmd_serve(args: argparse.Namespace) -> int:
     from efferents.dashboard import server as dash_server
 
     lab_root = Path(args.lab_root).resolve()
+    # `_init_lab_root` copies hypothesis.md + lab.yaml into the lab root, so an
+    # initialized lab root is itself a valid "submission" for config loading.
     try:
         cfg = LabConfig.from_submission(lab_root)
     except SubmissionError as e:
@@ -242,7 +244,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_list.set_defaults(func=_cmd_list)
 
     p_serve = sub.add_parser("serve", help="Start the read-only web dashboard")
-    p_serve.add_argument("--lab-root", default="lab")
+    p_serve.add_argument("--lab-root", default="lab",
+                         help="Initialized lab directory (relative to cwd)")
     p_serve.add_argument("--port", type=int, default=8800)
     p_serve.add_argument("--no-open", action="store_true",
                          help="Do not auto-open the browser")
