@@ -28,10 +28,11 @@ popper-probe plugin is not installed, STOP and tell the human to install it.
 python3 -m venv .venv
 . .venv/bin/activate
 pip install "git+https://github.com/mashathepotato/efferents.git"
-efferents --help
+.venv/bin/efferents --help
 ```
-The help output must list a `serve` subcommand. Keep this venv activated for all
-later steps.
+The help output must list a `serve` subcommand. Later steps call the venv
+binaries directly (`.venv/bin/python`, `.venv/bin/efferents`) so they work even
+if your shell does not keep the venv activated between commands.
 
 ## Step 2 — Scaffold the disposable trial kit
 
@@ -154,7 +155,7 @@ Orchestrator(
     dry_run=False,
     startup_message=f"trial for lab_id={cfg.lab_id}",
 ).run(max_iterations=MAX_ITERS)
-print(f"\nTrial done. View it:\n  efferents serve --lab-root {lab_root}")
+print("\nTrial done. View it:\n  .venv/bin/efferents serve --lab-root submission/lab")
 ```
 
 ## Step 3 — Falsifiability intake (popper-probe, in the terminal)
@@ -178,15 +179,17 @@ with the stub.
 ## Step 5 — Run one bounded trial
 
 ```bash
-python run_trial.py
+.venv/bin/python run_trial.py
 ```
 Runs a bounded number of orchestrator iterations (default 3; override with
 `TRIAL_MAX_ITERS=N`) against the submission, writing results to `submission/lab/`.
+A bounded run may pause ~60s after a caught step error (e.g. a Coder/git step in
+a fresh non-git dir) before continuing — that is expected; do not abort.
 
 ## Step 6 — Watch it on the dashboard
 
 ```bash
-efferents serve --lab-root submission/lab
+.venv/bin/efferents serve --lab-root submission/lab
 ```
 Open the printed `http://localhost:8800` link and report it to the human. The
 read-only dashboard shows the hypothesis, the trial run(s), the headline metric,
