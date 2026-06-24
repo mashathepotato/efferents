@@ -49,8 +49,8 @@ def _load_campaign(db_path: Path, campaign_id: str) -> dict | None:
     return dict(row) if row else None
 
 
-# Meta columns rendered up front in digest tables/narratives, in this order.
-_META_RENDER_COLS = ("run_id", "started_at", "campaign_id", "researcher_mode")
+# Rendered subset of meta columns (companion to mv.META_COLUMNS); order matters for digest tables/narratives.
+_META_RENDER_COLS = ("run_id", "started_at", "campaign_id", "researcher_mode", "duration_seconds")
 
 
 def _digest_columns(db_path: Path) -> list[str]:
@@ -95,9 +95,10 @@ def _format_campaign_blocks(groups: dict[str | None, list[dict]], db_path: Path)
         for k in metric_keys:
             if k == "run_id":
                 continue
-            if k not in r or r.get(k) is None:
+            v = r.get(k)
+            if v is None:
                 continue
-            parts.append(f"{k}={_render_cell(r.get(k))}")
+            parts.append(f"{k}={_render_cell(v)}")
         return " ".join(parts)
 
     for campaign_id, runs in groups.items():
@@ -130,7 +131,7 @@ def _format_recent_runs(rows: list[dict[str, Any]], db_path: Path) -> str:
     cols = _digest_columns(db_path)
     out = ["| " + " | ".join(cols) + " |", "|" + "|".join("---" for _ in cols) + "|"]
     for r in rows:
-        cells = [("" if r.get(c) is None else _render_cell(r.get(c))) for c in cols]
+        cells = [_render_cell(r.get(c)) for c in cols]
         out.append("| " + " | ".join(cells) + " |")
     return "\n".join(out)
 
