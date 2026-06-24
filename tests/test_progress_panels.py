@@ -76,3 +76,17 @@ def test_headline_metric_returns_column_and_direction(tmp_path):
     col, direction = progress._headline_metric()
     assert col == "accuracy"
     assert direction == "max"
+
+
+def test_smoke_lab_config_panels_present(smoke_lab_config):
+    """Under the smoke_lab_config the panels list has the synthetic_loss panel."""
+    panels = progress._panel_metrics()
+    cols = [p[0] for p in panels]
+    assert "synthetic_loss" in cols
+
+
+def test_smoke_lab_config_headline_is_synthetic_loss(smoke_lab_config):
+    """Under the smoke_lab_config the headline metric is synthetic_loss/min."""
+    col, direction = progress._headline_metric()
+    assert col == "synthetic_loss"
+    assert direction == "min"

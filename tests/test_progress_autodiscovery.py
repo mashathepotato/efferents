@@ -1,6 +1,6 @@
 import sqlite3
 
-from efferents.agents.progress import _discover_metric_columns
+from efferents.metrics_view import discover_columns
 
 _META = {
     "run_id", "started_at", "ended_at", "config_path", "campaign_id",
@@ -18,7 +18,7 @@ def test_discovers_non_meta_real_columns(tmp_path):
     )
     conn.commit()
     conn.close()
-    found = _discover_metric_columns(db, meta=_META)
+    found = discover_columns(db, meta=tuple(_META))
     assert "synthetic_loss" in found
     assert "extra_metric" in found
     assert "run_id" not in found
@@ -26,4 +26,4 @@ def test_discovers_non_meta_real_columns(tmp_path):
 
 
 def test_missing_db_returns_empty(tmp_path):
-    assert _discover_metric_columns(tmp_path / "nope.sqlite") == []
+    assert discover_columns(tmp_path / "nope.sqlite") == []

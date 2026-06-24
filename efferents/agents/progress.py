@@ -8,7 +8,7 @@ Layout:
 - Two-way conversation panel: context/research_log.md tail + lab/lab_notebook.md tail
   side-by-side, so the user can see what they told the orchestrator and what it
   said back.
-- Trend chart: best W1 per campaign (or per run when no campaigns yet).
+- Trend chart: best headline metric per campaign (or per run when no campaigns yet).
 - Campaigns: per-campaign cards with hypothesis, status, best sample inline.
 - Architectures: runs grouped by git_commit (each Coder commit = an architectural
   variant). Card per variant with commit message + best sample; click to expand
@@ -22,7 +22,7 @@ On-demand: `python -m agents progress-now`.
 Resilient to:
 - Pre-migration DBs (no campaigns table) — fallback to flat view.
 - Missing sample PNGs — gracefully skipped.
-- Runs without e_w1 — excluded from trend / best-of computations.
+- Runs without headline metric — excluded from trend / best-of computations.
 - Git commits no longer resolvable — shown by SHA only.
 """
 from __future__ import annotations
@@ -44,35 +44,13 @@ import matplotlib.pyplot as plt  # noqa: E402
 
 from efferents.agents.state import LabPaths  # noqa: E402
 from efferents import lab as _lab  # noqa: E402
+from efferents import metrics_view as mv  # noqa: E402
 
 
 _MAX_RECENT_SAMPLES = 9
 _MAX_BEST_SAMPLES = 6
 _MAX_ARCHITECTURES = 12
 _MAX_RUNS_PER_ARCH = 6
-
-_META_COLUMNS = frozenset({
-    "run_id", "started_at", "ended_at", "config_path", "campaign_id",
-    "researcher_mode", "student_id", "git_commit", "duration_seconds", "seed",
-    "config_yaml", "eval_kind",
-})
-
-
-def _discover_metric_columns(db_path, *, meta=_META_COLUMNS) -> list[str]:
-    """Metric columns present in the runs table, minus known meta columns."""
-    import sqlite3 as _sqlite3
-    from pathlib import Path as _Path
-    db_path = _Path(db_path)
-    if not db_path.exists():
-        return []
-    conn = _sqlite3.connect(db_path)
-    try:
-        cols = [row[1] for row in conn.execute("PRAGMA table_info(runs)")]
-    except _sqlite3.OperationalError:
-        return []
-    finally:
-        conn.close()
-    return [c for c in cols if c not in meta]
 
 
 def _panel_metrics(db_path=None) -> list[tuple[str, str, float | None]]:
@@ -88,7 +66,7 @@ def _panel_metrics(db_path=None) -> list[tuple[str, str, float | None]]:
     panels = [(p.column, p.label, p.target) for p in cfg.metrics.panels]
     declared = {p[0] for p in panels}
     if db_path is not None:
-        for col in _discover_metric_columns(db_path):
+        for col in mv.discover_columns(db_path):
             if col not in declared:
                 panels.append((col, col, None))
     return panels
@@ -136,14 +114,28 @@ def _snapshot(paths: LabPaths) -> dict[str, Any]:
     conn = sqlite3.connect(paths.runs_db)
     conn.row_factory = sqlite3.Row
     try:
-        # Pick column list based on what's actually in the schema — survives
-        # both pre-migration DBs and any future column drift.
-        wanted = [
-            "run_id", "started_at", "model", "eval_kind", "raw_q", "epochs",
-            "aug_depth", "seed", "e_w1", "val_x0_mse", "gen_max_to_real_max",
-            "active_frac_w1", "radial_l2_log", "samples_png", "git_commit",
-            "config_hash", "notes", "campaign_id", "researcher_mode",
-        ]
+        # Build column list from config + autodiscovery, always adding the
+        # framework meta columns we know about.  This replaces the old QML-
+        # hardcoded `wanted` list.
+        headline_col = mv.headline().column
+        panel_cols = [p.column for p in mv.panels()]
+        discovered = mv.discover_columns(paths.runs_db)
+
+        # De-duplicate preserving order: meta → headline → panels → discovered
+        seen: set[str] = set()
+        wanted: list[str] = []
+        for col in list(mv.META_COLUMNS) + [headline_col] + panel_cols + discovered:
+            if col not in seen:
+                seen.add(col)
+                wanted.append(col)
+
+        # Always include the known rendering columns we use in templates
+        for extra in ("samples_png", "git_commit", "config_hash", "notes",
+                       "config_yaml", "seed", "model"):
+            if extra not in seen:
+                seen.add(extra)
+                wanted.append(extra)
+
         existing = {row[1] for row in conn.execute("PRAGMA table_info(runs)")}
         cols = [c for c in wanted if c in existing]
         runs = [
@@ -203,23 +195,17 @@ def _group_runs_by_commit(runs: list[dict]) -> dict[str, list[dict]]:
 
 
 def _scored_sample_runs(runs: list[dict]) -> list[dict]:
-    """Filter to sample-eval rows with e_w1 set.
+    """Filter to rows that have a finite headline metric value.
 
-    `eval_kind` distinguishes single-step recon from full DDPM sampling.
-    Their `e_w1` values aren't comparable, so we restrict trend / best-of
-    displays to sample-evals only.
+    A run is "scored" iff its headline metric is not None — independent of
+    any lab-specific eval_kind column.  The old QML filter
+    (eval_kind == 'sample') is replaced by this generic headline-value check.
     """
-    return [
-        r for r in runs
-        if r.get("e_w1") is not None and r.get("eval_kind") == "sample"
-    ]
+    return [r for r in runs if mv.headline_value(r) is not None]
 
 
 def _best_run_in(runs: list[dict]) -> dict | None:
-    scored = _scored_sample_runs(runs)
-    if not scored:
-        return None
-    return min(scored, key=lambda r: r["e_w1"])
+    return mv.best_run(runs)
 
 
 def _group_runs_by_campaign(runs: list[dict]) -> dict[str | None, list[dict]]:
@@ -260,8 +246,8 @@ def _trend_png_b64(snap: dict, db_path=None) -> str | None:
 
     Each panel: x = campaign opened-at order (or recent-run order when no
     campaigns exist), y = best value of that metric across the units on the
-    x-axis. W1 alone is a thin signal; the other panels expose pathologies
-    (gen_max=0 → all-zero collapse; flat radial_l2 → wrong physics).
+    x-axis. The headline panel is the primary signal; other panels expose
+    pathologies specific to the lab's configured metrics.
     """
     campaigns = snap["campaigns"]
     by_c = _group_runs_by_campaign(snap["runs"])
@@ -275,7 +261,7 @@ def _trend_png_b64(snap: dict, db_path=None) -> str | None:
             if rows:
                 positions.append((c["id"][:10], css, rows))
     else:
-        # Pre-campaigns fallback: each scored sample-eval run is its own position
+        # Pre-campaigns fallback: each scored run is its own position
         scored = _scored_sample_runs(snap["runs"])[-60:]
         if not scored:
             return None
@@ -478,8 +464,14 @@ def _esc(s: Any) -> str:
     return _html.escape(str(s)) if s is not None else ""
 
 
-def _fmt_w1(v: float | None) -> str:
-    return f"{v:.4f}" if isinstance(v, (int, float)) else "—"
+def _fmt_val(v: float | None) -> str:
+    """Format a metric value for display (4 decimal places), or em-dash."""
+    fv = mv.finite(v)
+    return f"{fv:.4f}" if fv is not None else "—"
+
+
+# Keep the old name for any callers that still use it (backward compat).
+_fmt_w1 = _fmt_val
 
 
 def _render_card(c: dict, best: dict | None, sample_b64: str | None) -> str:
@@ -490,15 +482,22 @@ def _render_card(c: dict, best: dict | None, sample_b64: str | None) -> str:
         else '<div class="empty">no sample for best run</div>'
     )
     if best:
+        # Build a concise headline + panel summary for the best run.
+        h = mv.headline()
+        headline_val = _fmt_val(best.get(h.column))
+        panel_bits = [f"best {h.column}: {headline_val}"]
+        for p in mv.panels():
+            if p.column != h.column:
+                panel_bits.append(f"{p.label}: {_fmt_val(best.get(p.column))}")
+        # Also show seed/model if present
+        if best.get("model"):
+            panel_bits.append(f"model: {_esc(best.get('model'))}")
+        if best.get("seed") is not None:
+            panel_bits.append(f"seed: {_esc(best.get('seed'))}")
         meta = (
-            f"<div class=\"meta-row\">"
-            f"best W1: {_fmt_w1(best.get('e_w1'))} &nbsp;|&nbsp; "
-            f"model: {_esc(best.get('model'))} &nbsp;|&nbsp; "
-            f"raw_q: {_esc(best.get('raw_q'))} &nbsp;|&nbsp; "
-            f"aug_depth: {_esc(best.get('aug_depth'))} &nbsp;|&nbsp; "
-            f"epochs: {_esc(best.get('epochs'))} &nbsp;|&nbsp; "
-            f"seed: {_esc(best.get('seed'))}"
-            f"</div>"
+            '<div class="meta-row">'
+            + " &nbsp;|&nbsp; ".join(panel_bits)
+            + "</div>"
         )
     else:
         meta = '<div class="meta-row">no scored runs yet</div>'
@@ -538,32 +537,48 @@ def _render_run_tile(
         return None
     sha = r.get("git_commit")
     commit = _resolve_commit_metadata(sha, commit_cache) if sha else None
-    cap = (
-        f"W1={_fmt_w1(r.get('e_w1'))} &middot; "
-        f"{_esc(r.get('model'))}/raw{_esc(r.get('raw_q'))}/"
-        f"seed{_esc(r.get('seed'))}"
-    )
+
+    # Caption: headline metric + model + seed (generic, no QML column names)
+    h = mv.headline()
+    headline_val = _fmt_val(r.get(h.column))
+    model_str = _esc(r.get("model", ""))
+    seed_str = _esc(r.get("seed", ""))
+    cap = f"{h.column}={headline_val}"
+    if model_str:
+        cap += f" &middot; {model_str}"
+    if seed_str:
+        cap += f"/seed{seed_str}"
+
     zid = _zoom_id(r.get("run_id"))
     lightboxes.append((zid, b64, cap))
-    kv_rows = [
+
+    # Framework meta columns shown first, then headline, then panels, then rest.
+    kv_rows: list[tuple[str, Any]] = [
         ("run_id", r.get("run_id", "")[:48]),
         ("started", str(r.get("started_at", ""))[:19]),
         ("model", r.get("model", "")),
-        ("eval_kind", r.get("eval_kind", "")),
-        ("raw_q", r.get("raw_q")),
-        ("epochs", r.get("epochs")),
-        ("aug_depth", r.get("aug_depth")),
-        ("seed", r.get("seed")),
-        ("e_w1", _fmt_w1(r.get("e_w1"))),
-        ("val_x0_mse", _fmt_w1(r.get("val_x0_mse"))),
-        ("gen_max/real", _fmt_w1(r.get("gen_max_to_real_max"))),
-        ("active_frac_w1", _fmt_w1(r.get("active_frac_w1"))),
-        ("radial_l2_log", _fmt_w1(r.get("radial_l2_log"))),
+    ]
+    # Headline metric
+    kv_rows.append((h.column, _fmt_val(r.get(h.column))))
+    # Configured panels (skip headline — already shown)
+    for p in mv.panels():
+        if p.column != h.column:
+            kv_rows.append((p.label, _fmt_val(r.get(p.column))))
+    # Framework meta
+    kv_rows += [
         ("config_hash", r.get("config_hash", "")[:12]),
         ("campaign_id", r.get("campaign_id") or "—"),
         ("researcher_mode", r.get("researcher_mode") or "—"),
         ("git_commit", commit["sha"] if commit else "—"),
     ]
+    # Autodiscovered columns: everything in the row that isn't already shown
+    shown = {k for k, _ in kv_rows}
+    for col, val in r.items():
+        if col not in shown and col not in ("samples_png", "config_yaml", "notes"):
+            fv = mv.finite(val)
+            if fv is not None:
+                kv_rows.append((col, _fmt_val(fv)))
+
     kv_html = "".join(
         f'<div class="k">{_esc(k)}</div><div class="v">{_esc(v)}</div>'
         for k, v in kv_rows
@@ -612,7 +627,12 @@ def _render_architectures(
     lightboxes: list[tuple[str, str, str]],
 ) -> str:
     """One <details> card per git_commit. Headline = best sample for that commit.
-    Inside the card: every run in that architectural slice, clickable."""
+    Inside the card: every run in that architectural slice, clickable.
+
+    The architecture stat block now shows the configured headline metric + panels
+    generically (no QML column names). Autodiscovered non-panel columns are
+    omitted from the stat block (they appear in each run tile's expanded view).
+    """
     by_commit = _group_runs_by_commit(runs)
     if not by_commit:
         return ""
@@ -623,6 +643,8 @@ def _render_architectures(
         reverse=True,
     )[:_MAX_ARCHITECTURES]
 
+    h = mv.headline()
+
     cards = []
     for sha in sorted_shas:
         slice_runs = by_commit[sha]
@@ -630,49 +652,54 @@ def _render_architectures(
         commit = _resolve_commit_metadata(sha, commit_cache)
         n_total = len(slice_runs)
         n_scored = len(sample_runs)
-        if sample_runs:
-            best = min(sample_runs, key=lambda r: r["e_w1"])
-            best_w1 = f"best W1: {_fmt_w1(best['e_w1'])}"
+        best = mv.best_run(sample_runs) if sample_runs else None
+        if best is not None:
+            best_headline_val = _fmt_val(best.get(h.column))
+            best_summary = f"best {h.column}: {best_headline_val}"
             best_sample_b64 = _sample_b64(best.get("samples_png"), repo_root)
         else:
-            best = None
-            best_w1 = "no scored sample-evals"
+            best_summary = f"no scored runs (no {h.column})"
             best_sample_b64 = None
 
         # Most-recent run date
         last = max(slice_runs, key=lambda r: r.get("started_at", ""))
         last_date = str(last.get("started_at", ""))[:10]
 
-        # Thumbnail for the summary row — visible BEFORE expand so the user
-        # picks which architecture to drill into by visual, not just SHA.
+        # Thumbnail for the summary row
         thumb_html = (
             f'<img class="arch-thumb" src="data:image/png;base64,{best_sample_b64}" alt="best sample for this arch">'
             if best_sample_b64
             else '<div class="arch-thumb-empty">no surviving sample</div>'
         )
 
-        # Stats block inside the expanded view (no separate headline image —
-        # the inner-tiles grid below already shows the best sample as tile #1).
-        if best:
+        # Stats block: headline + panels generically
+        if best is not None:
+            parts = [f"best {h.column}: <strong>{best_headline_val}</strong>"]
+            for p in mv.panels():
+                if p.column != h.column:
+                    parts.append(f"{p.label}: {_fmt_val(best.get(p.column))}")
+            if best.get("model"):
+                parts.append(f"model: {_esc(best.get('model'))}")
+            if best.get("seed") is not None:
+                parts.append(f"seed: {_esc(best.get('seed'))}")
+            if best.get("config_hash"):
+                parts.append(f"config_hash: {_esc(best.get('config_hash', '')[:12])}")
             stat_block = (
                 '<div class="arch-stats-block">'
-                f'best W1: <strong>{_fmt_w1(best.get("e_w1"))}</strong> &middot; '
-                f'model: {_esc(best.get("model"))} &middot; '
-                f'raw_q: {_esc(best.get("raw_q"))} &middot; '
-                f'aug_depth: {_esc(best.get("aug_depth"))} &middot; '
-                f'epochs: {_esc(best.get("epochs"))} &middot; '
-                f'seed: {_esc(best.get("seed"))}<br>'
-                f'val_x0_mse: {_fmt_w1(best.get("val_x0_mse"))} &middot; '
-                f'gen_max/real: {_fmt_w1(best.get("gen_max_to_real_max"))} &middot; '
-                f'config_hash: {_esc(best.get("config_hash", "")[:12])}'
-                '</div>'
+                + " &middot; ".join(parts)
+                + "</div>"
             )
         else:
-            stat_block = '<div class="arch-stats-block">no scored sample-evals under this architecture</div>'
+            stat_block = f'<div class="arch-stats-block">no scored runs (no {_esc(h.column)}) under this architecture</div>'
 
-        # Inner tiles: cap at _MAX_RUNS_PER_ARCH (lowest-W1 first); the rest are
-        # available in the raw runs.sqlite for anyone who wants the long tail.
-        inner_runs = sorted(sample_runs, key=lambda r: r["e_w1"])[:_MAX_RUNS_PER_ARCH]
+        # Inner tiles: cap at _MAX_RUNS_PER_ARCH (best first by headline metric).
+        # Sort by headline value direction-aware.
+        chooser = min if h.direction == "min" else max
+        inner_runs = sorted(
+            sample_runs,
+            key=lambda r: mv.finite(r.get(h.column)) or (float("inf") if h.direction == "min" else float("-inf")),
+            reverse=(h.direction == "max"),
+        )[:_MAX_RUNS_PER_ARCH]
         inner_tiles = [
             t for t in
             (_render_run_tile(r, repo_root, commit_cache, lightboxes) for r in inner_runs)
@@ -683,7 +710,7 @@ def _render_architectures(
             truncated_note = (
                 f'<p style="font-size: 11px; color: #999; margin: 8px 0 0 0;">'
                 f'showing top {len(inner_tiles)} of {len(sample_runs)} scored runs '
-                f'(lowest W1 first)</p>'
+                f'(best {h.column} first)</p>'
             )
         inner_grid = (
             f'<div class="runs-grid">{"".join(inner_tiles)}</div>{truncated_note}'
@@ -699,7 +726,7 @@ def _render_architectures(
             f'<span class="arch-subject">{_esc(commit.get("subject", ""))}</span>'
             f'<span class="arch-date">{_esc(commit.get("date", "")[:10])}<br>'
             f'last: {_esc(last_date)}</span>'
-            f'<span class="arch-stats">{n_scored}/{n_total} runs<br>{best_w1}</span>'
+            f'<span class="arch-stats">{n_scored}/{n_total} runs<br>{best_summary}</span>'
             f'<span class="marker">▾</span>'
             f'</summary>'
             f'<div class="arch-body">'
@@ -717,8 +744,6 @@ def _render_architectures(
         '</p>'
         + "".join(cards)
     )
-
-
 
 
 def _render_lightboxes(boxes: list[tuple[str, str, str]]) -> str:
@@ -758,7 +783,7 @@ def _render_html(snap: dict, *, paths: LabPaths, context_dir: Path) -> str:
     n_open = sum(1 for c in campaigns if c.get("closed_at") is None)
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
 
-    # "Best of each metric" stat row — replaces the single best-W1 stat.
+    # "Best of each metric" stat row — config-driven, no QML column names.
     best_bits = []
     for col, label, target in _panel_metrics(paths.runs_db):
         val, _row = _metric_best(scored, col, target)
@@ -766,8 +791,8 @@ def _render_html(snap: dict, *, paths: LabPaths, context_dir: Path) -> str:
             continue
         # Short label for the stat (strip the parenthetical hint)
         short = label.split(" (")[0]
-        best_bits.append(f"<strong>{short}</strong>: {_fmt_w1(val)}")
-    best_line = (" &middot; ".join(best_bits)) if best_bits else "no scored sample-evals yet"
+        best_bits.append(f"<strong>{short}</strong>: {_fmt_val(val)}")
+    best_line = (" &middot; ".join(best_bits)) if best_bits else "no scored runs yet"
 
     header = f"""
 <h1>{_esc(_lab.LAB_ID)} — progress</h1>
@@ -824,6 +849,7 @@ def _render_html(snap: dict, *, paths: LabPaths, context_dir: Path) -> str:
     arch_block = _render_architectures(runs, repo_root, commit_cache, lightboxes)
 
     # Filter to runs whose sample PNGs still exist on disk (samples get pruned over time).
+    h = mv.headline()
     with_samples = [
         r for r in scored
         if r.get("samples_png") and (repo_root / r["samples_png"]).exists()
@@ -834,10 +860,16 @@ def _render_html(snap: dict, *, paths: LabPaths, context_dir: Path) -> str:
         by_run_recent, repo_root, "Recent scored runs", commit_cache, lightboxes,
     )
 
-    top_best = sorted(with_samples, key=lambda r: r["e_w1"])[:_MAX_BEST_SAMPLES]
+    # Best samples: direction-aware sort on headline column.
+    chooser = min if h.direction == "min" else max
+    top_best = sorted(
+        with_samples,
+        key=lambda r: mv.finite(r.get(h.column)) or (float("inf") if h.direction == "min" else float("-inf")),
+        reverse=(h.direction == "max"),
+    )[:_MAX_BEST_SAMPLES]
     best_block = _render_runs_grid(
         top_best, repo_root,
-        "Best surviving samples (lowest W1 still on disk)", commit_cache, lightboxes,
+        f"Best surviving samples (best {h.column} still on disk)", commit_cache, lightboxes,
     )
 
     lightbox_block = _render_lightboxes(lightboxes)

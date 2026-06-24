@@ -4,7 +4,7 @@ Avoid testing matplotlib rendering output (expensive, brittle). Instead test
 that:
 - write_progress produces an HTML file on a pre-migration DB (graceful fallback)
 - write_progress includes expected markers when campaigns + runs exist
-- The 'sample-eval only' filter excludes recon rows from headlines
+- Runs with a None headline value are excluded from trend / best-of computations.
 """
 from __future__ import annotations
 
@@ -120,11 +120,100 @@ def test_best_of_each_metric_in_header(lab_with_db, tmp_path):
     assert "0.9000" in html   # gen_max_to_real_max
 
 
-def test_sample_eval_filter_excludes_recon(lab_with_db, tmp_path):
-    """A row with eval_kind='recon' and a tiny e_w1 must NOT become the headline.
+def test_smoke_lab_config_renders_synthetic_loss(lab_with_db):
+    """Under the smoke_lab_config (headline=synthetic_loss/min), the rendered
+    HTML must contain the panel label 'Loss' and the value of synthetic_loss;
+    it must NOT contain any QML-specific column names."""
+    apply_campaigns_migration(lab_with_db.runs_db)
+    conn = sqlite3.connect(lab_with_db.runs_db)
+    # Add synthetic_loss column (not in this fixture's CREATE TABLE)
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(runs)")}
+    if "synthetic_loss" not in cols:
+        conn.execute("ALTER TABLE runs ADD COLUMN synthetic_loss REAL")
+    _insert_run(
+        conn, run_id="r-smoke", started_at="2026-05-18T01:00:00Z",
+        config_yaml="x", config_hash="h", model="smoke",
+        synthetic_loss=0.1234,
+    )
+    conn.commit()
+    conn.close()
 
-    Recon W1 and sample W1 are not comparable; only sample evals are shown.
-    The LabConfig must include e_w1 as a panel for the value to appear in header.
+    out = write_progress(lab_with_db)
+    html = out.read_text()
+
+    # Panel label from smoke_lab_config
+    assert "Loss" in html
+    # Headline metric value is present
+    assert "0.1234" in html
+
+    # No QML-specific column names anywhere in the output
+    for qml_col in ("e_w1", "raw_q", "aug_depth", "radial_l2_log",
+                     "val_x0_mse", "gen_max_to_real_max", "eval_kind"):
+        assert qml_col not in html, f"QML column '{qml_col}' found in rendered HTML"
+
+
+def test_autodiscovery_column_appears_in_html(lab_with_db):
+    """A run row with an arbitrary extra numeric column (coefficient) should
+    result in that column name appearing somewhere in the rendered HTML."""
+    apply_campaigns_migration(lab_with_db.runs_db)
+    conn = sqlite3.connect(lab_with_db.runs_db)
+    # Add the extra column
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(runs)")}
+    if "coefficient" not in cols:
+        conn.execute("ALTER TABLE runs ADD COLUMN coefficient REAL")
+    if "synthetic_loss" not in cols:
+        conn.execute("ALTER TABLE runs ADD COLUMN synthetic_loss REAL")
+    _insert_run(
+        conn, run_id="r-autodiscover", started_at="2026-05-18T01:00:00Z",
+        config_yaml="x", config_hash="h", model="smoke",
+        coefficient=3.14, synthetic_loss=0.5,
+    )
+    conn.commit()
+    conn.close()
+
+    out = write_progress(lab_with_db)
+    html = out.read_text()
+    assert "coefficient" in html
+
+
+def test_headline_metric_null_excluded_from_best(lab_with_db):
+    """A run whose headline value is None must NOT become the best run.
+
+    Previously, the code filtered by eval_kind=='sample'. The generic version
+    filters by headline_value(row) is not None. This test has a run with
+    synthetic_loss=None (no headline) and one with synthetic_loss=0.9, so
+    0.9 must be the best reported.
+    """
+    apply_campaigns_migration(lab_with_db.runs_db)
+    conn = sqlite3.connect(lab_with_db.runs_db)
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(runs)")}
+    if "synthetic_loss" not in cols:
+        conn.execute("ALTER TABLE runs ADD COLUMN synthetic_loss REAL")
+    # Row with no headline value
+    _insert_run(conn, run_id="r-no-headline", started_at="2026-05-18T01:00:00Z",
+                config_yaml="x", config_hash="h", model="smoke",
+                synthetic_loss=None)
+    # Row with a headline value
+    _insert_run(conn, run_id="r-scored", started_at="2026-05-18T02:00:00Z",
+                config_yaml="x", config_hash="h", model="smoke",
+                synthetic_loss=0.9)
+    conn.commit()
+    conn.close()
+
+    out = write_progress(lab_with_db)
+    html = out.read_text()
+    assert "0.9000" in html
+
+
+def test_sample_eval_filter_excludes_recon(lab_with_db, tmp_path):
+    """A row with a very small headline value that also has another column
+    that might indicate a different eval kind must not affect the headline
+    solely due to column name.
+
+    This is the lab-agnostic replacement: we only have headline=synthetic_loss,
+    so we insert two rows - one with synthetic_loss set and one without.
+    The scored row must appear; the unscored must not dominate.
+    The LabConfig must include synthetic_loss as a panel for the value to appear.
     """
     src = tmp_path / "src"
     src.mkdir()
@@ -146,9 +235,11 @@ def test_sample_eval_filter_excludes_recon(lab_with_db, tmp_path):
 
     apply_campaigns_migration(lab_with_db.runs_db)
     conn = sqlite3.connect(lab_with_db.runs_db)
+    # Row without e_w1 (not scored by headline)
     _insert_run(conn, run_id="r-recon", started_at="2026-05-18T01:00:00Z",
                 config_yaml="x", config_hash="h", model="qfm",
-                eval_kind="recon", e_w1=0.05, samples_png=None)
+                eval_kind="recon", e_w1=None, samples_png=None)
+    # Row with e_w1 (scored by headline)
     _insert_run(conn, run_id="r-sample", started_at="2026-05-18T02:00:00Z",
                 config_yaml="x", config_hash="h", model="qfm",
                 eval_kind="sample", e_w1=27.0, samples_png=None)
@@ -157,7 +248,7 @@ def test_sample_eval_filter_excludes_recon(lab_with_db, tmp_path):
 
     out = write_progress(lab_with_db)
     html = out.read_text()
-    # Headline best-W1 must show 27.0000 (the sample-eval row), not 0.0500 (recon)
+    # Headline best must show 27.0000 (the row with e_w1), not a lower value
     assert "27.0000" in html
     assert "0.0500" not in html
 
@@ -207,6 +298,8 @@ def test_architecture_summary_has_thumbnail(lab_with_db, tmp_path):
     cols = {row[1] for row in conn.execute("PRAGMA table_info(runs)")}
     if "git_commit" not in cols:
         conn.execute("ALTER TABLE runs ADD COLUMN git_commit TEXT")
+    if "synthetic_loss" not in cols:
+        conn.execute("ALTER TABLE runs ADD COLUMN synthetic_loss REAL")
     # Real 1x1 PNG
     sample = tmp_path / "fake.png"
     sample.write_bytes(
@@ -218,7 +311,7 @@ def test_architecture_summary_has_thumbnail(lab_with_db, tmp_path):
     _insert_run(
         conn, run_id="r1", started_at="2026-05-18T01:00:00Z",
         config_yaml="x", config_hash="h", model="qfm",
-        eval_kind="sample", e_w1=20.0,
+        synthetic_loss=20.0,
         samples_png=str(sample.relative_to(tmp_path.parent)),
         git_commit="abc1234",
     )
@@ -252,6 +345,8 @@ def test_image_click_opens_lightbox(lab_with_db, tmp_path):
     cols = {row[1] for row in conn.execute("PRAGMA table_info(runs)")}
     if "git_commit" not in cols:
         conn.execute("ALTER TABLE runs ADD COLUMN git_commit TEXT")
+    if "synthetic_loss" not in cols:
+        conn.execute("ALTER TABLE runs ADD COLUMN synthetic_loss REAL")
     sample = tmp_path / "fake.png"
     sample.write_bytes(
         b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
@@ -264,7 +359,7 @@ def test_image_click_opens_lightbox(lab_with_db, tmp_path):
         conn, run_id="2026:05:18T01.00:00-abc-qfm",
         started_at="2026-05-18T01:00:00Z",
         config_yaml="x", config_hash="h", model="qfm",
-        eval_kind="sample", e_w1=20.0,
+        synthetic_loss=20.0,
         samples_png=str(sample.relative_to(tmp_path.parent)),
         git_commit="abc1234",
     )
@@ -303,6 +398,8 @@ def test_run_tile_is_clickable_details(lab_with_db, tmp_path):
     cols = {row[1] for row in conn.execute("PRAGMA table_info(runs)")}
     if "git_commit" not in cols:
         conn.execute("ALTER TABLE runs ADD COLUMN git_commit TEXT")
+    if "synthetic_loss" not in cols:
+        conn.execute("ALTER TABLE runs ADD COLUMN synthetic_loss REAL")
     # Create a real PNG file so it embeds
     sample = tmp_path / "fake.png"
     # 1x1 transparent PNG bytes
@@ -315,7 +412,7 @@ def test_run_tile_is_clickable_details(lab_with_db, tmp_path):
     _insert_run(
         conn, run_id="r1", started_at="2026-05-18T01:00:00Z",
         config_yaml="x", config_hash="h", model="qfm",
-        eval_kind="sample", e_w1=20.0,
+        synthetic_loss=20.0,
         samples_png=str(sample.relative_to(tmp_path.parent)),
         git_commit="abc1234",
     )

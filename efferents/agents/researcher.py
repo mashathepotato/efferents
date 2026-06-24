@@ -71,7 +71,7 @@ from efferents.agents.state import (
 from efferents import lab as _lab
 from efferents.lab import _COL_NAME_RE  # SQL-identifier sanitizer
 from efferents.agents.prompts.loader import load_prompt
-from efferents.agents.progress import _discover_metric_columns
+from efferents.metrics_view import discover_columns as _discover_metric_columns
 
 
 def _slugify(text: str) -> str:
