@@ -17,22 +17,55 @@ Confirm the API key is set:
 python3 -c "import os,sys; sys.exit(0 if os.environ.get('ANTHROPIC_API_KEY') else 1)" \
   && echo "ANTHROPIC_API_KEY ok" || echo "MISSING ANTHROPIC_API_KEY"
 ```
-If it prints `MISSING`, STOP and ask the human to export `ANTHROPIC_API_KEY`.
+If it prints `MISSING`, the key is not in the environment. In a harness where
+env vars do not persist between commands, the reliable fix is to put it in
+`submission/.env` — `run_trial.py` loads that file, and it is deleted at cleanup
+(Step 7):
+```bash
+mkdir -p submission
+printf 'ANTHROPIC_API_KEY=%s\n' "PASTE_KEY_HERE" > submission/.env
+chmod 600 submission/.env
+```
+(Or `export ANTHROPIC_API_KEY=…` in your shell.) Confirm a key is in place
+before continuing.
 
 Confirm you can use the **popper-probe:intake** skill (needed in Step 3). If the
 popper-probe plugin is not installed, STOP and tell the human to install it.
 
-## Step 1 — Install efferents
+## Step 1 — Install efferents (needs Python ≥ 3.10)
 
+efferents requires Python ≥ 3.10. Do NOT assume the system `python3` qualifies —
+on many machines it is 3.9, and `pip install` will fail with
+`requires a different Python`.
+
+If `uv` is available (preferred — it can fetch a suitable Python for you):
 ```bash
-python3 -m venv .venv
-. .venv/bin/activate
-pip install "git+https://github.com/mashathepotato/efferents.git"
+uv venv --python 3.12 .venv
+uv pip install --python .venv/bin/python "git+https://github.com/mashathepotato/efferents.git"
 .venv/bin/efferents --help
 ```
+
+Otherwise, pick a system Python ≥ 3.10 explicitly and build the venv with it:
+```bash
+PY=""
+for c in python3.13 python3.12 python3.11 python3.10; do
+  command -v "$c" >/dev/null 2>&1 && { PY="$c"; break; }
+done
+[ -z "$PY" ] && { echo "No Python >=3.10 found — install one (e.g. 'brew install python@3.12') and retry."; exit 1; }
+"$PY" -m venv .venv
+.venv/bin/pip install --upgrade pip
+.venv/bin/pip install "git+https://github.com/mashathepotato/efferents.git"
+.venv/bin/efferents --help
+```
+
 The help output must list a `serve` subcommand. Later steps call the venv
 binaries directly (`.venv/bin/python`, `.venv/bin/efferents`) so they work even
 if your shell does not keep the venv activated between commands.
+
+> Heads-up: your agent's permission policy may **block installing from a remote
+> git repo** (it gates untrusted installs — this is expected, not an error). If
+> the install is blocked, the human can approve it, or run the install line
+> themselves by pasting it at the prompt prefixed with `!`.
 
 ## Step 2 — Scaffold the disposable trial kit
 
