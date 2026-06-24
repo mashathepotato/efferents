@@ -39,9 +39,11 @@ def discover_columns(db_path, *, meta: tuple[str, ...] = META_COLUMNS) -> list[s
     try:
         cols = [row[1] for row in conn.execute("PRAGMA table_info(runs)")]
     except sqlite3.OperationalError:
-        return []
+        return []  # DB-level error (corruption/lock); safety net, not the missing-table case
     finally:
         conn.close()
+    if not cols:  # no `runs` table -> PRAGMA yields no rows
+        return []
     return [c for c in cols if c not in meta]
 
 

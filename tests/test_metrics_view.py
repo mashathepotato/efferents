@@ -29,6 +29,14 @@ def test_discover_columns_missing_db(tmp_path):
     assert mv.discover_columns(tmp_path / "nope.sqlite") == []
 
 
+def test_discover_columns_db_without_runs_table(tmp_path):
+    db = tmp_path / "runs.sqlite"
+    conn = sqlite3.connect(db)
+    conn.execute("CREATE TABLE other (x INTEGER)")
+    conn.commit(); conn.close()
+    assert mv.discover_columns(db) == []
+
+
 def test_best_run_min(smoke_lab_config):
     rows = [{"run_id": "a", "synthetic_loss": 0.08},
             {"run_id": "b", "synthetic_loss": 0.03},
