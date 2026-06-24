@@ -11,6 +11,7 @@ from typing import Any
 import anthropic
 
 from efferents import lab as _lab
+from efferents import metrics_view as mv
 from efferents.agents.budget import BudgetTracker, CallUsage, model_for
 from efferents.agents.notify import notify_all
 from efferents.agents.prompts.loader import load_prompt
@@ -48,10 +49,56 @@ def _load_campaign(db_path: Path, campaign_id: str) -> dict | None:
     return dict(row) if row else None
 
 
+# Meta columns rendered up front in digest tables/narratives, in this order.
+_META_RENDER_COLS = ("run_id", "started_at", "campaign_id", "researcher_mode")
+
+
+def _digest_columns(db_path: Path) -> list[str]:
+    """Lab-agnostic column order for digest rendering: a fixed meta subset, the
+    configured headline column, the configured panel columns, then the remaining
+    auto-discovered columns — de-duplicated, preserving first-seen order."""
+    ordered: list[str] = []
+    seen: set[str] = set()
+
+    def _add(col: str) -> None:
+        if col not in seen:
+            seen.add(col)
+            ordered.append(col)
+
+    for c in _META_RENDER_COLS:
+        _add(c)
+    _add(mv.headline().column)
+    for p in mv.panels():
+        _add(p.column)
+    for c in mv.discover_columns(db_path):
+        _add(c)
+    return ordered
+
+
+def _render_cell(value: Any) -> str:
+    """Render a run value: finite floats with %.4g, raw value as str, '—' if absent."""
+    if value is None:
+        return "—"
+    fv = mv.finite(value)
+    if fv is not None and isinstance(value, float):
+        return f"{fv:.4g}"
+    return str(value)
+
+
 def _format_campaign_blocks(groups: dict[str | None, list[dict]], db_path: Path) -> str:
     """Format grouped runs as a markdown narrative of campaign blocks."""
-    metric_keys = ["e_w1", "val_x0_mse", "radial_l2_log", "active_frac_w1"]
+    metric_keys = _digest_columns(db_path)
     lines: list[str] = []
+
+    def _render_run(r: dict) -> str:
+        parts = [f"- {r.get('run_id', '?')}:"]
+        for k in metric_keys:
+            if k == "run_id":
+                continue
+            if k not in r or r.get(k) is None:
+                continue
+            parts.append(f"{k}={_render_cell(r.get(k))}")
+        return " ".join(parts)
 
     for campaign_id, runs in groups.items():
         if campaign_id is None:
@@ -64,44 +111,26 @@ def _format_campaign_blocks(groups: dict[str | None, list[dict]], db_path: Path)
             lines.append(f"Hypothesis hash: {h_hash}")
         lines.append("Runs in this campaign:")
         for r in runs:
-            parts = [f"- {r.get('run_id', '?')}:"]
-            for k in metric_keys:
-                v = r.get(k)
-                if v is not None:
-                    parts.append(f"{k}={v:.4g}" if isinstance(v, float) else f"{k}={v}")
-            lines.append(" ".join(parts))
+            lines.append(_render_run(r))
         lines.append("")
 
     # Uncampaigned runs
     if None in groups:
         lines.append("### Uncampaigned runs")
         for r in groups[None]:
-            parts = [f"- {r.get('run_id', '?')}:"]
-            for k in metric_keys:
-                v = r.get(k)
-                if v is not None:
-                    parts.append(f"{k}={v:.4g}" if isinstance(v, float) else f"{k}={v}")
-            lines.append(" ".join(parts))
+            lines.append(_render_run(r))
         lines.append("")
 
     return "\n".join(lines).strip()
 
 
-def _format_recent_runs(rows: list[dict[str, Any]]) -> str:
+def _format_recent_runs(rows: list[dict[str, Any]], db_path: Path) -> str:
     if not rows:
         return "(no runs yet)"
-    cols = [
-        "run_id", "started_at", "model", "seed", "raw_q", "epochs", "aug_depth",
-        "aug_shared_unitary", "cond_drop_p", "eval_kind",
-        "val_x0_mse", "e_w1", "radial_l2_log", "active_frac_w1",
-        "duration_seconds", "config_hash",
-    ]
+    cols = _digest_columns(db_path)
     out = ["| " + " | ".join(cols) + " |", "|" + "|".join("---" for _ in cols) + "|"]
     for r in rows:
-        cells = [
-            f"{r[c]:.4g}" if isinstance(r.get(c), float) else ("" if r.get(c) is None else str(r[c]))
-            for c in cols
-        ]
+        cells = [("" if r.get(c) is None else _render_cell(r.get(c))) for c in cols]
         out.append("| " + " | ".join(cells) + " |")
     return "\n".join(out)
 
@@ -172,7 +201,7 @@ def write_digest(
         vision=ctx.get("vision.md", ""),
         decisions=ctx.get("decisions.md", ""),
         research_log=ctx.get("research_log.md", ""),
-        recent_runs_table=_format_recent_runs(rows),
+        recent_runs_table=_format_recent_runs(rows, paths.runs_db),
         notebook=notebook_tail(paths.notebook, max_chars=8000),
         budget_snapshot=_budget_snapshot(budget),
         campaign_blocks=campaign_blocks,
@@ -213,10 +242,10 @@ def write_digest(
             message=f"{tl}\n\nFull: {digest_path}",
         )
 
-    ws = [r["e_w1"] for r in rows if r.get("e_w1") is not None]
-    best_w1 = min(ws) if ws else None
+    best = mv.best_run(rows)
+    best_headline = mv.headline_value(best) if best else None
     state = load_state(paths.state)
-    state = update_flat_digest_counter(state, current_best_w1=best_w1, epsilon=0.005)
+    state = update_flat_digest_counter(state, current_best_headline=best_headline)
     save_state(paths.state, state)
 
     # Best-effort progress dashboard refresh. Never let a rendering bug kill a digest.
@@ -233,28 +262,36 @@ def write_digest(
 
 
 def update_flat_digest_counter(
-    state: dict, *, current_best_w1: float | None, epsilon: float | None = None
+    state: dict, *, current_best_headline: float | None, epsilon: float | None = None
 ) -> dict:
     """Return a new state dict with `digests_without_improvement` and
-    `last_digest_best_w1` updated based on this digest's current best W1.
+    `last_digest_best_headline` updated based on this digest's best headline value.
 
-    epsilon: absolute improvement threshold; a drop in W1 by more than
-    epsilon counts as improvement (resets counter). Defaults to
+    Direction-aware: improvement is decided by ``mv.improved`` using the active
+    lab's headline direction ('min' -> a decrease beyond epsilon improves;
+    'max' -> an increase beyond epsilon improves). An improvement resets the
+    counter; otherwise it increments.
+
+    epsilon: absolute improvement threshold. Defaults to
     ``_flat_digest_epsilon()`` (reads from the active LabConfig) when not
     supplied explicitly.
+
+    Reads the legacy ``last_digest_best_w1`` key as a fallback for the previous
+    value so pre-existing state.json files are preserved across the rename.
     """
     if epsilon is None:
         epsilon = _flat_digest_epsilon()
+    direction = _lab.get_config().metrics.headline.direction
+    prev = state.get("last_digest_best_headline", state.get("last_digest_best_w1"))
     out = dict(state)
-    if current_best_w1 is None:
+    if current_best_headline is None:
         out.setdefault("digests_without_improvement", out.get("digests_without_improvement", 0))
         return out
-    prev = out.get("last_digest_best_w1")
-    if prev is None or (prev - current_best_w1) > epsilon:
+    if mv.improved(prev, current_best_headline, direction=direction, epsilon=epsilon):
         out["digests_without_improvement"] = 0
     else:
         out["digests_without_improvement"] = int(out.get("digests_without_improvement", 0)) + 1
-    out["last_digest_best_w1"] = current_best_w1
+    out["last_digest_best_headline"] = current_best_headline
     return out
 
 
