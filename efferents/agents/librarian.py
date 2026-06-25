@@ -76,8 +76,8 @@ LIT_REVIEW_TOOL = {
             "topic": {
                 "type": "string",
                 "description": (
-                    "Concise topic phrase, e.g. 'Min-SNR-γ loss weighting in "
-                    "diffusion' or 'IQP encoding for image patches'."
+                    "Concise topic phrase, e.g. 'contrastive pretraining for "
+                    "tabular data' or 'rotary positional embeddings'."
                 ),
             },
             "intent": {

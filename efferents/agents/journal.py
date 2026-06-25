@@ -134,16 +134,16 @@ def append_journal(
     a federation-synced journal) can identify origin and code-revision.
 
     If `lab_id` / `code_repo` / `code_sha` are not supplied, they default
-    from `auto_qml.lab` + git HEAD.
+    from the active LabConfig + git HEAD.
 
     Creates the file with header if missing. Entry format:
 
         ## 2026-05-26 14:32 UTC — <campaign_id>
-        **Lab**: qfm-diffusion
+        **Lab**: <lab-id>
         **Student**: primary
         **Headline**: <headline>
         **Scores**: critical=6, neutral=7, enthusiast=8 (mean=7.0)
-        **Code**: https://github.com/.../auto-qml@abc1234
+        **Code**: https://github.com/.../lab@abc1234
         **Paper**: [c-aa11.md](c-aa11.md) · ...
     """
     journal_path.parent.mkdir(parents=True, exist_ok=True)

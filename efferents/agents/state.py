@@ -1,7 +1,7 @@
 """Shared file/DB I/O for the agent loop.
 
 Layout under lab/:
-    runs.sqlite       per-run results (schema in auto_qml/run.py)
+    runs.sqlite       per-run results (schema defined by the lab's executor)
     queue.jsonl       Researcher -> Executor handoff (one JSON proposal per line)
     lab_notebook.md   running narrative, agent-only writes, append-only
     digests/          Analyst summaries, one timestamped markdown per write
@@ -77,7 +77,7 @@ def now_iso() -> str:
 
 def recent_runs(db_path: Path, n: int = 30) -> list[dict[str, Any]]:
     # SELECT * lets the schema be lab-defined (per LabConfig.metrics + Phase A's
-    # base meta columns). Downstream consumers use r.get(...) for QML-specific
+    # base meta columns). Downstream consumers use r.get(...) for lab-specific
     # columns and tolerate absence — see researcher.py:_saturation_report.
     if not db_path.exists():
         return []
@@ -386,7 +386,7 @@ def campaign_open_list_for_student(
     db_path: Path, lab_id: str, student_id: str
 ) -> list[dict[str, Any]]:
     """Open campaigns owned by a specific student. Used to enforce the
-    per-student cap (auto_qml.lab.MAX_OPEN_CAMPAIGNS_PER_STUDENT).
+    per-student cap (LabConfig.max_open_campaigns_per_student).
 
     Falls back to all-lab-open if the campaigns table lacks the student_id
     column (pre-Phase-B migration). The fallback is conservative — it

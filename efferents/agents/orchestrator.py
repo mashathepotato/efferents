@@ -136,7 +136,7 @@ class Orchestrator:
         self._stop = False
         # Set to True after a successful Coder commit. The wrapper script
         # observes the special exit code and re-spawns the process so
-        # auto_qml's modules are reloaded fresh from disk.
+        # the lab's modules are reloaded fresh from disk.
         self.restart_requested = False
 
         self.client: anthropic.Anthropic | None = None
@@ -191,7 +191,7 @@ class Orchestrator:
                     "name": f"dryrun_{datetime.now(timezone.utc).strftime('%H%M%S')}",
                     "hypothesis": "Dry-run probe: pipeline only.",
                     "expected": "metrics arbitrary",
-                    "config_overrides": {"run.seed": 123, "run.model": "qfm"},
+                    "config_overrides": {"run.seed": 123},
                 },
             )
             return 1

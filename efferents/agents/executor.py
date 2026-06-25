@@ -4,7 +4,7 @@ The execute() signature and return shape are preserved for the
 orchestrator's downstream consumers. Internals route through
 efferents.exec._execute_run + _persist_run_result, and the notebook
 formatter renders dynamic columns from RunResult.metrics — no domain-
-specific (QML) references survive.
+specific references survive.
 """
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ def load_default_config(path: str | Path) -> dict[str, Any]:
 
 
 def apply_overrides(cfg: dict[str, Any], overrides: dict[str, Any]) -> dict[str, Any]:
-    """Apply dotted-path overrides ('augmentation.aug_depth' -> 4) to a nested dict."""
+    """Apply dotted-path overrides ('training.batch_size' -> 64) to a nested dict."""
     out = copy.deepcopy(cfg)
     for path, value in overrides.items():
         keys = path.split(".")

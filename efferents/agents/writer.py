@@ -202,7 +202,7 @@ def write_phase_a_paper(
          (agents/writer.py:should_publish). If it fails, log and return None.
       2. Compose the paper artifact (Sonnet via compose_paper) and write to
          paper/<campaign_id>.md.
-      3. If `auto_qml.lab.PEER_REVIEW_ENABLED` is False, return here (legacy
+      3. If peer review is disabled (LabConfig.peer_review_enabled), return here (legacy
          publish-on-mechanical-gate behavior).
       4. Otherwise, run the 3-reviewer board (critical/neutral/enthusiast,
          in parallel) + one-shot rebuttal + decide().

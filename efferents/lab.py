@@ -17,7 +17,7 @@ Future API (planned next session): a `LabConfig` dataclass loaded from a
 YAML / Python file at orchestrator startup so users define their lab in
 their own repo rather than monkey-patching this module.
 
-A concrete example based on the auto-qml reference lab is kept at
+A concrete example lab module (modeled on the reference lab) is kept at
 `docs/templates/qml-lab.py.example` for copy-and-modify scaffolding.
 """
 from __future__ import annotations
@@ -110,6 +110,7 @@ class Panel:
     column: str
     label: str
     target: float | None = None
+    direction: Literal["max", "min"] = "min"
 
 
 @dataclass(frozen=True)
@@ -133,6 +134,10 @@ class Metrics:
     headline: Headline
     panels: tuple[Panel, ...]
     flat_digest_epsilon: float = 0.005
+    # Run columns that define an "experimental axis" for saturation analysis
+    # (the Researcher groups runs by these before checking whether a metric has
+    # stalled). Empty means treat all runs as a single bucket.
+    bucket_axes: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -244,8 +249,25 @@ def _build_labconfig(
                 f"metrics.panels[{i}].column {p['column']!r} must match "
                 f"[A-Za-z_][A-Za-z0-9_]* (SQL identifier rules)"
             )
-        panels_list.append(Panel(column=p["column"], label=p.get("label", p["column"]), target=p.get("target")))
+        panel_dir = p.get("direction", "min")
+        if panel_dir not in ("max", "min"):
+            raise SubmissionError(
+                f"metrics.panels[{i}].direction must be 'max' or 'min'; got {panel_dir!r}"
+            )
+        panels_list.append(Panel(
+            column=p["column"], label=p.get("label", p["column"]),
+            target=p.get("target"), direction=panel_dir,
+        ))
     panels = tuple(panels_list)
+
+    bucket_axes_raw = metrics_raw.get("bucket_axes") or ()
+    for i, ax in enumerate(bucket_axes_raw):
+        if not isinstance(ax, str) or not _COL_NAME_RE.match(ax):
+            raise SubmissionError(
+                f"metrics.bucket_axes[{i}] {ax!r} must match "
+                f"[A-Za-z_][A-Za-z0-9_]* (SQL identifier rules)"
+            )
+    bucket_axes = tuple(bucket_axes_raw)
 
     # --- budget ---
     budget_raw = raw.get("budget") or {}
@@ -280,6 +302,7 @@ def _build_labconfig(
             headline=Headline(column=headline_col, direction=headline_dir),
             panels=panels,
             flat_digest_epsilon=float(metrics_raw.get("flat_digest_epsilon", 0.005)),
+            bucket_axes=bucket_axes,
         ),
         budget=Budget(
             daily_cap_usd=float(budget_raw.get("daily_cap_usd", 10.0)),

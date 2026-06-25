@@ -14,7 +14,7 @@ Usage:
 
     # Or:
     python -m agents.federation consume --from /path/to/other-lab/paper/journal.md \\
-        --out paper/external_journal.md --our-lab-id qfm-diffusion
+        --out paper/external_journal.md --our-lab-id my-lab
 
 The consumer:
 - Parses the source journal by `## YYYY-MM-DD HH:MM UTC — <campaign_id>` headers.
@@ -332,7 +332,7 @@ def pending_foundational_deps(
 # ---------------------------------------------------------------------------
 # Self-contained tarball for sibling-lab consumption. The bundle carries the
 # paper, reviews, rebuttal, hypothesis, journal entry, the canonical
-# experiment recipe (config_yaml from the best e_w1 run), and a manifest
+# experiment recipe (config_yaml from the best run), and a manifest
 # with provenance hashes. A sibling lab `import`s this and can both cite
 # the work AND reproduce it — closing the loop on D.4's reproduction
 # discipline.
@@ -484,13 +484,14 @@ def export_paper_bundle(
     hypothesis_path_str = campaign_row.get("hypothesis_path") or ""
 
     # Resolve which metric column and direction to use: campaign row first,
-    # then lab config fallback, then hard-coded legacy default.
+    # then lab config fallback. With neither, metric is None and _campaign_runs
+    # falls back to ordering by started_at.
     try:
         from efferents import lab as _lab_cfg
         _cfg = _lab_cfg.get_config()
         _default = (_cfg.metrics.headline.column, _cfg.metrics.headline.direction)
     except (RuntimeError, AttributeError):
-        _default = ("e_w1", "min")
+        _default = (None, "min")
     metric = campaign_row.get("headline_metric") or _default[0]
     direction = campaign_row.get("headline_direction") or _default[1]
 
@@ -809,7 +810,7 @@ def _main(argv: list[str] | None = None) -> int:
     )
     p_consume.add_argument(
         "--our-lab-id", dest="our_lab_id", default=None,
-        help="Our lab_id (defaults to auto_qml.lab.LAB_ID). Used to skip "
+        help="Our lab_id (defaults to LabConfig.lab_id). Used to skip "
              "self-imports if a sibling lab happens to re-export our entries.",
     )
 
@@ -848,7 +849,7 @@ def _main(argv: list[str] | None = None) -> int:
     )
     p_import.add_argument(
         "--our-lab-id", dest="our_lab_id", default=None,
-        help="Our lab_id (defaults to auto_qml.lab.LAB_ID)",
+        help="Our lab_id (defaults to LabConfig.lab_id)",
     )
     p_import.add_argument(
         "--no-verify-hash", dest="verify_hash", action="store_false", default=True,

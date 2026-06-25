@@ -71,7 +71,7 @@ from efferents.agents.state import (
 from efferents import lab as _lab
 from efferents.lab import _COL_NAME_RE  # SQL-identifier sanitizer
 from efferents.agents.prompts.loader import load_prompt
-from efferents.metrics_view import discover_columns as _discover_metric_columns
+from efferents import metrics_view as mv
 
 
 def _slugify(text: str) -> str:
@@ -104,24 +104,46 @@ EMPTY_FALLBACK_THRESHOLD = 2  # consecutive empty propose() returns → bypass S
 # -----------------------------------------------------------------------------
 
 
-def _format_recent_runs(rows: list[dict[str, Any]]) -> str:
+_META_RENDER_COLS = ("run_id", "started_at", "campaign_id", "researcher_mode", "duration_seconds")
+
+
+def _render_cell(value: Any) -> str:
+    """Finite floats with %.4g, other values as str, '' if absent."""
+    f = mv.finite(value)
+    if f is not None:
+        return f"{f:.4g}"
+    return "" if value is None else str(value)
+
+
+def _recent_run_columns(db_path) -> list[str]:
+    """Lab-agnostic column order: a fixed meta subset, the configured headline
+    column, the panel columns, then the remaining auto-discovered columns —
+    de-duplicated, preserving first-seen order."""
+    ordered: list[str] = []
+    seen: set[str] = set()
+
+    def _add(col: str) -> None:
+        if col not in seen:
+            seen.add(col)
+            ordered.append(col)
+
+    for c in _META_RENDER_COLS:
+        _add(c)
+    _add(mv.headline().column)
+    for p in mv.panels():
+        _add(p.column)
+    for c in mv.discover_columns(db_path):
+        _add(c)
+    return ordered
+
+
+def _format_recent_runs(rows: list[dict[str, Any]], db_path) -> str:
     if not rows:
         return "(no runs yet)"
-    cols = [
-        "run_id", "model", "seed", "raw_q", "epochs", "aug_depth",
-        "aug_shared_unitary", "cond_drop_p", "eval_kind",
-        "val_x0_mse", "e_w1", "radial_l2_log", "duration_seconds", "config_hash",
-    ]
-    out = ["| " + " | ".join(cols) + " |"]
-    out.append("|" + "|".join("---" for _ in cols) + "|")
+    cols = _recent_run_columns(db_path)
+    out = ["| " + " | ".join(cols) + " |", "|" + "|".join("---" for _ in cols) + "|"]
     for r in rows:
-        cells = []
-        for c in cols:
-            v = r.get(c)
-            if isinstance(v, float):
-                cells.append(f"{v:.4g}")
-            else:
-                cells.append("" if v is None else str(v))
+        cells = [_render_cell(r.get(c)) for c in cols]
         out.append("| " + " | ".join(cells) + " |")
     return "\n".join(out)
 
@@ -138,142 +160,143 @@ def _stdev(xs: list[float]) -> float:
     return math.sqrt(sum((x - m) ** 2 for x in xs) / (len(xs) - 1))
 
 
-# Primary metrics in priority order. Each measures distance from generated
-# samples to REAL jet data (lower is better; 0 is perfect):
-#   e_w1            — energy-Wasserstein-1 on per-jet total intensity.
-#   radial_l2_log   — log-RMS of the radial energy-density profile mismatch.
-#                     Sensitive to halo/tail spread — "samples look smeared".
-#   active_frac_w1  — Wasserstein-1 on the fraction of pixels above the
-#                     99.5th-percentile threshold. Captures sparsity / how
-#                     concentrated the support is, also a visual metric.
-PRIMARY_METRICS = ("e_w1", "radial_l2_log", "active_frac_w1")
+def _saturation_metrics() -> list[tuple[str, str]]:
+    """(column, direction) for each metric saturation is evaluated on: the
+    configured headline metric plus panel metrics, de-duplicated by column."""
+    h = mv.headline()
+    out: list[tuple[str, str]] = [(h.column, h.direction)]
+    seen = {h.column}
+    for p in mv.panels():
+        if p.column not in seen:
+            seen.add(p.column)
+            out.append((p.column, p.direction))
+    return out
 
 
-def _observed_metric_columns(db_path) -> list[str]:
-    """Metric columns present in runs, for saturation analysis. Falls back
-    to the QML PRIMARY_METRICS set only when discovery yields nothing
-    (no runs table / empty schema)."""
-    found = _discover_metric_columns(db_path)
-    return found or list(PRIMARY_METRICS)
+def _config_group_key(row: dict) -> str:
+    """A stable key identifying a run's configuration, for same-config
+    replication detection. Prefers an explicit config hash, then the config
+    path, then the run id (which makes the run its own singleton group)."""
+    return str(
+        row.get("config_hash")
+        or row.get("config_path")
+        or row.get("run_id")
+        or id(row)
+    )
 
 
 def _saturation_report(paths: LabPaths, *, n: int = 50) -> dict[str, Any]:
-    """Detect saturated experimental axes across all primary metrics.
+    """Detect saturated experimental axes across the configured metrics.
 
-    Within each (model, raw_q, eval_kind) bucket, computes the saturation
-    heuristic independently per metric in ``PRIMARY_METRICS``:
+    Runs are grouped into buckets by ``LabConfig.metrics.bucket_axes`` (a lab
+    that declares no axes is treated as a single bucket). Within each bucket the
+    saturation heuristic is computed independently per metric (the headline
+    metric plus panels, direction-aware):
 
-    - per-seed noise floor: mean of within-config stds where ≥2 runs share
-      a config_hash;
+    - per-config noise floor: mean of within-config stds where ≥2 runs share a
+      configuration;
     - cross-config delta: std of best-per-config metric values;
-    - top-quartile floor: std/mean of the best 25% of bests (catches the
-      case where the best results are clustered after many attempts).
+    - top-quartile floor: std/mean of the best 25% of per-config bests (catches
+      the case where the best results are clustered after many attempts).
 
     A metric is saturated for that bucket when:
 
-    - same-config replication exists AND cross_std ≤ 1.5 × seed_noise; or
+    - same-config replication exists AND cross_std ≤ 1.5 × noise_floor; or
     - no replication AND n_configs ≥ 10 (many tries, no breakthrough); or
     - no replication AND n_configs ≥ 6 AND top-quartile floor_ratio < 0.10.
 
-    A bucket as a whole is saturated when **≥ 2 of 3 primary metrics** are
-    saturated — single-metric saturation can be a coincidence, but if energy
-    AND radial profile (or AND sparsity) both stall, the axis is truly stuck.
+    A bucket as a whole is saturated when at least half of the configured
+    metrics are saturated — single-metric saturation can be a coincidence.
     """
+    try:
+        metric_specs = _saturation_metrics()
+        axes = _lab.get_config().metrics.bucket_axes
+    except RuntimeError:
+        # No active LabConfig (e.g. a bare unit test). Nothing to report on.
+        return {"saturated_axes": [], "score": 0, "evidence": []}
     if not paths.runs_db.exists():
         return {"saturated_axes": [], "score": 0, "evidence": []}
-
-    conn = sqlite3.connect(paths.runs_db)
-    conn.row_factory = sqlite3.Row
     try:
-        try:
-            rows = conn.execute(
-                "SELECT model, raw_q, eval_kind, config_hash, "
-                "       e_w1, radial_l2_log, active_frac_w1 "
-                "FROM runs WHERE e_w1 IS NOT NULL "
-                "ORDER BY started_at DESC LIMIT ?",
-                (n,),
-            ).fetchall()
-        except sqlite3.OperationalError:
-            # Lab schema doesn't have the QML-shaped columns this report needs
-            # (e.g., a non-QML lab). Treat as "no saturation evidence".
-            # Phase B: rewrite this report to read columns from LabConfig.
-            return {"saturated_axes": [], "score": 0, "evidence": []}
-    finally:
-        conn.close()
+        rows = recent_runs(paths.runs_db, n=n)
+    except sqlite3.OperationalError:
+        return {"saturated_axes": [], "score": 0, "evidence": []}
 
-    metrics = _observed_metric_columns(paths.runs_db)
+    headline_col = mv.headline().column
 
-    # Bucket: (model, raw_q, eval_kind) -> {config_hash: {metric: [vals]}}
-    buckets: dict[tuple[str, int, str], dict[str, dict[str, list[float]]]] = (
+    def _bucket_key(row: dict) -> tuple[str, ...]:
+        return ("all",) if not axes else tuple(str(row.get(a)) for a in axes)
+
+    def _bucket_label(key: tuple[str, ...]) -> str:
+        return "all runs" if not axes else " ".join(f"{a}={v}" for a, v in zip(axes, key))
+
+    # bucket -> config_group -> metric -> [finite values]
+    buckets: dict[tuple[str, ...], dict[str, dict[str, list[float]]]] = (
         defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
     )
     for r in rows:
-        key = (str(r["model"]), int(r["raw_q"] or 0), str(r["eval_kind"] or "unknown"))
-        ch = str(r["config_hash"])
-        for m in metrics:
-            try:
-                v = r[m]
-            except IndexError:
-                continue
+        key = _bucket_key(r)
+        cg = _config_group_key(r)
+        for col, _dir in metric_specs:
+            v = mv.finite(r.get(col))
             if v is not None:
-                buckets[key][ch][m].append(float(v))
+                buckets[key][cg][col].append(v)
 
-    def _metric_status(per_hash: dict[str, dict[str, list[float]]], metric: str) -> dict[str, Any]:
-        vals_per_config = [d[metric] for d in per_hash.values() if d.get(metric)]
+    def _best(vals: list[float], direction: str) -> float:
+        return min(vals) if direction == "min" else max(vals)
+
+    def _metric_status(per_cfg, metric: str, direction: str) -> dict[str, Any]:
+        vals_per_config = [d[metric] for d in per_cfg.values() if d.get(metric)]
         if len(vals_per_config) < 4:
             return {"n_configs": len(vals_per_config), "saturated": False, "rule": "n<4"}
-        bests = [min(vs) for vs in vals_per_config]
+        bests = [_best(vs, direction) for vs in vals_per_config]
+        best_val = _best(bests, direction)
         cross_std = _stdev(bests)
         within_stds = [_stdev(vs) for vs in vals_per_config if len(vs) >= 2]
         seed_noise = sum(within_stds) / len(within_stds) if within_stds else None
-        sorted_bests = sorted(bests)
-        top_q = sorted_bests[: max(2, len(sorted_bests) // 4)]
+        ranked = sorted(bests, reverse=(direction == "max"))
+        top_q = ranked[: max(2, len(ranked) // 4)]
         floor_mean = sum(top_q) / len(top_q)
-        floor_ratio = (_stdev(top_q) / floor_mean) if floor_mean > 0 else 0.0
+        floor_ratio = (_stdev(top_q) / abs(floor_mean)) if floor_mean != 0 else 0.0
         n_configs = len(vals_per_config)
         if seed_noise is not None and seed_noise > 0:
             if cross_std <= 1.5 * seed_noise:
                 return {
-                    "n_configs": n_configs, "saturated": True, "best": min(bests),
-                    "rule": f"cross_std={cross_std:.3g} ≤ 1.5×seed_noise={seed_noise:.3g}",
+                    "n_configs": n_configs, "saturated": True, "best": best_val,
+                    "rule": f"cross_std={cross_std:.3g} ≤ 1.5×noise_floor={seed_noise:.3g}",
                 }
         if n_configs >= 10:
             return {
-                "n_configs": n_configs, "saturated": True, "best": min(bests),
+                "n_configs": n_configs, "saturated": True, "best": best_val,
                 "rule": f"n_configs={n_configs} ≥ 10 (no breakthrough)",
             }
         if n_configs >= 6 and floor_ratio < 0.10:
             return {
-                "n_configs": n_configs, "saturated": True, "best": min(bests),
+                "n_configs": n_configs, "saturated": True, "best": best_val,
                 "rule": f"n_configs={n_configs}, floor_ratio={floor_ratio:.3f} < 0.10",
             }
-        return {"n_configs": n_configs, "saturated": False, "best": min(bests), "rule": ""}
+        return {"n_configs": n_configs, "saturated": False, "best": best_val, "rule": ""}
 
     saturated_axes: list[str] = []
     evidence: list[dict[str, Any]] = []
-    for (model, raw_q, eval_kind), per_hash in buckets.items():
-        per_metric = {m: _metric_status(per_hash, m) for m in metrics}
+    for key, per_cfg in buckets.items():
+        per_metric = {col: _metric_status(per_cfg, col, d) for col, d in metric_specs}
         n_sat = sum(1 for s in per_metric.values() if s["saturated"])
-        is_saturated = n_sat >= max(1, (len(metrics) + 1) // 2)
-        # Total runs in this bucket (any metric).
-        all_vals = sum(
-            (per_hash[ch].get("e_w1", []) for ch in per_hash), []
-        )
-        n_configs = len([ch for ch in per_hash if per_hash[ch].get("e_w1")])
+        is_saturated = n_sat >= max(1, (len(metric_specs) + 1) // 2)
+        n_configs = len([cg for cg in per_cfg if per_cfg[cg].get(headline_col)])
+        n_runs = sum(len(per_cfg[cg].get(headline_col, [])) for cg in per_cfg)
+        label = _bucket_label(key)
 
         ev = {
-            "bucket": f"model={model} raw_q={raw_q} eval_kind={eval_kind}",
+            "bucket": label,
             "n_configs": n_configs,
-            "n_runs": sum(
-                len(per_hash[ch].get("e_w1", [])) for ch in per_hash
-            ),
+            "n_runs": n_runs,
             "per_metric": {
-                m: {
+                col: {
                     "best": round(s["best"], 4) if s.get("best") is not None else None,
                     "saturated": s["saturated"],
                     "rule": s["rule"],
                 }
-                for m, s in per_metric.items()
+                for col, s in per_metric.items()
             },
             "n_saturated_metrics": n_sat,
             "saturated": is_saturated,
@@ -282,11 +305,8 @@ def _saturation_report(paths: LabPaths, *, n: int = 50) -> dict[str, Any]:
         if is_saturated:
             # Name the saturated metrics in the axis label so the Supervisor's
             # brief can be specific about what's stuck.
-            stuck = [m for m, s in per_metric.items() if s["saturated"]]
-            saturated_axes.append(
-                f"model={model} raw_q={raw_q} eval_kind={eval_kind} "
-                f"on metrics {stuck}"
-            )
+            stuck = [col for col, s in per_metric.items() if s["saturated"]]
+            saturated_axes.append(f"{label} on metrics {stuck}")
 
     score = min(len(saturated_axes), 5)
     return {"saturated_axes": saturated_axes, "score": score, "evidence": evidence}
@@ -588,8 +608,8 @@ def _student_propose(
 ) -> tuple[str, dict[str, Any], list[str]]:
     """Turn 2: Student takes the brief and produces proposals.
 
-    `student_id` selects which prompt template to use (per
-    auto_qml.lab.STUDENTS[student_id]["prompt_overrides"]["student"], if
+    `student_id` selects which prompt template to use (per the lab config's
+    students[student_id]["prompt_overrides"]["student"], if
     present; otherwise the default agents/prompts/student.md).
 
     Returns (raw_text, parsed_dict_or_empty, consulted_topic_ids).
@@ -810,7 +830,7 @@ def propose(
 
     Phase B: `student_id` selects which student's slice of state.json drives
     saturation streak / consecutive-empty / last_researcher_ts. Defaults to
-    auto_qml.lab.DEFAULT_STUDENT_ID; with one student configured, this is
+    LabConfig.default_student_id; with one student configured, this is
     transparent (the primary student reads/writes the legacy flat keys).
 
     Each proposal is tagged with `student_id` so the Executor can stamp
@@ -839,7 +859,7 @@ def propose(
     )
     dynamic_block = _shared_dynamic_block(
         research_log=ctx.get("research_log.md", ""),
-        runs_table=_format_recent_runs(rows),
+        runs_table=_format_recent_runs(rows, paths.runs_db),
         notebook=notebook_tail(paths.notebook, max_chars=6000),
     )
     kb_index_block = _kb_block(kb_index)

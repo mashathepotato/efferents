@@ -152,13 +152,17 @@ def cmd_status(args: argparse.Namespace) -> int:
     print()
     rows = recent_runs(paths.runs_db, n=10)
     if rows:
+        from efferents import metrics_view as mv
+
+        cols = mv.discover_columns(paths.runs_db)
         print("recent runs:")
         for r in rows:
-            print(
-                f"  {r['started_at'][:19]}  {r['model']:>3}  "
-                f"raw_q={r['raw_q']}  E_w1={r['e_w1']:.3g}  "
-                f"radL2log={r['radial_l2_log']:.3g}  ({r['eval_kind']})"
-            )
+            started = str(r.get("started_at", ""))[:19]
+            cells = []
+            for c in cols:
+                v = mv.finite(r.get(c))
+                cells.append(f"{c}={v:.3g}" if v is not None else f"{c}={r.get(c)}")
+            print(f"  {started}  {r.get('run_id', '')}  " + "  ".join(cells))
     return 0
 
 

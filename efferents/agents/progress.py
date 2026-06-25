@@ -115,8 +115,7 @@ def _snapshot(paths: LabPaths) -> dict[str, Any]:
     conn.row_factory = sqlite3.Row
     try:
         # Build column list from config + autodiscovery, always adding the
-        # framework meta columns we know about.  This replaces the old QML-
-        # hardcoded `wanted` list.
+        # framework meta columns we know about.
         headline_col = mv.headline().column
         panel_cols = [p.column for p in mv.panels()]
         discovered = mv.discover_columns(paths.runs_db)
@@ -538,7 +537,7 @@ def _render_run_tile(
     sha = r.get("git_commit")
     commit = _resolve_commit_metadata(sha, commit_cache) if sha else None
 
-    # Caption: headline metric + model + seed (generic, no QML column names)
+    # Caption: headline metric + model + seed (generic, config-driven)
     h = mv.headline()
     headline_val = _fmt_val(r.get(h.column))
     model_str = _esc(r.get("model", ""))
@@ -630,7 +629,7 @@ def _render_architectures(
     Inside the card: every run in that architectural slice, clickable.
 
     The architecture stat block now shows the configured headline metric + panels
-    generically (no QML column names). Autodiscovered non-panel columns are
+    generically (config-driven). Autodiscovered non-panel columns are
     omitted from the stat block (they appear in each run tile's expanded view).
     """
     by_commit = _group_runs_by_commit(runs)
@@ -783,7 +782,7 @@ def _render_html(snap: dict, *, paths: LabPaths, context_dir: Path) -> str:
     n_open = sum(1 for c in campaigns if c.get("closed_at") is None)
     now = datetime.now(timezone.utc).isoformat(timespec="seconds")
 
-    # "Best of each metric" stat row — config-driven, no QML column names.
+    # "Best of each metric" stat row — config-driven.
     best_bits = []
     for col, label, target in _panel_metrics(paths.runs_db):
         val, _row = _metric_best(scored, col, target)

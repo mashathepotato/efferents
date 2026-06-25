@@ -13,7 +13,7 @@ before it can be accepted into the journal. The three personas are:
 
 Each reviewer scores 1–10 (OpenReview-style; see the prompts) and surfaces
 strengths / weaknesses / questions. `decide()` aggregates scores against
-the thresholds in `auto_qml.lab.PEER_REVIEW_ACCEPT_*`.
+the configured LabConfig peer-review thresholds.
 """
 from __future__ import annotations
 
