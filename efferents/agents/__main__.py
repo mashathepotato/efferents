@@ -5,8 +5,6 @@
     python -m agents start --max 3      # stop after N iterations (smoke)
     python -m agents propose-once       # one Researcher call, print proposals
     python -m agents digest-now         # force one Analyst digest
-    python -m agents write-once         # one Writer pass (paper + slides)
-    python -m agents start-writer       # continuous loop: writer fires when new runs land
     python -m agents status             # print recent runs + budget snapshot
 
 Defaults assume cwd = repo root (lab/, context/, config/ relative).
@@ -21,7 +19,7 @@ from pathlib import Path
 
 import anthropic
 
-from efferents.agents import analyst, coder, researcher, writer
+from efferents.agents import analyst, coder, researcher
 from efferents.agents.budget import BudgetTracker
 from efferents.agents.orchestrator import Orchestrator
 from efferents.agents.state import init_lab, lab_paths, load_state, recent_runs, runs_count
@@ -133,38 +131,6 @@ def cmd_progress_now(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_write_once(args: argparse.Namespace) -> int:
-    _load_dotenv()
-    out = writer.write_once(
-        lab=args.lab,
-        paper=args.paper,
-        reports=args.reports,
-        context=args.context,
-        skip_llm=args.skip_llm,
-        skip_notify=args.no_notify,
-    )
-    print(json.dumps(out, indent=2, default=str))
-    return 0
-
-
-def cmd_start_writer(args: argparse.Namespace) -> int:
-    _load_dotenv()
-    if not args.skip_llm and not os.environ.get("ANTHROPIC_API_KEY"):
-        print("ERROR: ANTHROPIC_API_KEY not set (checked env and .env).", file=sys.stderr)
-        return 2
-    writer.run_loop(
-        lab=args.lab,
-        paper=args.paper,
-        reports=args.reports,
-        context=args.context,
-        runs_per_write=args.runs_per_write,
-        hours_per_write=args.hours_per_write,
-        check_every_seconds=args.check_every,
-        skip_llm=args.skip_llm,
-    )
-    return 0
-
-
 def cmd_status(args: argparse.Namespace) -> int:
     paths = lab_paths(args.lab)
     init_lab(paths)
@@ -228,25 +194,6 @@ def main(argv: list[str] | None = None) -> int:
     p_dig = sub.add_parser("digest-now", parents=[common], help="force a digest")
     p_dig.add_argument("--no-notify", action="store_true")
     p_dig.set_defaults(func=cmd_digest_now)
-
-    p_write = sub.add_parser("write-once", parents=[common], help="one Writer pass")
-    p_write.add_argument("--paper", default="paper", help="paper/ directory (writer's outputs)")
-    p_write.add_argument("--reports", default="reports", help="reports/ directory")
-    p_write.add_argument("--skip-llm", action="store_true", help="run only the deterministic phase")
-    p_write.add_argument("--no-notify", action="store_true")
-    p_write.set_defaults(func=cmd_write_once)
-
-    p_loop = sub.add_parser("start-writer", parents=[common], help="continuous Writer loop")
-    p_loop.add_argument("--paper", default="paper")
-    p_loop.add_argument("--reports", default="reports")
-    p_loop.add_argument("--runs-per-write", type=int, default=15,
-                        help="fire after N new runs accumulated since last pass")
-    p_loop.add_argument("--hours-per-write", type=float, default=5.0,
-                        help="fire after H hours, regardless of run count (if any new runs)")
-    p_loop.add_argument("--check-every", type=int, default=60,
-                        help="poll interval in seconds")
-    p_loop.add_argument("--skip-llm", action="store_true")
-    p_loop.set_defaults(func=cmd_start_writer)
 
     p_stat = sub.add_parser("status", parents=[common], help="print state")
     p_stat.set_defaults(func=cmd_status)

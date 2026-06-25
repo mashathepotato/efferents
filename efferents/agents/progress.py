@@ -198,8 +198,8 @@ def _scored_sample_runs(runs: list[dict]) -> list[dict]:
     """Filter to rows that have a finite headline metric value.
 
     A run is "scored" iff its headline metric is not None — independent of
-    any lab-specific eval_kind column.  The old QML filter
-    (eval_kind == 'sample') is replaced by this generic headline-value check.
+    any lab-specific run-kind column. This generic headline-value check
+    replaces the former domain-specific run-kind filter.
     """
     return [r for r in runs if mv.headline_value(r) is not None]
 
