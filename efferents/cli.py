@@ -202,6 +202,17 @@ def _cmd_stop(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_demo(args: argparse.Namespace) -> int:
+    from efferents.demo import run_demo
+
+    try:
+        run_demo(args.lab, args.out)
+    except FileNotFoundError as e:
+        print(f"demo failed: {e}", file=sys.stderr)
+        return 1
+    return 0
+
+
 def _cmd_serve(args: argparse.Namespace) -> int:
     from efferents.dashboard import server as dash_server
 
@@ -244,6 +255,14 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_list = sub.add_parser("list", help="List all registered labs")
     p_list.set_defaults(func=_cmd_list)
+
+    p_demo = sub.add_parser(
+        "demo", help="Run an offline, no-API product demo and write journal/runs/dashboard")
+    p_demo.add_argument("lab", nargs="?", default="smoke-lab",
+                        help="Example lab name (default: smoke-lab) or path to a submission dir")
+    p_demo.add_argument("--out", default="efferents-demo",
+                        help="Output directory for demo artifacts (default: ./efferents-demo)")
+    p_demo.set_defaults(func=_cmd_demo)
 
     p_serve = sub.add_parser("serve", help="Start the read-only web dashboard")
     p_serve.add_argument("--lab-root", default="lab",
