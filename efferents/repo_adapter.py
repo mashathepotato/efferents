@@ -33,6 +33,12 @@ class Outputs:
 
 
 @dataclass(frozen=True)
+class Sweep:
+    param: str
+    values: tuple[float | int | str, ...]
+
+
+@dataclass(frozen=True)
 class RepoAdapterConfig:
     goal: str
     train_command: str
@@ -42,6 +48,8 @@ class RepoAdapterConfig:
     budget: Budget
     approval_mode: str
     outputs: Outputs
+    config_template: str | None = None
+    sweep: Sweep | None = None
 
     @classmethod
     def load(cls, path: Path | str) -> "RepoAdapterConfig":
@@ -67,6 +75,23 @@ class RepoAdapterConfig:
             raise AdapterConfigError(
                 "eval_command must contain the {checkpoint} placeholder"
             )
+
+        sweep_raw = raw.get("sweep")
+        sweep = None
+        if sweep_raw is not None:
+            if not isinstance(sweep_raw, dict) or not sweep_raw.get("param"):
+                raise AdapterConfigError("sweep must have a 'param' field")
+            values = sweep_raw.get("values")
+            if not isinstance(values, list) or not values:
+                raise AdapterConfigError("sweep.values must be a non-empty list")
+            sweep = Sweep(param=sweep_raw["param"], values=tuple(values))
+
+        config_template = raw.get("config_template")
+        if sweep is not None and "{config_path}" not in raw["train_command"]:
+            raise AdapterConfigError(
+                "train_command must contain {config_path} when a sweep is configured"
+            )
+
         budget_raw = raw.get("budget") or {}
         approval_raw = raw.get("approval") or {}
         mode = approval_raw.get("mode", "plan_then_execute")
@@ -91,6 +116,8 @@ class RepoAdapterConfig:
                 runs_file=out_raw.get("runs_file", "runs.jsonl"),
                 claims_file=out_raw.get("claims_file", "claims.jsonl"),
             ),
+            config_template=config_template,
+            sweep=sweep,
         )
 
 

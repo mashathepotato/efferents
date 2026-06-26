@@ -1,0 +1,5 @@
+# Base hyperparameters for the toy classifier. The lab overlays the swept
+# parameter (see `sweep` in efferents.yaml) on top of these per run.
+learning_rate: 0.3
+epochs: 200
+threshold: 0.5

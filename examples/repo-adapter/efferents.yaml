@@ -4,16 +4,24 @@
 # run bounded experiments against it: how to train, how to evaluate, what metric
 # to move, and the budget/approval guardrails it must stay inside.
 #
-# This is the "bring your own repo" config. The example/smoke-lab uses the
-# lower-level lab.yaml schema; this adapter is the buyer-facing front door.
+# This example is runnable offline: `efferents run examples/repo-adapter`
+# executes the toy train.py / eval.py here over the sweep below.
 
-goal: "improve validation F1 under 2 GPU hours"
+goal: "maximize validation F1 by tuning the decision threshold, under 2 GPU hours"
 
-# How efferents runs one experiment. {checkpoint} is filled in by the runner.
-train_command: "python train.py --config configs/base.yaml"
-eval_command: "python eval.py --checkpoint {checkpoint}"
+# How efferents runs one experiment.
+#   {config_path}  is filled with a per-run config (base.yaml + the swept value).
+#   {checkpoint}   is filled with the path train.py prints on stdout.
+train_command: "python3 train.py --config {config_path}"
+eval_command: "python3 eval.py --checkpoint {checkpoint}"
+config_template: configs/base.yaml
 
-# The metric the lab optimizes, parsed from eval output / a metrics file.
+# What the lab varies each run. Omit `sweep` to run a single experiment.
+sweep:
+  param: threshold
+  values: [0.30, 0.50, 0.65, 0.80, 0.90]
+
+# The metric the lab optimizes, parsed from the eval command's JSON output.
 metric: "val_f1"
 maximize: true
 
@@ -24,7 +32,7 @@ budget:
 
 # How much autonomy the lab has.
 #   plan_then_execute — write the experiment plan to the journal, then run.
-#   dry_run           — plan only, never execute.
+#   dry_run           — write the plan only, never execute.
 #   autonomous        — run without pausing (use only inside a sandbox).
 approval:
   mode: "plan_then_execute"

@@ -9,11 +9,25 @@ Internal notes for contributors. Buyer-facing copy lives in [`README.md`](./READ
 
 What works today:
 - **Offline demo** (`efferents demo`) — deterministic, no API calls.
-- **CLI** — `validate / start / status / stop / list / serve`.
+- **Repo-adapter run** (`efferents run <repo>`) — executes a real bounded
+  train/eval sweep from an `efferents.yaml`, fully offline, writing the journal /
+  runs / claims / dashboard with provenance (`efferents/runner.py`).
+- **CLI** — `validate / start / status / stop / list / serve / demo / run`.
 - **`LabConfig`** — loads a lab from `lab.yaml` + `hypothesis.md`, lab-agnostic.
-- **Repo adapter** — `efferents.yaml` loader for pointing at an existing repo.
+- **Repo adapter** — `efferents.yaml` loader (`efferents/repo_adapter.py`).
 - **Read-only dashboard** — `efferents serve`.
 - **Tests** — see `tests/` (run `uv run pytest tests/`).
+
+### `efferents run` execution contract
+
+The runner sweeps `sweep.param` over `sweep.values`. Per iteration it writes a
+config (`config_template` overlaid with the swept value), runs `train_command`
+(with `{config_path}` substituted), reads the checkpoint path from train's
+trailing stdout JSON (`{"checkpoint": "..."}`), runs `eval_command` (with
+`{checkpoint}` substituted), and reads `metrics.<metric>` from eval's trailing
+JSON. All checkpoints/configs/logs land under the `--out` dir, never the target
+repo. Budget is tracked as a wall-clock GPU-hour proxy; LLM spend is $0 (offline).
+`approval.mode: dry_run` writes the plan and stops before executing.
 
 In progress: the live multi-agent loop runs but several agent prompts are still
 calibrated against the original QML reference lab and read oddly in other
@@ -27,6 +41,7 @@ efferents/
 │   ├── __main__.py            # `python -m efferents …` → cli.main
 │   ├── cli.py                 # validate / start / status / stop / list / serve / demo
 │   ├── demo.py                # offline deterministic product demo
+│   ├── runner.py              # `efferents run`: execute a repo adapter sweep
 │   ├── lab.py                 # LabConfig (lab.yaml + hypothesis.md loader)
 │   ├── repo_adapter.py        # efferents.yaml ("bring your own repo") loader
 │   ├── daemon.py              # foreground / detached run loop
