@@ -107,4 +107,3 @@ re-introduce `auto_qml` imports.
   Popperian hypothesis intake; required as a subprocess by
   `efferents.agents.popper_gate`. Path via `POPPER_PROBE_REPO`
   (default `~/Documents/popper-probe`).
-</content>

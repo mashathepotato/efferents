@@ -132,4 +132,9 @@ autonomous lab on your own hardware, we'd like to build with you.
 - [`examples/smoke-lab/`](./examples/smoke-lab/) — a complete non-toy-domain lab.
 - [`context/journal_vision.md`](./context/journal_vision.md) — the long-term
   multi-lab journal design.
-</content>
+
+## License
+
+[Apache-2.0](./LICENSE). © 2026 Masha Baidachna. You can clone, modify, and use
+efferents — including internally and commercially — under the terms of the
+license.

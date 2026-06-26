@@ -69,5 +69,4 @@ demo, 🟡 hurts credibility, 🟢 nice-to-have.
 5. ✅ Rewrite README top for buyers; move scaffold/QML/architecture notes to
    `DEVELOPMENT.md`.
 6. ✅ Rework landing page for the local-first wedge + example output + pilot CTA.
-7. ✅ Add `.env.example`, `LICENSE` TODO, gitignore demo output.
-</content>
+7. ✅ Add `.env.example`, `LICENSE` (Apache-2.0), gitignore demo output.
