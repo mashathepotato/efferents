@@ -27,8 +27,9 @@ lab/
 data/
 popper-corpus/
 
-# Offline demo output (`efferents demo`)
+# Offline demo / run output (`efferents demo`, `efferents run`)
 efferents-demo/
+efferents-run/
 demo-output/
 
 # IDE / OS

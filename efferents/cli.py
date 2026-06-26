@@ -213,6 +213,18 @@ def _cmd_demo(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_run(args: argparse.Namespace) -> int:
+    from efferents.runner import run_adapter, RunnerError
+    from efferents.repo_adapter import AdapterConfigError
+
+    try:
+        run_adapter(args.repo, args.out, max_iters=args.max_iters)
+    except (RunnerError, AdapterConfigError, FileNotFoundError) as e:
+        print(f"run failed: {e}", file=sys.stderr)
+        return 1
+    return 0
+
+
 def _cmd_serve(args: argparse.Namespace) -> int:
     from efferents.dashboard import server as dash_server
 
@@ -263,6 +275,16 @@ def build_parser() -> argparse.ArgumentParser:
     p_demo.add_argument("--out", default="efferents-demo",
                         help="Output directory for demo artifacts (default: ./efferents-demo)")
     p_demo.set_defaults(func=_cmd_demo)
+
+    p_run = sub.add_parser(
+        "run", help="Execute a repo adapter (efferents.yaml) as a bounded experiment loop")
+    p_run.add_argument("repo", nargs="?", default="examples/repo-adapter",
+                       help="Path to a repo containing efferents.yaml (default: examples/repo-adapter)")
+    p_run.add_argument("--out", default="efferents-run",
+                       help="Output directory for artifacts (default: ./efferents-run)")
+    p_run.add_argument("--max-iters", type=int, default=None,
+                       help="Cap the number of experiments")
+    p_run.set_defaults(func=_cmd_run)
 
     p_serve = sub.add_parser("serve", help="Start the read-only web dashboard")
     p_serve.add_argument("--lab-root", default="lab",

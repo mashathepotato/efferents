@@ -73,12 +73,16 @@ table is the contract:
 ## Point it at your own repo
 
 Drop an `efferents.yaml` at your ML repo root
-([full example](examples/repo-adapter/efferents.yaml)):
+([full runnable example](examples/repo-adapter/efferents.yaml)):
 
 ```yaml
-goal: "improve validation F1 under 2 GPU hours"
-train_command: "python train.py --config configs/base.yaml"
-eval_command: "python eval.py --checkpoint {checkpoint}"
+goal: "maximize validation F1 by tuning the decision threshold, under 2 GPU hours"
+train_command: "python train.py --config {config_path}"   # {config_path}: per-run config
+eval_command: "python eval.py --checkpoint {checkpoint}"   # {checkpoint}: from train stdout
+config_template: configs/base.yaml
+sweep:
+  param: threshold
+  values: [0.30, 0.50, 0.65, 0.80, 0.90]
 metric: "val_f1"
 maximize: true
 budget:
@@ -87,6 +91,20 @@ budget:
 approval:
   mode: "plan_then_execute"
 ```
+
+Then run a bounded sweep against it — also **offline**, executing the repo's own
+train/eval each iteration and writing the same journal + provenance:
+
+```bash
+efferents run examples/repo-adapter      # writes ./efferents-run/
+open efferents-run/dashboard.html
+```
+
+The bundled example is a real (toy) classifier: the lab sweeps the decision
+threshold, finds the interior `val_f1` optimum, and records every run's
+train/eval log. Your repo's `train`/`eval` plug in where the example's do. The
+contract is simple: `train` prints `{"checkpoint": "<path>"}` on stdout, `eval`
+prints `{"metrics": {"<metric>": <value>}}`.
 
 ## Safety, budget & approval
 
