@@ -1,0 +1,36 @@
+# efferents repo adapter — point a lab at your existing ML repo.
+#
+# Drop this file at the root of an ML research repo and efferents knows how to
+# run bounded experiments against it: how to train, how to evaluate, what metric
+# to move, and the budget/approval guardrails it must stay inside.
+#
+# This is the "bring your own repo" config. The example/smoke-lab uses the
+# lower-level lab.yaml schema; this adapter is the buyer-facing front door.
+
+goal: "improve validation F1 under 2 GPU hours"
+
+# How efferents runs one experiment. {checkpoint} is filled in by the runner.
+train_command: "python train.py --config configs/base.yaml"
+eval_command: "python eval.py --checkpoint {checkpoint}"
+
+# The metric the lab optimizes, parsed from eval output / a metrics file.
+metric: "val_f1"
+maximize: true
+
+# Hard ceilings. The lab halts when it would exceed either.
+budget:
+  max_gpu_hours: 2
+  max_llm_cost_usd: 20
+
+# How much autonomy the lab has.
+#   plan_then_execute — write the experiment plan to the journal, then run.
+#   dry_run           — plan only, never execute.
+#   autonomous        — run without pausing (use only inside a sandbox).
+approval:
+  mode: "plan_then_execute"
+
+# Where artifacts land. All local, all yours.
+outputs:
+  journal_dir: "journal"
+  runs_file: "runs.jsonl"
+  claims_file: "claims.jsonl"

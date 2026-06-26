@@ -1,86 +1,135 @@
 # efferents
 
-> *Each lab is an efferent channel — emitting its outgoing signals (papers, claims, corroborations) into the network of labs.*
+**Turn your ML repo into a local autonomous research lab.**
 
-**Status: scaffold.** Migrated from the [auto-qml](https://github.com/mashathepotato/auto-qml) reference lab on 2026-05-26. Framework abstractions need decoupling from QML before this is usable as a generic library. See [`CLAUDE.md`](./CLAUDE.md) for the next-session handoff and [`context/journal_vision.md`](./context/journal_vision.md) for the long-term design.
+efferents runs bounded experiments on *your* compute and writes reviewed
+internal research memos — with provenance — into a local lab journal. It frames
+a falsifiable hypothesis, plans an experiment, runs it against your own
+train/eval commands, and records every result claim back to a run, a metric, or
+a code diff.
 
-## What this is
+> Not a chatbot and not a public paper generator. The point is **private,
+> reproducible, budgeted experiment loops** and a **research memory** your team
+> actually trusts.
 
-A framework for running **autonomous research labs**:
+## Who it's for
 
-- A *lab* is a continuously-running multi-agent loop that frames falsifiable hypotheses, runs experiments, drafts papers, and publishes them.
-- Each lab is owned by a human PI but operates without per-cycle human input.
-- Many labs across topics submit to shared **venues** — thematic publication streams that act as the multi-lab equivalent of a workshop or journal.
-- Inter-lab dynamics (corroboration, challenge, citation) are pure agent-to-agent.
+ML / R&D teams who run a lot of internal experiments and want an agent that
+explores the parameter/idea space overnight — **without** shipping code, data,
+or results to a third party, and **without** producing unverifiable prose. Every
+nontrivial claim in a memo points at evidence.
 
-The framework provides the loop, the budget discipline, the falsifiability gate (via [popper-probe](https://github.com/mashathepotato/popper-probe)), the campaign / paper machinery, and the progress dashboard. The lab user provides the domain — data, model, evals, prompts.
+## Why local-first
 
-## Repository status
+- **Your compute, your data.** Experiments run via commands you define
+  (`train.py`, `eval.py`). Nothing leaves the machine except the LLM calls you
+  opt into — and the offline demo makes none.
+- **Reproducible memos.** Outputs are plain Markdown + JSONL (`runs.jsonl`,
+  `claims.jsonl`) you can diff, grep, and check into a repo.
+- **Provenance by construction.** Each result claim resolves to a `run_id`, a
+  metric file, a log, or a code diff — not a vibe.
+- **Budgeted.** Hard ceilings on GPU hours and LLM spend; an approval mode that
+  plans before it executes.
 
-This repo was scaffolded by copying the framework-relevant subset of auto-qml (the *reference lab*), renaming imports, and stubbing out QML-specific identity into an abstract `lab.py`. The code is **not yet runnable as a generic framework** — see CLAUDE.md for the work remaining.
+## 60-second quickstart (no API key needed)
 
-## Layout
-
-```
-efferents/
-├── efferents/                 # the framework package
-│   ├── __init__.py
-│   ├── lab.py                 # abstract lab identity (override per-lab)
-│   ├── agents/                # the multi-role agent system
-│   │   ├── orchestrator.py    # the 24/7 loop
-│   │   ├── budget.py          # cost discipline + cache hit tracking
-│   │   ├── state.py           # file-based state primitives (SQLite + JSONL + md)
-│   │   ├── researcher.py      # student↔supervisor dialogue, modes, campaigns
-│   │   ├── coder.py           # autonomous source-code modification
-│   │   ├── analyst.py         # periodic digest + flat-improvement counter
-│   │   ├── writer.py          # paper composition, novelty/gain gate, peer review
-│   │   ├── librarian.py       # lit-review subagent
-│   │   ├── popper_gate.py     # headless popper-probe intake
-│   │   ├── progress.py        # self-contained HTML dashboard
-│   │   ├── notify.py          # macOS notification + ntfy.sh
-│   │   ├── __main__.py        # CLI entry: start, propose-once, digest-now, write-once, progress-now, ...
-│   │   └── prompts/           # per-agent prompts (currently QML-flavored; templates needed)
-│   ├── schemas/
-│   │   └── paper_frontmatter.py   # pydantic Paper bundle schema
-│   └── migrations/
-│       └── runner.py          # idempotent SQLite schema migration
-├── tests/                     # generic unit tests (62/65 from auto-qml carry over)
-├── docs/
-│   ├── superpowers/specs/     # phase A lab-foundation spec
-│   ├── superpowers/plans/     # phase A implementation plan (TDD)
-│   └── templates/             # qml-lab.py.example — concrete lab config to copy from
-├── context/
-│   └── journal_vision.md      # the long-term multi-lab journal design
-├── pyproject.toml
-└── README.md
+```bash
+git clone https://github.com/mashathepotato/efferents && cd efferents
+uv venv --python 3.12 .venv && uv pip install --python .venv/bin/python -e .
+.venv/bin/efferents demo smoke-lab        # or: python -m efferents demo smoke-lab
+open efferents-demo/dashboard.html
 ```
 
-## Reference lab
+This runs a bounded, **fully offline, deterministic** experiment loop on a toy
+synthetic task and writes a complete lab journal:
 
-[auto-qml](https://github.com/mashathepotato/auto-qml) is the first concrete lab built on these abstractions (before they were a framework). It runs quantum-conditioned diffusion experiments on HEP jet data. It currently still imports its framework pieces in-tree; once `efferents` is published, auto-qml will `pip install efferents` and shed those.
+```
+efferents-demo/
+├── journal/
+│   ├── 001_hypothesis.md        # framed, falsifiability-gated claim
+│   ├── 002_experiment_plan.md   # plan recorded before any run executes
+│   ├── 003_results.md           # run table, best run, reading
+│   └── 004_reviewed_memo.md     # reviewed memo + evidence table
+├── runs.jsonl                   # one line per experiment run
+├── claims.jsonl                 # each claim → run_id / metric / source
+└── dashboard.html               # static dashboard of the above
+```
 
-## Visual surfaces
+The agent reasoning in the demo is deterministic and offline; the *experiment*
+is real (it executes the lab's run command and records the actual metric).
 
-Two read-only web surfaces sit on top of the terminal/agent flow:
+### Example output — the reviewed memo
 
-- **Landing page** (`web/landing/`) — a static site explaining efferents and
-  handing an agent the `intake.md` instruction. Deployable to GitHub Pages /
-  efferents.com. Open `web/landing/index.html` directly, or serve it with
-  `python -m http.server` from that directory.
-- **Local lab dashboard** — `efferents serve --lab-root <lab dir>` starts a
-  local read-only dashboard (default http://localhost:8800) that visualizes the
-  running lab: current hypothesis, run/metric trend, published papers, and agent
-  activity. It reads the lab's files; it never mutates state. popper-probe and
-  launching stay in the terminal.
+Every memo carries: **Summary · Hypothesis · Experiment plan · Results ·
+Reviewer notes · Limitations · Next experiment · Evidence table.** The evidence
+table is the contract:
 
-The journal feed renderer (`efferents/journal/feed.py`) reads paper markdown
-into feed cards today from the local `lab/paper/` dir; the same renderer will be
-pointed at a shared `efferents-journal` git repo when the hosted journal ships.
+| claim | evidence_type | source_path | run_id | metric |
+|-------|---------------|-------------|--------|--------|
+| synthetic_loss is minimized near coefficient 0.81 | run_metric | `logs/run_004_081.log` | `run_004_081` | synthetic_loss |
+| Best run beats the 0.05 falsifier threshold | run_metric | `runs.jsonl` | `run_004_081` | synthetic_loss |
+| Runs inside (0.75, 0.85) all stay below threshold | metric_aggregate | `runs.jsonl` | — | synthetic_loss |
 
-## Related projects
+## Point it at your own repo
 
-- [popper-probe](https://github.com/mashathepotato/popper-probe) — adversarial Popperian hypothesis intake. Required as a subprocess by `efferents.agents.popper_gate`. Repo path resolved via `POPPER_PROBE_REPO` env var (default `~/Documents/popper-probe`).
+Drop an `efferents.yaml` at your ML repo root
+([full example](examples/repo-adapter/efferents.yaml)):
 
-## Next steps (next Claude session)
+```yaml
+goal: "improve validation F1 under 2 GPU hours"
+train_command: "python train.py --config configs/base.yaml"
+eval_command: "python eval.py --checkpoint {checkpoint}"
+metric: "val_f1"
+maximize: true
+budget:
+  max_gpu_hours: 2
+  max_llm_cost_usd: 20
+approval:
+  mode: "plan_then_execute"
+```
 
-See `CLAUDE.md`.
+## Safety, budget & approval
+
+- **Approval modes:** `plan_then_execute` (default — the plan is written to the
+  journal before anything runs), `dry_run` (plan only), `autonomous` (sandbox
+  use only).
+- **Budget ceilings:** the lab halts before exceeding `max_gpu_hours` or
+  `max_llm_cost_usd`. The live agent loop routes every model call through a
+  budget accountant (Sonnet by default; Opus only where it earns it).
+- **Read-only dashboard:** `efferents serve --lab-root <lab>` visualizes a lab
+  without ever mutating its state.
+- **Falsifiability gate:** a hypothesis must pass an adversarial
+  [popper-probe](https://github.com/mashathepotato/popper-probe) dialogue before
+  the lab will spend compute on it.
+
+## Running a live lab (needs an API key)
+
+```bash
+cp .env.example .env        # add ANTHROPIC_API_KEY
+efferents validate --submission examples/smoke-lab/
+efferents start    --submission examples/smoke-lab/
+efferents serve    --lab-root  examples/smoke-lab/lab   # read-only dashboard
+```
+
+See [`intake.md`](./intake.md) for the guided "point it at a fresh idea" flow.
+
+## Status & design partners
+
+efferents is **early and honest about it**: the offline demo and the
+local CLI (`validate / start / status / serve`) work today; the live multi-agent
+loop runs but its prompts are still maturing. The lab-agnostic config layer
+(`LabConfig`, the repo adapter) is in place; broader domain coverage is in
+progress.
+
+**Looking for design partners.** If you run internal ML experiments and want an
+autonomous lab on your own hardware, we'd like to build with you.
+📧 alina.nesen@gmail.com · or open an issue.
+
+## More
+
+- [`DEVELOPMENT.md`](./DEVELOPMENT.md) — architecture, package layout, the
+  multi-lab vision, and the QML reference-lab history.
+- [`examples/smoke-lab/`](./examples/smoke-lab/) — a complete non-toy-domain lab.
+- [`context/journal_vision.md`](./context/journal_vision.md) — the long-term
+  multi-lab journal design.
+</content>

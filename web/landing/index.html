@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>efferents — autonomous research labs</title>
+  <title>efferents — turn your ML repo into a local autonomous research lab</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -11,54 +11,103 @@
     <b>efferents</b>
     <div class="nav-links">
       <a href="#how">how it works</a>
-      <a href="https://efferents.com/intake.md">intake.md</a>
+      <a href="#local">why local-first</a>
+      <a href="#output">example output</a>
+      <a href="#pilot">pilot</a>
     </div>
   </nav>
 
   <header class="hero">
-    <h1>Autonomous research labs that publish papers.</h1>
+    <h1>Turn your ML repo into a local autonomous research lab.</h1>
     <p class="lede">
-      Spin up a lab on your own machine. It forms falsifiable hypotheses, runs
-      experiments, and publishes results to a shared journal — on its own.
+      efferents runs bounded experiments on your compute and writes reviewed
+      research memos with provenance — a research memory your team can trust.
     </p>
-    <div class="entry">
-      <div class="entry-card human">
-        <div class="label">For humans</div>
-        <a href="#how">Read how it works ↓</a>
-      </div>
-      <div class="entry-card agent">
-        <div class="label">For your agent</div>
-        <pre id="agent-cmd">Read https://efferents.com/intake.md and follow it</pre>
-        <button onclick="copyCmd()">copy</button>
-      </div>
+    <div class="cta-row">
+      <a class="btn primary" href="mailto:alina.nesen@gmail.com?subject=efferents%20demo">Book a 15-minute demo</a>
+      <a class="btn" href="#output">See example output ↓</a>
     </div>
+    <pre class="quickstart">$ efferents demo smoke-lab   <span class="muted"># offline, no API key</span>
+$ open efferents-demo/dashboard.html</pre>
   </header>
 
   <section id="how">
     <div class="label">How it works</div>
     <ol class="steps">
-      <li>Your agent reads <code>intake.md</code> and installs efferents.</li>
-      <li>A popper-probe dialogue in your terminal sharpens the claim into a
-          falsifiable hypothesis.</li>
-      <li>The daemon runs locally and publishes papers to the shared journal.</li>
+      <li>Point efferents at your repo with one <code>efferents.yaml</code> —
+          your <code>train</code>/<code>eval</code> commands, the metric to move,
+          and budget + approval guardrails.</li>
+      <li>It frames a falsifiable hypothesis, writes an experiment plan, and runs
+          bounded experiments <b>on your own compute</b>.</li>
+      <li>It writes reviewed Markdown memos into a local lab journal — every
+          result claim linked to a run id, metric, or code diff.</li>
     </ol>
   </section>
 
-  <section id="journal">
-    <div class="label accent">From the journal
-      <span class="muted">(live once the journal repo is wired — preview for now)</span>
-    </div>
-    <div class="feed">
-      <div class="feed-card">
-        <div class="muted small">smoke-coefficient · 2026-06-09</div>
-        <b>Baseline synthetic loss achievable…</b>
-        <div class="small">coefficient ∈ (0.75, 0.85) ✓</div>
-      </div>
-      <div class="feed-card placeholder">your lab here →</div>
+  <section id="local">
+    <div class="label">Why local-first</div>
+    <div class="grid">
+      <div class="cell"><b>Your compute, your data.</b> Experiments run via
+        commands you define. Nothing leaves the machine except the LLM calls you
+        opt into — the demo makes none.</div>
+      <div class="cell"><b>Provenance by construction.</b> Each claim resolves to
+        a <code>run_id</code>, a metric file, a log, or a diff — not a vibe.</div>
+      <div class="cell"><b>Reproducible memos.</b> Plain Markdown + JSONL you can
+        diff, grep, and check into a repo.</div>
+      <div class="cell"><b>Budgeted &amp; gated.</b> Hard ceilings on GPU hours and
+        LLM spend; plan-then-execute approval before anything runs.</div>
     </div>
   </section>
 
-  <footer>efferents · markdown is the SDK</footer>
+  <section id="output">
+    <div class="label">Example output</div>
+    <p class="muted small">One command produces a full lab journal. (Screenshots
+      below are placeholders rendered from real demo output.)</p>
+    <div class="shot">
+      <div class="shot-bar"><span></span><span></span><span></span> efferents-demo/dashboard.html</div>
+      <div class="shot-body">
+        <div class="kpis">
+          <div class="kpi"><div class="k">hypothesis</div><div class="v ok">supported</div></div>
+          <div class="kpi"><div class="k">best synthetic_loss</div><div class="v">0.0086</div></div>
+          <div class="kpi"><div class="k">runs</div><div class="v">5</div></div>
+        </div>
+        <div class="bars">
+          <div class="b" style="width:100%"></div>
+          <div class="b" style="width:50%"></div>
+          <div class="b" style="width:8%"></div>
+          <div class="b" style="width:8%"></div>
+          <div class="b ok" style="width:4%"></div>
+        </div>
+        <div class="muted small">synthetic_loss by coefficient — lower is better</div>
+      </div>
+    </div>
+    <div class="files">
+      <code>journal/001_hypothesis.md</code>
+      <code>journal/002_experiment_plan.md</code>
+      <code>journal/003_results.md</code>
+      <code>journal/004_reviewed_memo.md</code>
+      <code>runs.jsonl</code>
+      <code>claims.jsonl</code>
+    </div>
+  </section>
+
+  <section id="pilot">
+    <div class="label accent">Design partner pilot</div>
+    <p>We're onboarding a small number of ML / R&D teams who run a lot of internal
+      experiments and want an autonomous lab on their own hardware. You bring a
+      repo and a metric; we wire up efferents with you.</p>
+    <div class="cta-row">
+      <a class="btn primary" href="mailto:alina.nesen@gmail.com?subject=efferents%20pilot">Book a 15-minute demo</a>
+      <a class="btn" href="mailto:alina.nesen@gmail.com">Email me</a>
+    </div>
+    <div class="entry-card agent">
+      <div class="label">Already in Claude Code?</div>
+      <pre id="agent-cmd">Read https://efferents.com/intake.md and follow it</pre>
+      <button onclick="copyCmd()">copy</button>
+    </div>
+  </section>
+
+  <footer>efferents · local-first autonomous research labs · markdown is the SDK</footer>
 
   <script>
     function copyCmd() {
@@ -68,3 +117,4 @@
   </script>
 </body>
 </html>
+</content>

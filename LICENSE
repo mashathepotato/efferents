@@ -1,0 +1,7 @@
+TODO: choose and add a license.
+
+This repository does not yet have a license. Until one is added, no usage
+rights are granted by default. Before any public distribution or design-partner
+pilot, the maintainer (Masha Baidachna) must pick a license (e.g. Apache-2.0 or
+MIT for permissive use, or a source-available license) and replace this file
+with its full text, and set the corresponding `license` field in pyproject.toml.
