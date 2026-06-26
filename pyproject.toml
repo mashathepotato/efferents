@@ -6,6 +6,8 @@ authors = [
     {name = "Masha Baidachna"},
 ]
 readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
 requires-python = ">=3.10"
 dependencies = [
     "anthropic>=0.40",
