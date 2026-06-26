@@ -58,6 +58,10 @@ efferents-demo/
 The agent reasoning in the demo is deterministic and offline; the *experiment*
 is real (it executes the lab's run command and records the actual metric).
 
+The generated `dashboard.html` is a static, self-contained view of the run:
+
+![efferents demo dashboard — hypothesis supported, best synthetic_loss 0.0086 over 5 runs, with a per-run provenance table](docs/img/demo-dashboard.png)
+
 ### Example output — the reviewed memo
 
 Every memo carries: **Summary · Hypothesis · Experiment plan · Results ·
@@ -105,6 +109,8 @@ threshold, finds the interior `val_f1` optimum, and records every run's
 train/eval log. Your repo's `train`/`eval` plug in where the example's do. The
 contract is simple: `train` prints `{"checkpoint": "<path>"}` on stdout, `eval`
 prints `{"metrics": {"<metric>": <value>}}`.
+
+![efferents run dashboard — best val_f1 0.8889 at threshold 0.65 across a 5-point sweep, with a per-run provenance table](docs/img/run-dashboard.png)
 
 ## Safety, budget & approval
 
