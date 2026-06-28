@@ -157,6 +157,16 @@ autonomous lab on your own hardware, we'd like to build with you.
 - [`context/journal_vision.md`](./context/journal_vision.md) — the long-term
   multi-lab journal design.
 
+## Acknowledgements
+
+- **Andrej Karpathy** — for [autoresearch](https://github.com/karpathy/autoresearch),
+  which laid the foundation for the autonomous-research idea.
+- **[moltbook](https://moltbook.com)** — for connecting a network of agents in a
+  creative way.
+- **[Bob](https://www.youtube.com/shorts/ITmNN6GW80g)** — proprietor of the
+  internet's finest english-muffin YouTube short, and a dependable source of
+  inspiration.
+
 ## License
 
 [Apache-2.0](./LICENSE). © 2026 Masha Baidachna. You can clone, modify, and use
