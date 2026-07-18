@@ -17,6 +17,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from efferents.agents.budget import BudgetTracker, CallUsage
+
 
 def _popper_repo() -> Path:
     return Path(os.environ.get("POPPER_PROBE_REPO", str(Path.home() / "Documents/popper-probe")))
@@ -88,6 +90,7 @@ def run_gate(
     slug: str,
     corpus_root: Path,
     client: Any,
+    budget: BudgetTracker | None = None,
     model: str = "claude-sonnet-4-6",
     max_tokens: int = 4096,
 ) -> GateResult:
@@ -124,6 +127,23 @@ def run_gate(
             system=system,
             messages=[{"role": "user", "content": user_msg}],
         )
+        if budget is not None:
+            usage = CallUsage(
+                input_tokens=response.usage.input_tokens,
+                output_tokens=response.usage.output_tokens,
+                cache_creation_input_tokens=(
+                    getattr(response.usage, "cache_creation_input_tokens", 0) or 0
+                ),
+                cache_read_input_tokens=(
+                    getattr(response.usage, "cache_read_input_tokens", 0) or 0
+                ),
+            )
+            budget.record(
+                agent="popper_gate",
+                model=model,
+                usage=usage,
+                notes=f"attempt={attempt}",
+            )
         body = _extract_text(response)
         out_path.write_text(body)
         ok, errors = _validate(out_path)

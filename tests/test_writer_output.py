@@ -5,6 +5,7 @@ import yaml
 
 import pytest
 
+from efferents.agents.budget import BudgetTracker
 from efferents.agents.writer import compose_paper
 from efferents.schemas.paper_frontmatter import (
     PaperFrontmatter,
@@ -45,6 +46,41 @@ def test_compose_paper_returns_valid_artifact(fake_anthropic_factory):
     PaperFrontmatter(**fm)  # raises on invalid
     ok, errors = structural_check(body)
     assert ok, errors
+
+
+def test_compose_paper_records_writer_spend(tmp_path, fake_anthropic_factory):
+    body_md = "\n".join(
+        f"## {s}\n\nSome content.\n" for s in REQUIRED_SECTIONS_IN_ORDER
+    )
+    client = fake_anthropic_factory([body_md])
+    budget = BudgetTracker(tmp_path / "budget.jsonl")
+
+    compose_paper(
+        client=client,
+        campaign={
+            "id": "c-budget",
+            "question": "does X help?",
+            "hypothesis_path": "popper-corpus/c-budget/hypothesis.md",
+            "hypothesis_hash": "sha256:" + "0" * 64,
+        },
+        metric_provenance=[
+            {
+                "name": "loss",
+                "value": 0.1,
+                "delta_vs_baseline": -0.1,
+                "runs": ["r1"],
+                "seeds": [0],
+            }
+        ],
+        novelty_claim="budget accounting",
+        code_sha=None,
+        code_repo=None,
+        budget=budget,
+    )
+
+    record = yaml.safe_load(budget.path.read_text())
+    assert record["agent"] == "writer"
+    assert record["cost_usd"] > 0
 
 
 def test_compose_paper_fails_loud_when_body_missing_section(fake_anthropic_factory):

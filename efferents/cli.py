@@ -12,6 +12,7 @@ console_scripts will point at `efferents.cli:main` (Task 16).
 from __future__ import annotations
 
 import argparse
+import hashlib
 import os
 import shutil
 import signal
@@ -38,7 +39,13 @@ def _cmd_validate(args: argparse.Namespace) -> int:
     return 0
 
 
-def _orchestrator_loop() -> None:
+def _orchestrator_loop(
+    *,
+    lab_root: Path,
+    context_dir: Path,
+    dry_run: bool = False,
+    max_iterations: int | None = None,
+) -> None:
     # Indirection so tests can monkey-patch the loop body without forking.
     # In production, builds an Orchestrator from the active LabConfig and
     # runs it. The orchestrator import is deferred to avoid pulling heavy
@@ -46,13 +53,17 @@ def _orchestrator_loop() -> None:
     from efferents.agents import orchestrator  # noqa: PLC0415
     cfg = lab_mod.get_config()
     o = orchestrator.Orchestrator(
-        lab_dir="lab",
-        context_dir="context",
+        lab_dir=lab_root,
+        context_dir=context_dir,
         daily_cap_usd=cfg.budget.daily_cap_usd,
-        dry_run=False,
+        dry_run=dry_run,
         startup_message=f"efferents daemon for lab_id={cfg.lab_id}",
     )
-    o.run()
+    o.run(max_iterations=max_iterations)
+    # Always leave a current static artifact, including bounded/offline runs
+    # that stop before the Analyst cadence fires.
+    from efferents.agents.progress import write_progress  # noqa: PLC0415
+    write_progress(o.paths, context_dir=context_dir)
 
 
 def _init_lab_root(submission_dir: Path, lab_root: Path) -> None:
@@ -75,6 +86,36 @@ def _init_lab_root(submission_dir: Path, lab_root: Path) -> None:
     apply_campaigns_migration(lab_root / "runs.sqlite")
     ensure_runs_table(lab_root / "runs.sqlite", lab_mod.get_config())
 
+    # The submitted, already-falsifiable hypothesis is the lab's initial
+    # campaign. This gives the very first run a provenance anchor before the
+    # Researcher opens follow-on campaigns.
+    import sqlite3  # noqa: PLC0415
+    from efferents.agents.state import campaign_insert  # noqa: PLC0415
+
+    db = lab_root / "runs.sqlite"
+    with sqlite3.connect(db) as conn:
+        n_campaigns = int(
+            conn.execute("SELECT COUNT(*) FROM campaigns").fetchone()[0]
+        )
+    if n_campaigns == 0:
+        hypothesis_text = (submission_dir / "hypothesis.md").read_text()
+        digest = hashlib.sha256(hypothesis_text.encode()).hexdigest()
+        question = _markdown_section(hypothesis_text, "Claim")
+        if not question:
+            question = f"Initial submitted hypothesis for {lab_mod.get_config().lab_id}"
+        cfg = lab_mod.get_config()
+        campaign_insert(
+            db,
+            id=f"submission-{digest[:12]}",
+            lab_id=cfg.lab_id,
+            question=question,
+            hypothesis_path="hypothesis.md",
+            hypothesis_hash=f"sha256:{digest}",
+            student_id=cfg.default_student_id,
+            headline_metric=cfg.metrics.headline.column,
+            headline_direction=cfg.metrics.headline.direction,
+        )
+
     context_dir = submission_dir / "context"
     context_dir.mkdir(exist_ok=True)
     research_log = context_dir / "research_log.md"
@@ -85,6 +126,22 @@ def _init_lab_root(submission_dir: Path, lab_root: Path) -> None:
             "*(empty — populate to guide the Researcher; "
             "the lab will operate from the hypothesis if left blank)*\n"
         )
+
+
+def _markdown_section(text: str, heading: str) -> str:
+    lines = text.splitlines()
+    wanted = f"## {heading}".lower()
+    out: list[str] = []
+    capture = False
+    for line in lines:
+        if line.startswith("## "):
+            if capture:
+                break
+            capture = line.strip().lower() == wanted
+            continue
+        if capture:
+            out.append(line)
+    return "\n".join(out).strip()
 
 
 def _cmd_start(args: argparse.Namespace) -> int:
@@ -108,6 +165,17 @@ def _cmd_start(args: argparse.Namespace) -> int:
 
     started_at = datetime.now(timezone.utc).isoformat()
     reg = Registry()
+    existing = reg.get(cfg.lab_id)
+    if (
+        existing is not None
+        and existing.status == "running"
+        and daemon.is_pid_alive(existing.pid)
+    ):
+        print(
+            f"lab_id={cfg.lab_id} is already running as pid={existing.pid}",
+            file=sys.stderr,
+        )
+        return 1
     reg.register(LabRecord(
         lab_id=cfg.lab_id,
         submission_dir=str(sub),
@@ -117,10 +185,17 @@ def _cmd_start(args: argparse.Namespace) -> int:
         status="running",
     ))
 
-    print(f"lab_id={cfg.lab_id} pid={os.getpid()} dashboard={lab_root}/progress/index.html")
+    print(f"lab_id={cfg.lab_id} pid={os.getpid()} dashboard={lab_root}/progress.html")
+
+    loop = lambda: _orchestrator_loop(
+        lab_root=lab_root,
+        context_dir=sub / "context",
+        dry_run=args.dry_run,
+        max_iterations=args.max_iterations,
+    )
 
     if args.detach:
-        child_pid = daemon.daemonize_and_run(lab_root, _orchestrator_loop)
+        child_pid = daemon.daemonize_and_run(lab_root, loop)
         rec = reg.get(cfg.lab_id)
         if rec is not None:
             rec.pid = child_pid
@@ -128,7 +203,7 @@ def _cmd_start(args: argparse.Namespace) -> int:
         return 0
 
     try:
-        daemon.run_foreground(lab_root, _orchestrator_loop)
+        daemon.run_foreground(lab_root, loop)
     finally:
         reg.update_status(cfg.lab_id, "stopped")
     return 0
@@ -173,7 +248,7 @@ def _cmd_status(args: argparse.Namespace) -> int:
     if state_json.exists():
         mtime = datetime.fromtimestamp(state_json.stat().st_mtime, tz=timezone.utc).isoformat()
         print(f"last_activity={mtime}")
-    print(f"dashboard=file://{lab_root}/progress/index.html")
+    print(f"dashboard=file://{lab_root}/progress.html")
     halt = lab_root / "halt_reason.txt"
     if halt.exists():
         print(f"halt_reason={halt.read_text().strip()}")
@@ -218,7 +293,12 @@ def _cmd_run(args: argparse.Namespace) -> int:
     from efferents.repo_adapter import AdapterConfigError
 
     try:
-        run_adapter(args.repo, args.out, max_iters=args.max_iters)
+        run_adapter(
+            args.repo,
+            args.out,
+            max_iters=args.max_iters,
+            approved=args.approve,
+        )
     except (RunnerError, AdapterConfigError, FileNotFoundError) as e:
         print(f"run failed: {e}", file=sys.stderr)
         return 1
@@ -255,6 +335,17 @@ def build_parser() -> argparse.ArgumentParser:
     p_start.add_argument("--submission", required=True)
     p_start.add_argument("--detach", action="store_true")
     p_start.add_argument("--lab-root", default=None)
+    p_start.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Run a deterministic offline smoke proposal without LLM calls",
+    )
+    p_start.add_argument(
+        "--max-iterations",
+        type=int,
+        default=None,
+        help="Stop after N orchestrator iterations (for bounded trials)",
+    )
     p_start.set_defaults(func=_cmd_start)
 
     p_status = sub.add_parser("status", help="Show lab status")
@@ -284,6 +375,11 @@ def build_parser() -> argparse.ArgumentParser:
                        help="Output directory for artifacts (default: ./efferents-run)")
     p_run.add_argument("--max-iters", type=int, default=None,
                        help="Cap the number of experiments")
+    p_run.add_argument(
+        "--approve",
+        action="store_true",
+        help="Authorize a plan_then_execute adapter after inspecting its plan",
+    )
     p_run.set_defaults(func=_cmd_run)
 
     p_serve = sub.add_parser("serve", help="Start the read-only web dashboard")

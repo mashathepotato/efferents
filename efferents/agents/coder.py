@@ -19,11 +19,14 @@ from __future__ import annotations
 
 import glob
 import json
+import os
 import re
+import signal
 import subprocess
 import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from fnmatch import fnmatch
 from pathlib import Path
 from typing import Any
 
@@ -42,6 +45,7 @@ from efferents.agents.state import (
     read_jsonl,
     retry_hint,
 )
+from efferents.exec import _subprocess_env
 
 MAX_LIT_CALLS_PER_PASS = 3
 
@@ -60,6 +64,65 @@ def _new_file_path_re():
     cfg = _lab.get_config()
     src = re.escape(str(cfg.source.dir).rstrip("/"))
     return re.compile(rf"^{src}/[A-Za-z_][A-Za-z0-9_]*\.py$")
+
+
+def _matches_allowed_pattern(relative_path: Path) -> bool:
+    """Match a source-relative path against the lab's configured patterns."""
+    posix = relative_path.as_posix()
+    for pattern in _lab.get_config().source.allowed_patterns:
+        # ``fnmatch`` treats ``**/`` as requiring a slash, while users expect
+        # the common glob meaning where it also includes source-root files.
+        if fnmatch(posix, pattern):
+            return True
+        if pattern.startswith("**/") and fnmatch(posix, pattern[3:]):
+            return True
+    return False
+
+
+def _resolve_coder_path(
+    file_path: str,
+    repo_root: Path,
+    *,
+    new_file: bool = False,
+) -> Path:
+    """Resolve and validate one model-proposed path.
+
+    Canonical resolution blocks ``..`` and symlink escapes. Existing edits may
+    target the configured template or a source file matching
+    ``source.allowed_patterns``. New files are restricted further to one
+    Python module directly under ``source.dir``.
+    """
+    if not file_path or "\x00" in file_path:
+        raise ValueError(f"invalid coder path: {file_path!r}")
+
+    raw = Path(file_path)
+    candidate = raw if raw.is_absolute() else Path(repo_root) / raw
+    resolved = candidate.resolve(strict=False)
+    cfg = _lab.get_config()
+    source_dir = cfg.source.dir.resolve()
+    config_template = cfg.executor.config_template.resolve()
+
+    if resolved == config_template and not new_file:
+        return resolved
+    try:
+        relative = resolved.relative_to(source_dir)
+    except ValueError as e:
+        raise ValueError(f"path escapes source.dir: {file_path!r}") from e
+
+    if new_file:
+        if (
+            relative.parent != Path(".")
+            or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*\.py", relative.name)
+        ):
+            raise ValueError(
+                f"new_file path {file_path!r} must be "
+                f"{source_dir}/<name>.py (no nested dirs)"
+            )
+    elif not _matches_allowed_pattern(relative):
+        raise ValueError(
+            f"path {file_path!r} does not match source.allowed_patterns"
+        )
+    return resolved
 
 
 def _smoke_command(config_path: Path) -> str:
@@ -198,14 +261,22 @@ def gather_source(repo_root: Path, globs: list[str] | None = None) -> dict[str, 
         if p_pattern.is_absolute():
             # glob on absolute path: use parent as base and filename as pattern
             # For absolute patterns we glob from root
-            for match in sorted(glob.glob(pattern)):
+            for match in sorted(glob.glob(pattern, recursive=True)):
                 p = Path(match)
                 if p.is_file():
-                    out[str(p)] = p.read_text()
+                    try:
+                        resolved = _resolve_coder_path(str(p), repo_root)
+                    except ValueError:
+                        continue
+                    out[str(resolved)] = resolved.read_text()
         else:
             for p in sorted(repo_root.glob(pattern)):
                 if p.is_file():
-                    out[str(p.relative_to(repo_root))] = p.read_text()
+                    try:
+                        resolved = _resolve_coder_path(str(p), repo_root)
+                    except ValueError:
+                        continue
+                    out[str(resolved)] = resolved.read_text()
     return out
 
 
@@ -344,7 +415,7 @@ def _apply_edits(edits: list[Edit], repo_root: Path) -> None:
         p.write_text(text.replace(e.old_string, e.new_string, 1))
 
 
-def _extract_new_files(plan: dict[str, Any]) -> list[NewFile]:
+def _extract_new_files(plan: dict[str, Any], repo_root: Path | None = None) -> list[NewFile]:
     """Validate and extract optional ``new_files`` from a Coder edit plan.
 
     Restricts to ``<source.dir>/<name>.py`` (no nested dirs) and enforces a
@@ -357,21 +428,19 @@ def _extract_new_files(plan: dict[str, Any]) -> list[NewFile]:
         raise ValueError(
             f"new_files has {len(raw)} entries; cap is {MAX_NEW_FILES_PER_CALL}/call"
         )
-    path_re = _new_file_path_re()
+    repo_root = repo_root or Path.cwd()
     out: list[NewFile] = []
     for nf in raw:
         if not isinstance(nf, dict):
             raise ValueError(f"new_files entry must be dict, got {type(nf).__name__}")
         fp = nf.get("file_path", "")
         content = nf.get("content", "")
-        if not isinstance(fp, str) or not path_re.match(fp):
-            src_dir = str(_lab.get_config().source.dir)
-            raise ValueError(
-                f"new_file path {fp!r} must match {src_dir}/<name>.py (no nested dirs)"
-            )
+        if not isinstance(fp, str):
+            raise ValueError(f"new_file path must be a string, got {type(fp).__name__}")
+        resolved = _resolve_coder_path(fp, repo_root, new_file=True)
         if not isinstance(content, str) or not content.strip():
             raise ValueError(f"new_file {fp} has empty content")
-        out.append(NewFile(file_path=fp, content=content))
+        out.append(NewFile(file_path=str(resolved), content=content))
     return out
 
 
@@ -405,17 +474,26 @@ def run_smoke(repo_root: Path, config_path: Path | None = None) -> tuple[bool, s
         config_path = cfg.executor.config_template
     timeout = _smoke_timeout()
     try:
-        proc = subprocess.run(
+        proc = subprocess.Popen(
             _smoke_command(config_path),
             shell=True,
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
             text=True,
-            timeout=timeout,
             cwd=str(cfg.source.dir),
+            env=_subprocess_env(cfg.executor.env_passthrough),
+            start_new_session=True,
         )
-    except subprocess.TimeoutExpired as e:
-        return False, f"smoke timed out after {timeout}s\n{e}"
-    output = (proc.stdout or "") + "\n--- stderr ---\n" + (proc.stderr or "")
+        stdout, stderr = proc.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+            proc.kill()
+        stdout, stderr = proc.communicate()
+        output = (stdout or "") + "\n--- stderr ---\n" + (stderr or "")
+        return False, f"smoke timed out after {timeout}s\n{output[-3500:]}"
+    output = (stdout or "") + "\n--- stderr ---\n" + (stderr or "")
     return proc.returncode == 0, output[-4000:]  # tail to avoid huge strings
 
 
@@ -495,9 +573,28 @@ def recent_blockers(
 
 
 def _git_commit(repo_root: Path, summary: str, name: str, files: list[str]) -> str | None:
+    repo_root = repo_root.resolve()
+    relative_files: list[str] = []
     try:
+        # Never fold a user's pre-staged work into an autonomous commit.
+        staged = subprocess.run(
+            ["git", "diff", "--cached", "--quiet"],
+            cwd=str(repo_root),
+            capture_output=True,
+        )
+        if staged.returncode != 0:
+            return None
+        for file_path in files:
+            resolved = Path(file_path).resolve()
+            try:
+                relative_files.append(str(resolved.relative_to(repo_root)))
+            except ValueError:
+                return None
         subprocess.run(
-            ["git", "add"] + files, cwd=str(repo_root), check=True, capture_output=True
+            ["git", "add", "--", *relative_files],
+            cwd=str(repo_root),
+            check=True,
+            capture_output=True,
         )
         msg = (
             f"feat(coder): {name}\n\n{summary}\n\n"
@@ -505,7 +602,10 @@ def _git_commit(repo_root: Path, summary: str, name: str, files: list[str]) -> s
             "Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>"
         )
         subprocess.run(
-            ["git", "commit", "-q", "-m", msg], cwd=str(repo_root), check=True, capture_output=True
+            ["git", "commit", "-q", "--only", "-m", msg, "--", *relative_files],
+            cwd=str(repo_root),
+            check=True,
+            capture_output=True,
         )
         sha = subprocess.run(
             ["git", "rev-parse", "--short", "HEAD"],
@@ -515,7 +615,13 @@ def _git_commit(repo_root: Path, summary: str, name: str, files: list[str]) -> s
             check=True,
         ).stdout.strip()
         return sha
-    except subprocess.CalledProcessError as e:
+    except subprocess.CalledProcessError:
+        if relative_files:
+            subprocess.run(
+                ["git", "restore", "--staged", "--", *relative_files],
+                cwd=str(repo_root),
+                capture_output=True,
+            )
         return None
 
 
@@ -581,10 +687,22 @@ def implement_proposal(
     # Filter to known Edit fields — model sometimes adds extras (e.g.,
     # 'verifies_change') that belong at the plan level.
     _edit_fields = {"file_path", "old_string", "new_string"}
-    edits = [Edit(**{k: v for k, v in e.items() if k in _edit_fields}) for e in edits_raw]
+    try:
+        edits = [
+            Edit(**{k: v for k, v in e.items() if k in _edit_fields})
+            for e in edits_raw
+        ]
+        for edit in edits:
+            edit.file_path = str(_resolve_coder_path(edit.file_path, repo_root))
+    except (TypeError, ValueError) as e:
+        result = CoderResult(
+            ok=False, name=proposal["name"], error=f"edits invalid: {e}"
+        )
+        _log(paths, started, proposal, result, plan=plan, duration_seconds=time.monotonic() - t0)
+        return result
 
     try:
-        new_files = _extract_new_files(plan)
+        new_files = _extract_new_files(plan, repo_root)
     except ValueError as e:
         result = CoderResult(ok=False, name=proposal["name"], error=f"new_files invalid: {e}")
         _log(paths, started, proposal, result, plan=plan, duration_seconds=time.monotonic() - t0)
@@ -593,22 +711,6 @@ def implement_proposal(
     edit_paths = {e.file_path for e in edits}
     new_paths = {nf.file_path for nf in new_files}
     file_paths = sorted(edit_paths | new_paths)
-
-    # Reject out-of-scope edits up front (Coder is restricted to source.dir).
-    _cfg = _lab.get_config()
-    _scope_src = str(_cfg.source.dir).rstrip("/") + "/"
-    _scope_cfg = str(_cfg.executor.config_template)
-    out_of_scope = [
-        fp for fp in file_paths
-        if not (fp.startswith(_scope_src) or fp == _scope_cfg)
-    ]
-    if out_of_scope:
-        result = CoderResult(
-            ok=False, name=proposal["name"],
-            error=f"out-of-scope edits to: {out_of_scope}",
-        )
-        _log(paths, started, proposal, result, plan=plan, duration_seconds=time.monotonic() - t0)
-        return result
 
     snapshot = _snapshot(file_paths, repo_root)
 
@@ -640,18 +742,14 @@ def implement_proposal(
                 Edit(**{k: v for k, v in e.items() if k in _edit_fields})
                 for e in plan2.get("edits", [])
             ]
-            new_files2 = _extract_new_files(plan2)
+            for edit in edits2:
+                edit.file_path = str(_resolve_coder_path(edit.file_path, repo_root))
+            new_files2 = _extract_new_files(plan2, repo_root)
             if not edits2 and not new_files2:
                 raise ValueError("retry returned empty edits")
             file_paths2 = sorted(
                 {e.file_path for e in edits2} | {nf.file_path for nf in new_files2}
             )
-            out_of_scope2 = [
-                fp for fp in file_paths2
-                if not (fp.startswith(_scope_src) or fp == _scope_cfg)
-            ]
-            if out_of_scope2:
-                raise ValueError(f"retry out-of-scope edits: {out_of_scope2}")
             snapshot = _snapshot(file_paths2, repo_root)
             _write_new_files(new_files2, repo_root)
             _apply_edits(edits2, repo_root)
@@ -683,6 +781,20 @@ def implement_proposal(
         return result
 
     sha = _git_commit(repo_root, plan.get("summary", ""), proposal["name"], file_paths)
+    if sha is None:
+        _restore(snapshot, repo_root)
+        result = CoderResult(
+            ok=False,
+            name=proposal["name"],
+            summary=plan.get("summary"),
+            files_changed=file_paths,
+            error=(
+                "git commit refused or failed; the repository must have a "
+                "clean index and all changed files must be inside it"
+            ),
+        )
+        _log(paths, started, proposal, result, plan=plan, duration_seconds=time.monotonic() - t0)
+        return result
     result = CoderResult(
         ok=True,
         name=proposal["name"],

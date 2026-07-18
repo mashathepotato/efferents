@@ -41,6 +41,7 @@ CODE_REPO: str = ""
 # min score ≥ PEER_REVIEW_ACCEPT_MIN_THRESHOLD are accepted.
 # ---------------------------------------------------------------------------
 PEER_REVIEW_ENABLED: bool = False
+PEER_REVIEW_GAIN_THRESHOLD: float = 0.05
 PEER_REVIEW_ACCEPT_MEAN_THRESHOLD: float = 6.0
 PEER_REVIEW_ACCEPT_MIN_THRESHOLD: int = 4
 
@@ -146,6 +147,18 @@ class Budget:
     sonnet_default: bool = True
 
 
+@dataclass(frozen=True)
+class Autonomy:
+    """Mutation controls for a live lab.
+
+    The Coder is intentionally opt-in. Experiment execution is already
+    authorized by the lab's run command; source-code mutation is a materially
+    different permission and must never be inferred from that.
+    """
+
+    coder_enabled: bool = False
+
+
 class SubmissionError(ValueError):
     """Raised when a submission directory is invalid."""
 
@@ -202,6 +215,12 @@ def _build_labconfig(
     if not src_dir_str:
         raise SubmissionError("lab.yaml: source.dir is required")
     src_dir = (submission_dir / src_dir_str).resolve()
+    try:
+        src_dir.relative_to(submission_dir.resolve())
+    except ValueError as e:
+        raise SubmissionError(
+            f"source.dir must stay inside the submission directory: {src_dir}"
+        ) from e
     if check_paths and not src_dir.is_dir():
         raise SubmissionError(f"source.dir does not exist on disk: {src_dir}")
 
@@ -218,6 +237,12 @@ def _build_labconfig(
     if not config_template_str:
         raise SubmissionError("lab.yaml: executor.config_template is required")
     abs_config_template = (src_dir / config_template_str).resolve()
+    try:
+        abs_config_template.relative_to(submission_dir.resolve())
+    except ValueError as e:
+        raise SubmissionError(
+            "executor.config_template must stay inside the submission directory"
+        ) from e
     if check_paths and not abs_config_template.is_file():
         raise SubmissionError(
             f"executor.config_template not found under source.dir: {abs_config_template}"
@@ -269,8 +294,52 @@ def _build_labconfig(
             )
     bucket_axes = tuple(bucket_axes_raw)
 
-    # --- budget ---
+    # --- budget / autonomy / peer review / students ---
     budget_raw = raw.get("budget") or {}
+    autonomy_raw = raw.get("autonomy") or {}
+    peer_review_raw = raw.get("peer_review") or {}
+
+    students_raw = raw.get("students")
+    if students_raw is None:
+        students = (
+            {"id": "primary", "handle": None, "focus": "", "prompt_overrides": {}},
+        )
+    else:
+        if not isinstance(students_raw, list) or not students_raw:
+            raise SubmissionError("lab.yaml: students must be a non-empty list")
+        parsed_students: list[dict] = []
+        seen_student_ids: set[str] = set()
+        for i, student in enumerate(students_raw):
+            if not isinstance(student, dict):
+                raise SubmissionError(f"students[{i}] must be a mapping")
+            student_id = student.get("id")
+            if not isinstance(student_id, str) or not re.fullmatch(
+                r"[a-z][a-z0-9_-]*", student_id
+            ):
+                raise SubmissionError(
+                    f"students[{i}].id must match [a-z][a-z0-9_-]*"
+                )
+            if student_id in seen_student_ids:
+                raise SubmissionError(f"duplicate student id: {student_id!r}")
+            seen_student_ids.add(student_id)
+            overrides = student.get("prompt_overrides") or {}
+            if not isinstance(overrides, dict):
+                raise SubmissionError(
+                    f"students[{i}].prompt_overrides must be a mapping"
+                )
+            parsed_students.append({
+                "id": student_id,
+                "handle": student.get("handle"),
+                "focus": str(student.get("focus") or ""),
+                "prompt_overrides": dict(overrides),
+            })
+        students = tuple(parsed_students)
+
+    default_student_id = str(raw.get("default_student_id") or students[0]["id"])
+    if default_student_id not in {s["id"] for s in students}:
+        raise SubmissionError(
+            f"default_student_id {default_student_id!r} is not present in students"
+        )
 
     # --- lab_id: prefer lab.yaml, fall back to hypothesis slug ---
     lab_id = raw.get("lab_id") or fm.get("slug")
@@ -278,6 +347,51 @@ def _build_labconfig(
         raise SubmissionError(
             "lab_id missing; provide it in lab.yaml or hypothesis.md slug"
         )
+    if not isinstance(lab_id, str) or not re.fullmatch(
+        r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", lab_id
+    ):
+        raise SubmissionError(
+            "lab_id must match [A-Za-z0-9][A-Za-z0-9._-]{0,127}"
+        )
+
+    allowed_patterns = tuple(src_block.get("allowed_patterns") or ("**/*.py",))
+    for i, pattern in enumerate(allowed_patterns):
+        if (
+            not isinstance(pattern, str)
+            or not pattern
+            or Path(pattern).is_absolute()
+            or ".." in Path(pattern).parts
+        ):
+            raise SubmissionError(
+                f"source.allowed_patterns[{i}] must be a relative, non-traversing glob"
+            )
+    env_passthrough = tuple(exe.get("env_passthrough") or ())
+    for i, name in enumerate(env_passthrough):
+        if not isinstance(name, str) or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
+            raise SubmissionError(
+                f"executor.env_passthrough[{i}] is not a valid environment variable name"
+            )
+
+    run_timeout_s = int(exe.get("run_timeout_s", 7200))
+    smoke_timeout_s = int(exe.get("smoke_timeout_s", 300))
+    daily_cap_usd = float(budget_raw.get("daily_cap_usd", 10.0))
+    flat_digest_epsilon = float(metrics_raw.get("flat_digest_epsilon", 0.005))
+    max_open_campaigns = int(raw.get("max_open_campaigns_per_student", 2))
+    gain_threshold = float(peer_review_raw.get("gain_threshold", 0.05))
+    accept_mean = float(peer_review_raw.get("accept_mean_threshold", 6.0))
+    accept_min = int(peer_review_raw.get("accept_min_threshold", 4))
+    if run_timeout_s <= 0 or smoke_timeout_s <= 0:
+        raise SubmissionError("executor timeouts must be positive")
+    if daily_cap_usd < 0:
+        raise SubmissionError("budget.daily_cap_usd must be non-negative")
+    if flat_digest_epsilon < 0:
+        raise SubmissionError("metrics.flat_digest_epsilon must be non-negative")
+    if max_open_campaigns <= 0:
+        raise SubmissionError("max_open_campaigns_per_student must be positive")
+    if gain_threshold < 0:
+        raise SubmissionError("peer_review.gain_threshold must be non-negative")
+    if not 0 <= accept_mean <= 10 or not 0 <= accept_min <= 10:
+        raise SubmissionError("peer-review acceptance thresholds must be between 0 and 10")
 
     prompts_dir_candidate = submission_dir / "prompts"
     prompts_dir = prompts_dir_candidate if prompts_dir_candidate.is_dir() else None
@@ -285,29 +399,41 @@ def _build_labconfig(
     return LabConfig(
         lab_id=lab_id,
         domain=raw.get("domain", "unspecified"),
+        subdomain=raw.get("subdomain"),
         pi_handle=raw.get("pi_handle"),
+        code_repo=raw.get("code_repo"),
         source=Source(
             dir=src_dir,
-            allowed_patterns=tuple(src_block.get("allowed_patterns") or ("**/*.py",)),
+            allowed_patterns=allowed_patterns,
         ),
         executor=Executor(
             run_command=run_command,
             smoke_command=exe.get("smoke_command"),
             config_template=abs_config_template,
-            run_timeout_s=int(exe.get("run_timeout_s", 7200)),
-            smoke_timeout_s=int(exe.get("smoke_timeout_s", 300)),
-            env_passthrough=tuple(exe.get("env_passthrough") or ()),
+            run_timeout_s=run_timeout_s,
+            smoke_timeout_s=smoke_timeout_s,
+            env_passthrough=env_passthrough,
         ),
         metrics=Metrics(
             headline=Headline(column=headline_col, direction=headline_dir),
             panels=panels,
-            flat_digest_epsilon=float(metrics_raw.get("flat_digest_epsilon", 0.005)),
+            flat_digest_epsilon=flat_digest_epsilon,
             bucket_axes=bucket_axes,
         ),
         budget=Budget(
-            daily_cap_usd=float(budget_raw.get("daily_cap_usd", 10.0)),
+            daily_cap_usd=daily_cap_usd,
             sonnet_default=bool(budget_raw.get("sonnet_default", True)),
         ),
+        autonomy=Autonomy(
+            coder_enabled=bool(autonomy_raw.get("coder_enabled", False)),
+        ),
+        default_student_id=default_student_id,
+        max_open_campaigns_per_student=max_open_campaigns,
+        students=students,
+        peer_review_enabled=bool(peer_review_raw.get("enabled", False)),
+        peer_review_gain_threshold=gain_threshold,
+        peer_review_accept_mean_threshold=accept_mean,
+        peer_review_accept_min_threshold=accept_min,
         prompts_dir=prompts_dir,
     )
 
@@ -321,12 +447,16 @@ class LabConfig:
     executor: Executor
     metrics: Metrics
     budget: Budget
+    subdomain: str | None = None
+    code_repo: str | None = None
+    autonomy: Autonomy = field(default_factory=Autonomy)
     default_student_id: str = "primary"
     max_open_campaigns_per_student: int = 2
     students: tuple[dict, ...] = field(default_factory=lambda: (
         {"id": "primary", "handle": None, "focus": "", "prompt_overrides": {}},
     ))
     peer_review_enabled: bool = False
+    peer_review_gain_threshold: float = 0.05
     peer_review_accept_mean_threshold: float = 6.0
     peer_review_accept_min_threshold: int = 4
     prompts_dir: Path | None = None
@@ -359,9 +489,30 @@ _active: LabConfig | None = None
 
 
 def set_config(cfg: LabConfig) -> None:
-    """Install the active LabConfig. Called by the daemon at startup."""
-    global _active
+    """Install the active LabConfig and synchronize legacy module attributes.
+
+    Several Phase-A modules still read ``lab.LAB_ID`` and related attributes.
+    Synchronizing them here keeps those paths correct while the remaining
+    callers migrate to ``get_config()``.
+    """
+    global _active, LAB_ID, DOMAIN, SUBDOMAIN, PI_HANDLE, CODE_REPO
+    global DEFAULT_STUDENT_ID, MAX_OPEN_CAMPAIGNS_PER_STUDENT, STUDENTS
+    global PEER_REVIEW_ENABLED, PEER_REVIEW_GAIN_THRESHOLD
+    global PEER_REVIEW_ACCEPT_MEAN_THRESHOLD
+    global PEER_REVIEW_ACCEPT_MIN_THRESHOLD
     _active = cfg
+    LAB_ID = cfg.lab_id
+    DOMAIN = cfg.domain
+    SUBDOMAIN = cfg.subdomain
+    PI_HANDLE = cfg.pi_handle
+    CODE_REPO = cfg.code_repo or ""
+    DEFAULT_STUDENT_ID = cfg.default_student_id
+    MAX_OPEN_CAMPAIGNS_PER_STUDENT = cfg.max_open_campaigns_per_student
+    STUDENTS = [dict(student) for student in cfg.students]
+    PEER_REVIEW_ENABLED = cfg.peer_review_enabled
+    PEER_REVIEW_GAIN_THRESHOLD = cfg.peer_review_gain_threshold
+    PEER_REVIEW_ACCEPT_MEAN_THRESHOLD = cfg.peer_review_accept_mean_threshold
+    PEER_REVIEW_ACCEPT_MIN_THRESHOLD = cfg.peer_review_accept_min_threshold
 
 
 def get_config() -> LabConfig:
@@ -380,13 +531,14 @@ def _labconfig_attr_via_shim(name: str):
     mapping = {
         "LAB_ID": cfg.lab_id,
         "DOMAIN": cfg.domain,
-        "SUBDOMAIN": None,
+        "SUBDOMAIN": cfg.subdomain,
         "PI_HANDLE": cfg.pi_handle,
-        "CODE_REPO": "",
+        "CODE_REPO": cfg.code_repo or "",
         "DEFAULT_STUDENT_ID": cfg.default_student_id,
         "MAX_OPEN_CAMPAIGNS_PER_STUDENT": cfg.max_open_campaigns_per_student,
         "STUDENTS": list(cfg.students),
         "PEER_REVIEW_ENABLED": cfg.peer_review_enabled,
+        "PEER_REVIEW_GAIN_THRESHOLD": cfg.peer_review_gain_threshold,
         "PEER_REVIEW_ACCEPT_MEAN_THRESHOLD": cfg.peer_review_accept_mean_threshold,
         "PEER_REVIEW_ACCEPT_MIN_THRESHOLD": cfg.peer_review_accept_min_threshold,
     }

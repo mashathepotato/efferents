@@ -12,13 +12,18 @@ target repo's commands.
 from __future__ import annotations
 
 import json
+import math
 import os
+import shlex
+import signal
+import subprocess
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 import yaml
 
-from efferents.exec import _extract_trailing_json
+from efferents.exec import _extract_trailing_json, _subprocess_env
 from efferents.repo_adapter import RepoAdapterConfig
 
 
@@ -26,18 +31,37 @@ class RunnerError(RuntimeError):
     pass
 
 
-def _ts(i: int) -> str:
-    minute = i
-    return f"2026-06-25T09:{minute:02d}:00Z"
+def _ts() -> str:
+    return datetime.now(timezone.utc).isoformat()
 
 
-def _run_capture(cmd: str, cwd: Path, timeout_s: int = 120) -> tuple[dict | None, str, int]:
-    import subprocess
-
-    proc = subprocess.run(
-        cmd, shell=True, cwd=str(cwd), capture_output=True, text=True, timeout=timeout_s
+def _run_capture(
+    cmd: str, cwd: Path, timeout_s: float = 120
+) -> tuple[dict | None, str, int]:
+    proc = subprocess.Popen(
+        cmd,
+        shell=True,
+        cwd=str(cwd),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=_subprocess_env(()),
+        start_new_session=True,
     )
-    return _extract_trailing_json(proc.stdout), proc.stdout + proc.stderr, proc.returncode
+    try:
+        stdout, stderr = proc.communicate(timeout=max(0.1, timeout_s))
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+            proc.kill()
+        stdout, stderr = proc.communicate()
+        return (
+            _extract_trailing_json(stdout),
+            stdout + stderr + f"\ncommand timed out after {timeout_s:.1f}s\n",
+            124,
+        )
+    return _extract_trailing_json(stdout), stdout + stderr, proc.returncode
 
 
 def _iterations(cfg: RepoAdapterConfig) -> list[tuple[str, object]]:
@@ -47,7 +71,13 @@ def _iterations(cfg: RepoAdapterConfig) -> list[tuple[str, object]]:
     return [(f"{cfg.sweep.param}={v}", v) for v in cfg.sweep.values]
 
 
-def run_adapter(repo: str | Path, out_dir: str | Path, *, max_iters: int | None = None) -> Path:
+def run_adapter(
+    repo: str | Path,
+    out_dir: str | Path,
+    *,
+    max_iters: int | None = None,
+    approved: bool = False,
+) -> Path:
     repo = Path(repo).resolve()
     cfg = RepoAdapterConfig.load(repo)
 
@@ -73,11 +103,27 @@ def run_adapter(repo: str | Path, out_dir: str | Path, *, max_iters: int | None 
 
     # 001 + 002 are written before any experiment executes (plan_then_execute).
     _write_hypothesis(journal, cfg)
-    _write_plan(journal, cfg, iters)
+    execution_authorized = cfg.approval_mode == "autonomous" or (
+        cfg.approval_mode == "plan_then_execute" and approved
+    )
+    _write_plan(
+        journal,
+        cfg,
+        iters,
+        execution_authorized=execution_authorized,
+    )
 
-    if cfg.approval_mode == "dry_run":
-        print("approval.mode=dry_run — plan written, no experiments executed.")
-        _write_dashboard(out, cfg, [], None, dry_run=True)
+    if not execution_authorized:
+        reason = (
+            "approval.mode=dry_run — plan written; execution is disabled."
+            if cfg.approval_mode == "dry_run"
+            else (
+                "approval.mode=plan_then_execute — plan written; inspect it, "
+                "then re-run with --approve."
+            )
+        )
+        print(reason)
+        _write_dashboard(out, cfg, [], None, plan_only_reason=reason)
         return out
 
     runs: list[dict] = []
@@ -97,29 +143,53 @@ def run_adapter(repo: str | Path, out_dir: str | Path, *, max_iters: int | None 
         cfg_path.write_text(yaml.safe_dump(run_cfg))
 
         log_path = out / "logs" / f"iter_{i:02d}.log"
-        t0 = time.time()
+        started_at = _ts()
+        t0 = time.monotonic()
 
-        train_cmd = cfg.train_command.replace("{config_path}", str(cfg_path))
-        tj, tlog, trc = _run_capture(train_cmd, repo)
+        remaining_s = budget_s - gpu_seconds
+        command_timeout = min(120.0, remaining_s) if math.isfinite(remaining_s) else 120.0
+        train_cmd = cfg.train_command.replace(
+            "{config_path}", shlex.quote(str(cfg_path))
+        )
+        tj, tlog, trc = _run_capture(train_cmd, repo, timeout_s=command_timeout)
+        gpu_seconds += time.monotonic() - t0
         if tj is None or "checkpoint" not in tj or trc != 0:
             log_path.write_text(f"$ {train_cmd}\n{tlog}\n")
             raise RunnerError(f"train command failed or emitted no checkpoint (iter {i}); see {log_path}")
         checkpoint = tj["checkpoint"]
+        if not isinstance(checkpoint, str) or not checkpoint.strip():
+            raise RunnerError(f"train output has invalid checkpoint path (iter {i})")
 
-        eval_cmd = cfg.eval_command.replace("{checkpoint}", str(checkpoint))
-        ej, elog, erc = _run_capture(eval_cmd, repo)
-        elapsed = time.time() - t0
-        gpu_seconds += elapsed
+        eval_started = time.monotonic()
+        remaining_s = budget_s - gpu_seconds
+        if remaining_s <= 0:
+            log_path.write_text(
+                f"$ {train_cmd}\n{tlog}\nconfigured compute ceiling reached before eval\n"
+            )
+            raise RunnerError(
+                f"configured compute ceiling reached before eval (iter {i}); see {log_path}"
+            )
+        command_timeout = min(120.0, remaining_s) if math.isfinite(remaining_s) else 120.0
+        eval_cmd = cfg.eval_command.replace("{checkpoint}", shlex.quote(checkpoint))
+        ej, elog, erc = _run_capture(eval_cmd, repo, timeout_s=command_timeout)
+        gpu_seconds += time.monotonic() - eval_started
+        elapsed = time.monotonic() - t0
         log_path.write_text(f"$ {train_cmd}\n{tlog}\n$ {eval_cmd}\n{elog}\n")
         if ej is None or erc != 0:
             raise RunnerError(f"eval command failed or emitted no metric (iter {i}); see {log_path}")
         metric_val = (ej.get("metrics") or {}).get(cfg.metric)
-        if metric_val is None:
-            raise RunnerError(f"eval output missing metric {cfg.metric!r} (iter {i})")
+        if (
+            not isinstance(metric_val, (int, float))
+            or isinstance(metric_val, bool)
+            or not math.isfinite(float(metric_val))
+        ):
+            raise RunnerError(
+                f"eval output missing a finite numeric metric {cfg.metric!r} (iter {i})"
+            )
 
         runs.append({
             "run_id": f"run_{i:02d}",
-            "started_at": _ts(i),
+            "started_at": started_at,
             "param": cfg.sweep.param if cfg.sweep else None,
             "value": value,
             "metric": cfg.metric,
@@ -150,11 +220,12 @@ def run_adapter(repo: str | Path, out_dir: str | Path, *, max_iters: int | None 
     _write_dashboard(out, cfg, runs, best)
 
     print(f"\nWrote run to {out}")
-    print(f"  {cfg.outputs.journal_dir}/   4 memos (001..004)")
+    print(f"  {cfg.outputs.journal_dir}/   4 research records (001..004)")
     print(f"  {cfg.outputs.runs_file}   {len(runs)} runs")
     print(f"  {cfg.outputs.claims_file} {len(claims)} claims with provenance")
     print(f"  dashboard.html")
-    print(f"  budget used: {gpu_seconds/3600:.4f} / {cfg.budget.max_gpu_hours} GPU-h, "
+    print(f"  wall-clock proxy: {gpu_seconds/3600:.4f} / "
+          f"{cfg.budget.max_gpu_hours} configured GPU-h, "
           f"$0.00 / ${cfg.budget.max_llm_cost_usd} LLM (offline)")
     print(f"\nOpen the dashboard:\n  open {out / 'dashboard.html'}")
     return out
@@ -182,7 +253,7 @@ def _write_hypothesis(journal: Path, cfg: RepoAdapterConfig) -> None:
 ---
 memo: 001_hypothesis
 agent: researcher
-generated_at: 2026-06-25T09:00:00Z
+generated_at: {_ts()}
 ---
 
 # Objective
@@ -200,14 +271,21 @@ search space.
 """)
 
 
-def _write_plan(journal: Path, cfg: RepoAdapterConfig, iters: list) -> None:
+def _write_plan(
+    journal: Path,
+    cfg: RepoAdapterConfig,
+    iters: list,
+    *,
+    execution_authorized: bool,
+) -> None:
     rows = "\n".join(f"| {i+1} | {label} |" for i, (label, _) in enumerate(iters))
     _w(journal / "002_experiment_plan.md", f"""\
 ---
 memo: 002_experiment_plan
 agent: researcher
-generated_at: 2026-06-25T09:00:00Z
-approval: {cfg.approval_mode}
+generated_at: {_ts()}
+approval_mode: {cfg.approval_mode}
+execution_authorized: {str(execution_authorized).lower()}
 ---
 
 # Experiment plan
@@ -226,7 +304,9 @@ eval:  {cfg.eval_command}
 {rows}
 
 **Budget ceiling:** {cfg.budget.max_gpu_hours} GPU-hours, ${cfg.budget.max_llm_cost_usd} LLM spend.
-**Approval mode:** `{cfg.approval_mode}` — this plan is recorded before any experiment runs.
+**Approval mode:** `{cfg.approval_mode}`.
+**Execution authorized:** `{str(execution_authorized).lower()}`.
+This plan is recorded before any experiment runs.
 """)
 
 
@@ -240,7 +320,7 @@ def _write_results(journal: Path, cfg: RepoAdapterConfig, runs: list, best: dict
 ---
 memo: 003_results
 agent: analyst
-generated_at: 2026-06-25T09:00:00Z
+generated_at: {_ts()}
 runs: {len(runs)}
 ---
 
@@ -267,24 +347,39 @@ def _write_memo(journal: Path, cfg: RepoAdapterConfig, runs: list, best: dict,
         for c in claims
     )
     worst = (min if cfg.maximize else max)(runs, key=lambda r: r[cfg.metric])
-    _w(journal / "004_reviewed_memo.md", f"""\
+    sweep_description = (
+        f"Swept `{cfg.sweep.param}` over {len(runs)} configured values"
+        if cfg.sweep
+        else "Ran the single configured experiment"
+    )
+    next_experiment = (
+        f"Refine `{cfg.sweep.param}` around {best.get('value')} and add "
+        f"predeclared repeated seeds for `{cfg.metric}`."
+        if cfg.sweep
+        else (
+            f"Add a predeclared comparison configuration and repeated seeds "
+            f"for `{cfg.metric}`."
+        )
+    )
+    _w(journal / "004_research_memo.md", f"""\
 ---
-memo: 004_reviewed_memo
+memo: 004_research_memo
 agent: writer
-reviewed_by: reviewer-board (critical / neutral / enthusiast)
-review_status: accepted
-generated_at: 2026-06-25T09:00:00Z
+reviewed_by: deterministic-provenance-audit
+review_status: not_peer_reviewed
+generated_at: {_ts()}
 ---
 
-# Reviewed research memo: {cfg.goal}
+# Research memo: {cfg.goal}
 
 ## Summary
 
 Across {len(runs)} bounded experiments, the best setting was
 {_best_line(cfg, best)} — versus {worst[cfg.metric]} at the weakest setting.
 The objective ({'maximize' if cfg.maximize else 'minimize'} `{cfg.metric}`) is
-addressed by the search above. Ran fully on local compute in
-{gpu_seconds/3600:.4f} GPU-hours; $0.00 LLM spend.
+addressed by the search above. The commands consumed
+{gpu_seconds/3600:.4f} wall-clock hours, charged as a conservative proxy
+against the configured compute ceiling; $0.00 LLM spend.
 
 ## Hypothesis
 
@@ -292,33 +387,32 @@ addressed by the search above. Ran fully on local compute in
 
 ## Experiment plan
 
-Swept `{cfg.sweep.param}` over {len(runs)} values, running the repo's own
-`train`/`eval` each time. Full plan: [`002_experiment_plan.md`](002_experiment_plan.md).
+{sweep_description}, running the repo's own `train`/`eval` commands.
+Full plan: [`002_experiment_plan.md`](002_experiment_plan.md).
 
 ## Results
 
 Best `{cfg.metric}` = {best[cfg.metric]} at `{cfg.sweep.param if cfg.sweep else 'base'}`
 = {best.get('value', '—')}. Full table: [`003_results.md`](003_results.md).
 
-## Reviewer notes
+## Automated audit notes
 
-- *Critical:* the sweep is coarse ({len(runs)} points); the true optimum may lie
-  between sampled values. A finer sweep around the best point is the next step.
-- *Neutral:* every number resolves to a run_id and a logged train/eval pair
-  (see evidence table). Provenance is complete and the budget ceiling held.
-- *Enthusiast:* a clear, reproducible signal on the first pass.
-- **Board decision: accepted** for the internal lab journal.
+- Every reported number resolves to a `run_id` and a logged train/eval pair.
+- The configured execution ceiling held under the wall-clock proxy.
+- This deterministic check is not scientific peer review and does not assess
+  novelty, domain validity, leakage, or causal interpretation.
 
 ## Limitations
 
-- Toy synthetic task — exercises the adapter end to end, not a real domain.
-- Single parameter, single metric; no interaction effects explored.
-- Deterministic data; no variance estimate across seeds.
+- The search covers only {len(runs)} configured setting(s) and one metric.
+- No variance estimate is available unless the repository command itself
+  performs and reports repeated seeds.
+- Wall-clock duration is not GPU hardware telemetry or a monetary cost meter.
+- Human domain review is required before acting on the result.
 
 ## Next experiment
 
-Refine `{cfg.sweep.param}` around {best.get('value', 'the best value')} and add a
-second seed to estimate run-to-run variance of `{cfg.metric}`.
+{next_experiment}
 
 ## Evidence table
 
@@ -331,6 +425,16 @@ Every nontrivial claim below points to a run, a metric, or a source file.
 
 
 def _build_claims(cfg: RepoAdapterConfig, runs: list, best: dict) -> list[dict]:
+    metric_min = min(r[cfg.metric] for r in runs)
+    metric_max = max(r[cfg.metric] for r in runs)
+    if cfg.sweep:
+        aggregate_claim = (
+            f"{cfg.metric} varied across the configured {cfg.sweep.param} sweep"
+            if metric_min != metric_max
+            else f"{cfg.metric} was flat across the configured {cfg.sweep.param} sweep"
+        )
+    else:
+        aggregate_claim = f"Observed {cfg.metric} for the base configuration"
     return [
         {
             "claim": f"Best {cfg.metric} = {best[cfg.metric]} at "
@@ -342,12 +446,12 @@ def _build_claims(cfg: RepoAdapterConfig, runs: list, best: dict) -> list[dict]:
             "value": best[cfg.metric],
         },
         {
-            "claim": f"{cfg.metric} varies across the {best.get('param')} sweep",
+            "claim": aggregate_claim,
             "evidence_type": "metric_aggregate",
             "source_path": cfg.outputs.runs_file,
             "run_id": None,
             "metric": cfg.metric,
-            "value": f"range={min(r[cfg.metric] for r in runs)}..{max(r[cfg.metric] for r in runs)}",
+            "value": f"range={metric_min}..{metric_max}",
         },
         {
             "claim": "Experiment plan recorded before execution",
@@ -355,12 +459,12 @@ def _build_claims(cfg: RepoAdapterConfig, runs: list, best: dict) -> list[dict]:
             "source_path": f"{cfg.outputs.journal_dir}/002_experiment_plan.md",
             "run_id": None,
             "metric": None,
-            "value": f"approval={cfg.approval_mode}",
+            "value": f"approval={cfg.approval_mode}; execution_authorized=true",
         },
         {
-            "claim": "Ran within budget on local compute",
+            "claim": "Execution stayed within the configured wall-clock compute proxy",
             "evidence_type": "budget",
-            "source_path": f"{cfg.outputs.journal_dir}/004_reviewed_memo.md",
+            "source_path": f"{cfg.outputs.journal_dir}/004_research_memo.md",
             "run_id": None,
             "metric": None,
             "value": f"<= {cfg.budget.max_gpu_hours} GPU-h, $0 LLM",
@@ -368,8 +472,13 @@ def _build_claims(cfg: RepoAdapterConfig, runs: list, best: dict) -> list[dict]:
     ]
 
 
-def _write_dashboard(out: Path, cfg: RepoAdapterConfig, runs: list, best: dict | None,
-                     dry_run: bool = False) -> None:
+def _write_dashboard(
+    out: Path,
+    cfg: RepoAdapterConfig,
+    runs: list,
+    best: dict | None,
+    plan_only_reason: str | None = None,
+) -> None:
     metric = cfg.metric
     if runs:
         mmax = max(r[metric] for r in runs) or 1.0
@@ -391,11 +500,12 @@ def _write_dashboard(out: Path, cfg: RepoAdapterConfig, runs: list, best: dict |
         headline = f"{best[metric]}" if best else "—"
     else:
         bars = run_rows = ""
-        headline = "dry run"
+        headline = "plan only"
 
-    banner = ("approval.mode=dry_run — plan only, no experiments executed."
-              if dry_run else
-              "Rendered from runs.jsonl + the journal memos in this folder.")
+    banner = (
+        plan_only_reason
+        or "Rendered from runs.jsonl and the research records in this folder."
+    )
     _w(out / "dashboard.html", f"""\
 <!DOCTYPE html>
 <html lang="en"><head>
@@ -454,7 +564,7 @@ th{{color:var(--muted);font-weight:500}} tr.best td{{background:rgba(74,153,153,
     <a href="{cfg.outputs.journal_dir}/001_hypothesis.md">001 · Objective</a>
     <a href="{cfg.outputs.journal_dir}/002_experiment_plan.md">002 · Experiment plan</a>
     <a href="{cfg.outputs.journal_dir}/003_results.md">003 · Results</a>
-    <a href="{cfg.outputs.journal_dir}/004_reviewed_memo.md">004 · Reviewed memo (with evidence table)</a>
+    <a href="{cfg.outputs.journal_dir}/004_research_memo.md">004 · Research memo (automated audit + evidence)</a>
   </div>
 </main></body></html>
 """)

@@ -75,7 +75,7 @@ def utc_date_str(ts: str | None = None) -> str:
 
 
 class BudgetTracker:
-    """Append-only ledger of every Anthropic call; soft daily ceiling."""
+    """Append-only estimated spend ledger; pauses at the next call boundary."""
 
     def __init__(self, ledger_path: Path, daily_cap_usd: float = 100.0):
         self.path = ledger_path
@@ -87,10 +87,12 @@ class BudgetTracker:
         agent: str,
         model: str,
         usage: CallUsage,
+        extra_cost_usd: float = 0.0,
         cache_hit_rate: float | None = None,
         notes: str | None = None,
     ) -> dict[str, Any]:
         ts = datetime.now(timezone.utc).isoformat()
+        token_cost = cost_usd(model, usage)
         record = {
             "ts": ts,
             "agent": agent,
@@ -99,7 +101,9 @@ class BudgetTracker:
             "output_tokens": usage.output_tokens,
             "cache_creation_input_tokens": usage.cache_creation_input_tokens,
             "cache_read_input_tokens": usage.cache_read_input_tokens,
-            "cost_usd": cost_usd(model, usage),
+            "token_cost_usd": token_cost,
+            "extra_cost_usd": extra_cost_usd,
+            "cost_usd": token_cost + extra_cost_usd,
             "cache_hit_rate": cache_hit_rate,
             "notes": notes,
         }

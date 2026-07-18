@@ -9,6 +9,7 @@ import pytest
 from efferents.lab import (
     Budget, Executor, Headline, LabConfig, Metrics, Panel, Source, SubmissionError,
 )
+from efferents import lab as lab_mod
 
 
 def test_from_submission_happy_path(tmp_path):
@@ -364,3 +365,75 @@ def test_prompts_dir_defaults_none_on_direct_construction():
         budget=Budget(),
     )
     assert cfg.prompts_dir is None
+
+
+def test_from_submission_loads_autonomy_students_and_review_thresholds(tmp_path):
+    src = Path(__file__).parent / "fixtures" / "sample_submission"
+    sub = tmp_path / "sub"
+    shutil.copytree(src, sub)
+    with (sub / "lab.yaml").open("a") as f:
+        f.write(
+            "\nautonomy:\n"
+            "  coder_enabled: true\n"
+            "peer_review:\n"
+            "  enabled: true\n"
+            "  gain_threshold: 0.12\n"
+            "  accept_mean_threshold: 7.0\n"
+            "  accept_min_threshold: 5\n"
+            "students:\n"
+            "  - id: explorer\n"
+            "    focus: robustness\n"
+            "default_student_id: explorer\n"
+            "max_open_campaigns_per_student: 3\n"
+        )
+
+    cfg = LabConfig.from_submission(sub)
+    lab_mod.set_config(cfg)
+
+    assert cfg.autonomy.coder_enabled is True
+    assert cfg.peer_review_gain_threshold == 0.12
+    assert cfg.students[0]["id"] == "explorer"
+    assert lab_mod.LAB_ID == "sample-conjecture"
+    assert lab_mod.PEER_REVIEW_ENABLED is True
+    assert lab_mod.PEER_REVIEW_GAIN_THRESHOLD == 0.12
+    assert lab_mod.DEFAULT_STUDENT_ID == "explorer"
+
+
+def test_from_submission_rejects_paths_outside_submission(tmp_path):
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "c.yaml").write_text("x: 1\n")
+    sub = tmp_path / "sub"
+    sub.mkdir()
+    (sub / "hypothesis.md").write_text(
+        "---\nslug: x\nfalsifiability_gate: passed\nstatus: active\n---\n\nbody"
+    )
+    (sub / "lab.yaml").write_text(
+        "lab_id: x\ndomain: y\n"
+        "source:\n  dir: ../outside\n"
+        "executor:\n  run_command: 'echo {config_path}'\n  config_template: c.yaml\n"
+        "metrics:\n  headline:\n    column: loss\n    direction: min\n"
+    )
+
+    with pytest.raises(SubmissionError, match="inside the submission"):
+        LabConfig.from_submission(sub)
+
+
+def test_from_submission_rejects_traversing_config_template(tmp_path):
+    outside = tmp_path / "outside.yaml"
+    outside.write_text("x: 1\n")
+    sub = tmp_path / "sub"
+    (sub / "src").mkdir(parents=True)
+    (sub / "hypothesis.md").write_text(
+        "---\nslug: x\nfalsifiability_gate: passed\nstatus: active\n---\n\nbody"
+    )
+    (sub / "lab.yaml").write_text(
+        "lab_id: x\ndomain: y\n"
+        "source:\n  dir: ./src\n"
+        "executor:\n  run_command: 'echo {config_path}'\n"
+        "  config_template: ../../outside.yaml\n"
+        "metrics:\n  headline:\n    column: loss\n    direction: min\n"
+    )
+
+    with pytest.raises(SubmissionError, match="inside the submission"):
+        LabConfig.from_submission(sub)

@@ -1,6 +1,8 @@
 """Stdout-JSON contract for run subprocess capture."""
 from __future__ import annotations
 import json
+import shlex
+import sys
 
 from efferents.exec import RunResult, _extract_trailing_json, _run_and_capture
 
@@ -62,3 +64,39 @@ def test_run_and_capture_timeout(tmp_path):
     assert result.ok is False
     assert result.error is not None
     assert "timeout" in result.error.lower()
+
+
+def test_run_and_capture_does_not_inherit_secrets_unless_configured(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "should-not-reach-experiment")
+    script = (
+        "import json, os; "
+        "print(json.dumps({'metrics': {'secret_present': "
+        "int('ANTHROPIC_API_KEY' in os.environ)}}))"
+    )
+    cmd = f"{shlex.quote(sys.executable)} -c {shlex.quote(script)}"
+
+    isolated = _run_and_capture(
+        cmd, timeout_s=10, cwd=str(tmp_path), env_passthrough=()
+    )
+    explicit = _run_and_capture(
+        cmd,
+        timeout_s=10,
+        cwd=str(tmp_path),
+        env_passthrough=("ANTHROPIC_API_KEY",),
+    )
+
+    assert isolated.metrics == {"secret_present": 0}
+    assert explicit.metrics == {"secret_present": 1}
+
+
+def test_run_and_capture_rejects_nonfinite_metric(tmp_path):
+    result = _run_and_capture(
+        "echo '{\"metrics\":{\"loss\":NaN}}'",
+        timeout_s=10,
+        cwd=str(tmp_path),
+        env_passthrough=(),
+    )
+    assert result.ok is False
+    assert "finite number" in (result.error or "")

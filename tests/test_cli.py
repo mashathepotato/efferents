@@ -41,7 +41,7 @@ def test_start_foreground_registers_and_runs(tmp_path, monkeypatch, capsys):
     shutil.copytree(SAMPLE, sub)
 
     called = []
-    def fake_loop():
+    def fake_loop(**kwargs):
         called.append(1)
     monkeypatch.setattr("efferents.cli._orchestrator_loop", fake_loop)
 

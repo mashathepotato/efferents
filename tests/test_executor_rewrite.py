@@ -119,16 +119,19 @@ def test_execute_nonzero_exit_returns_failure(tmp_path, monkeypatch):
     )
     assert outcome["ok"] is False
     assert outcome["name"] == "fail-1"
-    # _persist_run_result still writes the row because metrics were emitted;
-    # the orchestrator-side ok=False signals "treat this run as failed
-    # downstream" while the metric trace is preserved for analyst inspection.
+    # Failed attempts are auditable, but their emitted metric must not enter
+    # the scored metric column used by the analyst/writer.
     conn = sqlite3.connect(tmp_path / "lab" / "runs.sqlite")
     try:
-        rows = list(conn.execute("SELECT run_id, synthetic_loss FROM runs"))
+        rows = list(conn.execute(
+            "SELECT run_id, status, synthetic_loss, raw_metrics_json FROM runs"
+        ))
     finally:
         conn.close()
     assert len(rows) == 1
-    assert rows[0][1] == 0.42
+    assert rows[0][1] == "failed"
+    assert rows[0][2] is None
+    assert json.loads(rows[0][3]) == {"synthetic_loss": 0.42}
 
 
 def test_execute_no_json_returns_failure(tmp_path, monkeypatch):

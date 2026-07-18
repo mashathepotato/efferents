@@ -14,6 +14,7 @@ Layout under lab/:
 from __future__ import annotations
 
 import json
+import os
 import re
 import sqlite3
 from dataclasses import dataclass
@@ -27,6 +28,7 @@ class LabPaths:
     root: Path
     runs_db: Path
     queue: Path
+    inflight: Path
     notebook: Path
     digests_dir: Path
     budget: Path
@@ -42,6 +44,7 @@ def lab_paths(root: str | Path = "lab") -> LabPaths:
         root=r,
         runs_db=r / "runs.sqlite",
         queue=r / "queue.jsonl",
+        inflight=r / "inflight.json",
         notebook=r / "lab_notebook.md",
         digests_dir=r / "digests",
         budget=r / "budget.jsonl",
@@ -65,6 +68,17 @@ def init_lab(paths: LabPaths) -> None:
         )
     if not paths.queue.exists():
         paths.queue.touch()
+    if paths.inflight.exists():
+        # Recover a proposal claimed before an abrupt process exit. Put it
+        # back at the front before the loop resumes.
+        claimed = paths.inflight.read_text().strip()
+        if claimed:
+            queued = paths.queue.read_text()
+            _atomic_write_text(
+                paths.queue,
+                claimed + "\n" + queued,
+            )
+        paths.inflight.unlink()
     if not paths.budget.exists():
         paths.budget.touch()
     if not paths.state.exists():
@@ -84,8 +98,10 @@ def recent_runs(db_path: Path, n: int = 30) -> list[dict[str, Any]]:
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     try:
+        cols = {row[1] for row in conn.execute("PRAGMA table_info(runs)")}
+        where = "WHERE status = 'succeeded'" if "status" in cols else ""
         rows = conn.execute(
-            "SELECT * FROM runs ORDER BY started_at DESC LIMIT ?",
+            f"SELECT * FROM runs {where} ORDER BY started_at DESC LIMIT ?",
             (n,),
         ).fetchall()
     finally:
@@ -98,7 +114,9 @@ def runs_count(db_path: Path) -> int:
         return 0
     conn = sqlite3.connect(db_path)
     try:
-        return int(conn.execute("SELECT COUNT(*) FROM runs").fetchone()[0])
+        cols = {row[1] for row in conn.execute("PRAGMA table_info(runs)")}
+        where = " WHERE status = 'succeeded'" if "status" in cols else ""
+        return int(conn.execute(f"SELECT COUNT(*) FROM runs{where}").fetchone()[0])
     finally:
         conn.close()
 
@@ -123,15 +141,40 @@ def queue_push(path: Path, proposal: dict[str, Any]) -> None:
 
 
 def queue_pop(path: Path) -> dict[str, Any] | None:
-    """Pop the first line. Naive but adequate for a single-orchestrator loop."""
+    """Claim the first line and persist it in ``inflight.json``.
+
+    The caller must call ``queue_ack`` after recording an outcome or
+    ``queue_requeue_inflight`` when execution raises.
+    """
     if not path.exists():
         return None
     lines = [ln for ln in path.read_text().splitlines() if ln.strip()]
     if not lines:
         return None
     head, rest = lines[0], lines[1:]
-    path.write_text("\n".join(rest) + ("\n" if rest else ""))
-    return json.loads(head)
+    proposal = json.loads(head)
+    inflight = path.with_name("inflight.json")
+    _atomic_write_text(inflight, json.dumps(proposal) + "\n")
+    _atomic_write_text(path, "\n".join(rest) + ("\n" if rest else ""))
+    return proposal
+
+
+def queue_ack(path: Path) -> None:
+    inflight = path.with_name("inflight.json")
+    try:
+        inflight.unlink()
+    except FileNotFoundError:
+        pass
+
+
+def queue_requeue_inflight(path: Path) -> None:
+    inflight = path.with_name("inflight.json")
+    if not inflight.exists():
+        return
+    claimed = inflight.read_text().strip()
+    if claimed:
+        _atomic_write_text(path, claimed + "\n" + path.read_text())
+    inflight.unlink()
 
 
 def queue_size(path: Path) -> int:
@@ -161,7 +204,14 @@ def load_state(path: Path) -> dict[str, Any]:
 
 
 def save_state(path: Path, state: dict[str, Any]) -> None:
-    path.write_text(json.dumps(state, indent=2))
+    _atomic_write_text(path, json.dumps(state, indent=2))
+
+
+def _atomic_write_text(path: Path, text: str) -> None:
+    """Replace a small state file atomically on the same filesystem."""
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(text)
+    os.replace(tmp, path)
 
 
 class StudentStateView:

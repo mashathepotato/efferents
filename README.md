@@ -2,7 +2,7 @@
 
 **Turn your ML repo into a local autonomous research lab.**
 
-efferents runs bounded experiments on *your* compute and writes reviewed
+efferents runs bounded experiments on *your* compute and writes auditable
 internal research memos — with provenance — into a local lab journal. It frames
 a falsifiable hypothesis, plans an experiment, runs it against your own
 train/eval commands, and records every result claim back to a run, a metric, or
@@ -28,8 +28,8 @@ nontrivial claim in a memo points at evidence.
   `claims.jsonl`) you can diff, grep, and check into a repo.
 - **Provenance by construction.** Each result claim resolves to a `run_id`, a
   metric file, a log, or a code diff — not a vibe.
-- **Budgeted.** Hard ceilings on GPU hours and LLM spend; an approval mode that
-  plans before it executes.
+- **Budgeted.** A wall-clock execution guardrail plus an LLM spend ledger; an
+  approval mode that pauses after planning and before execution.
 
 ## 60-second quickstart (no API key needed)
 
@@ -100,7 +100,8 @@ Then run a bounded sweep against it — also **offline**, executing the repo's o
 train/eval each iteration and writing the same journal + provenance:
 
 ```bash
-efferents run examples/repo-adapter      # writes ./efferents-run/
+efferents run examples/repo-adapter      # writes the plan only
+efferents run examples/repo-adapter --approve
 open efferents-run/dashboard.html
 ```
 
@@ -114,12 +115,13 @@ prints `{"metrics": {"<metric>": <value>}}`.
 
 ## Safety, budget & approval
 
-- **Approval modes:** `plan_then_execute` (default — the plan is written to the
-  journal before anything runs), `dry_run` (plan only), `autonomous` (sandbox
-  use only).
-- **Budget ceilings:** the lab halts before exceeding `max_gpu_hours` or
-  `max_llm_cost_usd`. The live agent loop routes every model call through a
-  budget accountant (Sonnet by default; Opus only where it earns it).
+- **Approval modes:** `plan_then_execute` (default — first invocation writes
+  the plan; `--approve` authorizes it), `dry_run` (plan only), `autonomous`
+  (sandbox use only).
+- **Budget accounting:** repo-adapter subprocess wall time is charged
+  conservatively against `max_gpu_hours`; this is a guardrail, not GPU
+  telemetry. The live loop records model-token spend (Sonnet by default; Opus
+  only where configured). External tool fees are recorded where reported.
 - **Read-only dashboard:** `efferents serve --lab-root <lab>` visualizes a lab
   without ever mutating its state.
 - **Falsifiability gate:** a hypothesis must pass an adversarial
