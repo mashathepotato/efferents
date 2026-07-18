@@ -231,12 +231,12 @@ def _campaign_status(c: dict) -> tuple[str, str]:
 
 
 _STATUS_COLORS = {
-    "open": "#1f77b4",
-    "resolved": "#2ca02c",
-    "stale": "#7f7f7f",
-    "no-novel": "#d62728",
-    "closed": "#9467bd",
-    "uncampaigned": "#999999",
+    "open": "#69ddd0",
+    "resolved": "#b9f36a",
+    "stale": "#748079",
+    "no-novel": "#f07c82",
+    "closed": "#efbd6b",
+    "uncampaigned": "#849089",
 }
 
 
@@ -271,7 +271,13 @@ def _trend_png_b64(snap: dict, db_path=None) -> str | None:
         return None
 
     fig, axes = plt.subplots(2, 2, figsize=(13, 7), dpi=110)
+    fig.patch.set_facecolor("#0d1210")
     axes = axes.flatten()
+    for ax in axes:
+        ax.set_facecolor("#0d1210")
+        ax.tick_params(colors="#748079", labelsize=7)
+        for spine in ax.spines.values():
+            spine.set_color("#26322d")
 
     n_panels_with_data = 0
     for ax, (col, label, target) in zip(axes, _panel_metrics(db_path)):
@@ -285,24 +291,25 @@ def _trend_png_b64(snap: dict, db_path=None) -> str | None:
             cs.append(_STATUS_COLORS.get(css, "#333333"))
         if not xs:
             ax.text(0.5, 0.5, f"no data for {col}", ha="center", va="center",
-                    transform=ax.transAxes, color="#999", fontsize=10)
+                    transform=ax.transAxes, color="#748079", fontsize=9)
             ax.set_xticks([])
             ax.set_yticks([])
-            ax.set_title(label, fontsize=10)
+            ax.set_title(label, fontsize=10, color="#e7ede9", loc="left")
             continue
         n_panels_with_data += 1
-        ax.plot(xs, ys, color="#cccccc", linewidth=1, zorder=1)
-        ax.scatter(xs, ys, c=cs, s=40, zorder=2, edgecolor="white", linewidth=0.8)
+        ax.plot(xs, ys, color="#69ddd0", linewidth=1, zorder=1, alpha=0.72)
+        ax.scatter(xs, ys, c=cs, s=38, zorder=2,
+                   edgecolor="#0d1210", linewidth=0.9)
         if target is not None:
-            ax.axhline(target, color="#ff8c00", linestyle="--", linewidth=1,
+            ax.axhline(target, color="#efbd6b", linestyle="--", linewidth=1,
                        alpha=0.6, zorder=0)
-        ax.set_title(label, fontsize=10)
+        ax.set_title(label, fontsize=10, color="#e7ede9", loc="left")
         # Tick labels on the bottom-row panels only (so labels don't fight each other)
         ax.set_xticks(list(range(len(positions))))
         ax.set_xticklabels(
             [p[0] for p in positions], rotation=45, ha="right", fontsize=7
         )
-        ax.grid(True, alpha=0.3)
+        ax.grid(True, color="#26322d", alpha=0.75, linewidth=0.55)
 
     if n_panels_with_data == 0:
         plt.close(fig)
@@ -311,6 +318,9 @@ def _trend_png_b64(snap: dict, db_path=None) -> str | None:
     fig.suptitle(
         f"Trend per metric — {'best per campaign' if campaigns else 'recent runs (no campaigns yet)'}",
         fontsize=12,
+        color="#e7ede9",
+        x=0.04,
+        ha="left",
     )
     fig.tight_layout()
     buf = io.BytesIO()
@@ -456,6 +466,116 @@ h1 { margin-bottom: 4px; }
   background: rgba(0, 0, 0, 0.4); border-radius: 4px;
 }
 .lightbox-close:hover { background: rgba(0, 0, 0, 0.7); }
+
+/* Research-console theme */
+:root {
+  color-scheme: dark;
+  --bg: #080b0a; --panel: #0d1210; --raised: #111815;
+  --line: #26322d; --line-soft: #18211d; --fg: #e7ede9;
+  --muted: #849089; --dim: #58635d; --signal: #b9f36a;
+  --cyan: #69ddd0; --danger: #f07c82; --warning: #efbd6b;
+  --mono: "SFMono-Regular", "Roboto Mono", "Cascadia Code", monospace;
+  --sans: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+* { box-sizing: border-box; }
+html { background: var(--bg); }
+body {
+  max-width: 1440px; margin: 0 auto; padding: 34px 24px 64px;
+  background:
+    linear-gradient(rgba(105,221,208,.018) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(105,221,208,.014) 1px, transparent 1px),
+    var(--bg);
+  background-size: 48px 48px;
+  color: var(--fg); font: 14px/1.5 var(--sans);
+  font-variant-numeric: tabular-nums;
+}
+a { color: var(--cyan); text-decoration-color: rgba(105,221,208,.35); }
+a:hover { color: var(--signal); }
+code { padding: 1px 4px; background: #050706; color: #b9c3bd; font-family: var(--mono); }
+h1 { margin: 0 0 7px; font-size: clamp(28px, 4vw, 54px);
+     font-weight: 520; letter-spacing: -.045em; line-height: 1.04; }
+.meta { margin-bottom: 22px; color: var(--muted); font: 10px/1.5 var(--mono);
+        letter-spacing: .035em; text-transform: uppercase; }
+.trend { margin: 22px 0 30px; border: 1px solid var(--line); background: var(--panel); }
+.trend::before { display: block; padding: 10px 14px; border-bottom: 1px solid var(--line);
+  color: var(--dim); content: "metric surface / campaign chronology";
+  font: 9px/1 var(--mono); letter-spacing: .09em; text-transform: uppercase; }
+.trend img { display: block; width: 100%; max-width: 100%; border: 0; border-radius: 0; }
+
+.card { display: grid; grid-template-columns: minmax(0,1fr) 300px; gap: 0;
+        align-items: stretch; margin: 12px 0; padding: 0;
+        border: 1px solid var(--line); border-radius: 0;
+        background: rgba(13,18,16,.94); }
+.card-text { padding: 18px 20px; }
+.card-text h3 { margin: 0 0 12px; font: 650 12px/1.4 var(--mono);
+                letter-spacing: .04em; }
+.card-text .q { margin: 0 0 15px; color: #c7d0cb; font-size: 17px; line-height: 1.45; }
+.card-text .meta-row { margin-top: 5px; color: var(--muted);
+                       font: 10px/1.55 var(--mono); }
+.card-image { display: grid; min-height: 180px; place-items: center;
+              padding: 12px; border-left: 1px solid var(--line); }
+.card img { width: 100%; border: 1px solid var(--line-soft); border-radius: 0; }
+.status { padding: 3px 6px; border: 1px solid currentColor; border-radius: 0;
+          background: transparent; font: 700 8px/1 var(--mono);
+          letter-spacing: .09em; text-transform: uppercase; }
+.status-open { background: transparent; color: var(--cyan); }
+.status-resolved { background: transparent; color: var(--signal); }
+.status-stale { background: transparent; color: var(--muted); }
+.status-no-novel { background: transparent; color: var(--danger); }
+.status-closed { background: transparent; color: var(--warning); }
+
+.arch { margin: 8px 0; border: 1px solid var(--line); border-radius: 0;
+        background: var(--panel); }
+.arch summary { grid-template-columns: 58px 86px minmax(0,1fr) 130px 130px 16px;
+                min-height: 68px; padding: 7px 13px; }
+.arch summary .marker { color: var(--dim); font-size: 11px; }
+.arch summary:hover { background: rgba(105,221,208,.035); }
+.arch[open] summary { border-bottom: 1px solid var(--line); }
+.arch .arch-thumb { width: 52px; height: 52px; border: 1px solid var(--line);
+                    border-radius: 0; }
+.arch .arch-thumb-empty { width: 52px; height: 52px; border: 1px dashed var(--line);
+                          border-radius: 0; color: var(--dim); font: 8px/1.3 var(--mono); }
+.arch .arch-sha { color: var(--signal); font: 650 10px/1.3 var(--mono); }
+.arch .arch-subject { color: #cbd4cf; font-size: 13px; }
+.arch .arch-date { color: var(--dim); font: 9px/1.5 var(--mono); }
+.arch .arch-stats { color: var(--muted); font: 9px/1.5 var(--mono); }
+.arch-body { padding: 14px; }
+.arch-stats-block { margin-bottom: 12px; padding: 9px 12px;
+                    border-left: 2px solid var(--cyan); border-radius: 0;
+                    background: var(--raised); color: var(--muted);
+                    font: 10px/1.6 var(--mono); }
+
+.section-h { margin: 34px 0 10px; padding-bottom: 9px; border-color: var(--line);
+             font: 650 12px/1.2 var(--mono); letter-spacing: .08em;
+             text-transform: uppercase; }
+.runs-grid { gap: 8px; margin-top: 10px; }
+.run-tile { margin: 0; overflow: hidden; border: 1px solid var(--line);
+            border-radius: 0; background: var(--panel); }
+.run-tile .cap { padding: 8px 10px; border-top: 1px solid var(--line-soft);
+                 color: var(--muted); font: 9px/1.4 var(--mono); }
+.run-tile[open] > summary .cap { color: var(--signal); }
+.run-detail { padding: 10px 12px 12px; border-color: var(--line);
+              background: var(--raised); color: #aab5af; font: 9px/1.55 var(--mono); }
+.run-detail .kv .k { color: var(--dim); }
+.run-detail .commit-msg { border-color: var(--line); color: var(--cyan); }
+.empty { padding: 28px; border-color: var(--line); border-radius: 0;
+         color: var(--dim); font: 9px/1.5 var(--mono);
+         letter-spacing: .05em; text-transform: uppercase; }
+
+.lightbox:target { background: rgba(4,6,5,.96); }
+.lightbox-img { border: 1px solid var(--line); border-radius: 0; box-shadow: none; }
+.lightbox-caption { border-radius: 0; background: #080b0a;
+                    color: var(--fg); font: 10px/1.4 var(--mono); }
+.lightbox-close { border-radius: 0; background: transparent; color: var(--fg); }
+.lightbox-close:hover { background: transparent; color: var(--signal); }
+
+@media (max-width: 760px) {
+  body { padding: 22px 12px 40px; }
+  .card { grid-template-columns: 1fr; }
+  .card-image { border-top: 1px solid var(--line); border-left: 0; }
+  .arch summary { grid-template-columns: 52px 70px minmax(0,1fr) 16px; }
+  .arch-date, .arch-stats { display: none; }
+}
 """.strip()
 
 

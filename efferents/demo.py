@@ -32,6 +32,8 @@ from pathlib import Path
 
 import yaml
 
+from efferents.dashboard.report_theme import REPORT_CSS
+
 # A fixed epoch so the demo is byte-for-byte reproducible across machines/runs.
 _BASE_TS = "2026-06-25T09:00:00Z"
 _RUN_SECONDS = 7  # synthetic wall-clock per run, for the runs log
@@ -389,35 +391,7 @@ def _write_dashboard(out: Path, lab_id: str, claim: str, runs: list[RunResult],
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>efferents demo — {lab_id}</title>
-<style>
-:root {{ --bg:#0d0f12; --panel:#161a1f; --line:#2a2f37; --fg:#e6e8eb;
-        --muted:#8b939c; --accent:#88f; --ok:#4a9; }}
-*{{box-sizing:border-box}}
-body{{margin:0;background:var(--bg);color:var(--fg);
-     font:15px/1.6 -apple-system,system-ui,sans-serif}}
-header{{padding:24px;border-bottom:1px solid var(--line)}}
-h1{{font-size:22px;margin:0 0 4px}} .muted{{color:var(--muted)}}
-.small{{font-size:12px}} code{{background:#000;padding:1px 5px;border-radius:4px;font-size:12px}}
-main{{max-width:860px;margin:0 auto;padding:24px}}
-.cards{{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:24px}}
-.card{{flex:1;min-width:170px;border:1px solid var(--line);border-radius:8px;
-      padding:14px 16px;background:var(--panel)}}
-.card .k{{text-transform:uppercase;font-size:11px;letter-spacing:.06em;color:var(--muted)}}
-.card .v{{font-size:24px;margin-top:4px}} .v.ok{{color:var(--ok)}}
-.section{{margin:28px 0}} .section h2{{font-size:14px;text-transform:uppercase;
-  letter-spacing:.06em;color:var(--muted);border-bottom:1px solid var(--line);padding-bottom:6px}}
-.bar-row{{display:flex;align-items:center;gap:10px;margin:6px 0}}
-.coef{{width:46px;color:var(--muted);text-align:right;font-size:13px}}
-.bar{{height:16px;background:linear-gradient(90deg,#88f,#4a9);border-radius:3px}}
-.val{{font-size:13px;color:var(--muted)}} .val.best{{color:var(--ok);font-weight:600}}
-table{{width:100%;border-collapse:collapse;font-size:13px}}
-th,td{{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}}
-th{{color:var(--muted);font-weight:500}}
-tr.best td{{background:rgba(74,153,153,.10)}}
-.memos a{{display:block;color:var(--accent);text-decoration:none;padding:4px 0}}
-.banner{{background:rgba(136,136,255,.08);border:1px solid var(--line);
-  border-radius:8px;padding:10px 14px;font-size:13px;color:var(--muted)}}
-</style></head><body>
+<style>{REPORT_CSS}</style></head><body>
 <header>
   <h1>{lab_id} <span class="muted small">· efferents demo</span></h1>
   <div class="muted small">Offline run · no API calls · deterministic · synthetic objective</div>

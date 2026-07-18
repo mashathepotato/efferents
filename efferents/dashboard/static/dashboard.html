@@ -3,50 +3,139 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>efferents — lab dashboard</title>
+  <meta name="color-scheme" content="dark">
+  <title>efferents — lab observer</title>
   <link rel="stylesheet" href="/static/dashboard.css">
 </head>
 <body>
+  <a class="skip-link" href="#workspace">Skip to lab data</a>
+
   <header id="topbar">
-    <div><b id="lab-id">…</b> <span id="domain" class="muted"></span></div>
+    <div class="identity">
+      <div class="brand-mark" aria-hidden="true">EF</div>
+      <div>
+        <div class="eyebrow">efferents / lab observer</div>
+        <div class="lab-title">
+          <strong id="lab-id">loading</strong>
+          <span id="domain" class="domain-tag"></span>
+        </div>
+      </div>
+    </div>
+
     <div class="topbar-right">
-      <span id="status-badge" class="badge">…</span>
-      <span id="budget" class="muted"></span>
+      <span class="read-only">read only</span>
+      <span id="status-badge" class="status-badge">
+        <span class="status-dot" aria-hidden="true"></span>
+        <span id="status-text">connecting</span>
+      </span>
+      <div class="budget-meta">
+        <span id="budget">—</span>
+        <span class="budget-track" aria-hidden="true"><span id="budget-fill"></span></span>
+      </div>
     </div>
   </header>
 
-  <main>
-    <section class="col-main">
-      <div class="card">
-        <div class="label">Current hypothesis <span id="student" class="muted"></span></div>
-        <div id="question"></div>
-        <div id="claim" class="muted small"></div>
-        <div id="falsifier" class="muted small"></div>
-      </div>
+  <main id="workspace">
+    <section class="overview-grid" aria-label="Current research state">
+      <article class="panel hypothesis-panel">
+        <header class="panel-header">
+          <span class="section-index">01</span>
+          <h1>Active hypothesis</h1>
+          <span id="student" class="header-meta"></span>
+        </header>
 
-      <div class="card">
-        <div class="label" id="metric-label">Headline metric</div>
-        <svg id="trend" viewBox="0 0 100 40" preserveAspectRatio="none"></svg>
-        <div id="trend-caption" class="muted small"></div>
-      </div>
+        <div id="question" class="research-question">Waiting for campaign state…</div>
 
-      <div class="card">
-        <div class="label">Recent runs</div>
-        <table id="runs"><tbody></tbody></table>
-      </div>
+        <div class="thesis-grid">
+          <div class="thesis-block">
+            <div class="field-label">Claim</div>
+            <div id="claim" class="thesis-copy">—</div>
+          </div>
+          <div class="thesis-block falsifier-block">
+            <div class="field-label">Falsification condition</div>
+            <div id="falsifier" class="thesis-copy">—</div>
+          </div>
+        </div>
+      </article>
+
+      <article class="panel metric-panel">
+        <header class="panel-header">
+          <span class="section-index">02</span>
+          <h2 id="metric-label">Headline metric</h2>
+          <span id="metric-direction" class="header-meta">—</span>
+        </header>
+
+        <div class="metric-readout">
+          <div>
+            <div class="field-label">Best observed</div>
+            <div id="metric-best" class="metric-value">—</div>
+          </div>
+          <div class="metric-secondary">
+            <div class="field-label">Latest / best gap</div>
+            <div id="metric-delta">—</div>
+          </div>
+        </div>
+
+        <div class="chart-frame">
+          <svg id="trend" viewBox="0 0 600 180" preserveAspectRatio="none"
+               role="img" aria-label="Headline metric trend"></svg>
+        </div>
+        <div class="chart-footer">
+          <span id="trend-caption">No observations</span>
+          <span id="metric-range">—</span>
+        </div>
+      </article>
     </section>
 
-    <section class="col-side">
-      <div class="card">
-        <div class="label accent">Papers</div>
-        <div id="papers"></div>
-      </div>
-      <div class="card">
-        <div class="label">Agent activity</div>
-        <div id="activity"></div>
-      </div>
+    <section class="data-grid" aria-label="Lab records">
+      <article class="panel runs-panel">
+        <header class="panel-header">
+          <span class="section-index">03</span>
+          <h2>Run ledger</h2>
+          <span id="run-count" class="header-meta">0 records</span>
+        </header>
+        <div class="table-wrap">
+          <table id="runs">
+            <thead>
+              <tr>
+                <th scope="col">Seq</th>
+                <th scope="col">Run ID</th>
+                <th scope="col">Started · UTC</th>
+                <th scope="col" id="run-metric-header">Result</th>
+                <th scope="col">Signal</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </article>
+
+      <aside class="side-stack">
+        <section class="panel papers-panel">
+          <header class="panel-header">
+            <span class="section-index">04</span>
+            <h2>Paper register</h2>
+            <span id="paper-count" class="header-meta">0 records</span>
+          </header>
+          <div id="papers" class="records-list"></div>
+        </section>
+
+        <section class="panel activity-panel">
+          <header class="panel-header">
+            <span class="section-index">05</span>
+            <h2>Agent log</h2>
+            <span class="live-mark"><span aria-hidden="true"></span> live</span>
+          </header>
+          <div id="activity" class="activity-list"></div>
+        </section>
+      </aside>
     </section>
   </main>
+
+  <footer>
+    <span>local state / no write surface</span>
+    <span>last sync <time id="last-sync">—</time></span>
+  </footer>
 
   <script src="/static/dashboard.js"></script>
 </body>
