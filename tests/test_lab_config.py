@@ -420,9 +420,10 @@ def test_from_submission_rejects_paths_outside_submission(tmp_path):
 
 
 def test_from_submission_rejects_traversing_config_template(tmp_path):
+    outside = tmp_path / "outside.yaml"
+    outside.write_text("x: 1\n")
     sub = tmp_path / "sub"
     (sub / "src").mkdir(parents=True)
-    (sub / "outside.yaml").write_text("x: 1\n")
     (sub / "hypothesis.md").write_text(
         "---\nslug: x\nfalsifiability_gate: passed\nstatus: active\n---\n\nbody"
     )
@@ -430,9 +431,9 @@ def test_from_submission_rejects_traversing_config_template(tmp_path):
         "lab_id: x\ndomain: y\n"
         "source:\n  dir: ./src\n"
         "executor:\n  run_command: 'echo {config_path}'\n"
-        "  config_template: ../outside.yaml\n"
+        "  config_template: ../../outside.yaml\n"
         "metrics:\n  headline:\n    column: loss\n    direction: min\n"
     )
 
-    with pytest.raises(SubmissionError, match="inside source.dir"):
+    with pytest.raises(SubmissionError, match="inside the submission"):
         LabConfig.from_submission(sub)

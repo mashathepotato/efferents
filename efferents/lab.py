@@ -238,10 +238,10 @@ def _build_labconfig(
         raise SubmissionError("lab.yaml: executor.config_template is required")
     abs_config_template = (src_dir / config_template_str).resolve()
     try:
-        abs_config_template.relative_to(src_dir)
+        abs_config_template.relative_to(submission_dir.resolve())
     except ValueError as e:
         raise SubmissionError(
-            "executor.config_template must stay inside source.dir"
+            "executor.config_template must stay inside the submission directory"
         ) from e
     if check_paths and not abs_config_template.is_file():
         raise SubmissionError(
