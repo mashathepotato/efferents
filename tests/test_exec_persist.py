@@ -32,7 +32,7 @@ def test_persist_run_result_inserts_metrics(tmp_path, monkeypatch):
     assert rows == [("test-1", 0.42, 12.3, "abc123")]
 
 
-def test_persist_run_result_skips_when_no_metrics(tmp_path, monkeypatch):
+def test_persist_run_result_records_failed_attempt_without_scored_metrics(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     (tmp_path / "lab").mkdir()
     db = tmp_path / "lab" / "runs.sqlite"
@@ -48,9 +48,9 @@ def test_persist_run_result_skips_when_no_metrics(tmp_path, monkeypatch):
     _persist_run_result(result, "test-2", Path("configs/x.yaml"))
 
     conn = sqlite3.connect(db)
-    rows = list(conn.execute("SELECT run_id FROM runs"))
+    rows = list(conn.execute("SELECT run_id, status, error FROM runs"))
     conn.close()
-    assert rows == []  # no insert when metrics is None
+    assert rows == [("test-2", "failed", "run failed")]
 
 
 def test_persist_run_result_adds_missing_column_and_retries(tmp_path, monkeypatch):

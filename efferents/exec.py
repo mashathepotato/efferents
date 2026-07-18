@@ -9,7 +9,11 @@ This decouples the run from the daemon's filesystem.
 from __future__ import annotations
 
 import json
+import hashlib
+import math
 import os
+import re
+import signal
 import sqlite3
 import subprocess
 from dataclasses import dataclass, field
@@ -29,6 +33,43 @@ class RunResult:
     stdout: str = ""
     stderr: str = ""
     error: str | None = None
+    return_code: int | None = None
+
+
+_SAFE_BASE_ENV = (
+    "PATH", "HOME", "USER", "LOGNAME", "SHELL",
+    "TMPDIR", "TMP", "TEMP", "LANG", "LC_ALL",
+    "VIRTUAL_ENV", "PYTHONPATH", "DYLD_LIBRARY_PATH",
+)
+_COL_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def _subprocess_env(env_passthrough: tuple[str, ...]) -> dict[str, str]:
+    """Build the environment for lab-owned commands.
+
+    The daemon may hold API keys and notification credentials. Those are not
+    experiment inputs, so only a small runtime baseline plus explicitly named
+    variables is inherited.
+    """
+    names = set(_SAFE_BASE_ENV) | set(env_passthrough)
+    return {name: os.environ[name] for name in names if name in os.environ}
+
+
+def _validated_metrics(raw: object) -> tuple[dict[str, float | int] | None, str | None]:
+    if not isinstance(raw, dict) or not raw:
+        return None, "JSON result must contain a non-empty 'metrics' mapping"
+    metrics: dict[str, float | int] = {}
+    for key, value in raw.items():
+        if not isinstance(key, str) or not _COL_NAME_RE.fullmatch(key):
+            return None, f"invalid metric name: {key!r}"
+        if (
+            not isinstance(value, (int, float))
+            or isinstance(value, bool)
+            or not math.isfinite(float(value))
+        ):
+            return None, f"metric {key!r} must be a finite number"
+        metrics[key] = value
+    return metrics, None
 
 
 def _extract_trailing_json(text: str) -> dict | None:
@@ -77,39 +118,60 @@ def _run_and_capture(
 ) -> RunResult:
     """Execute `cmd` in `cwd` with selected env vars passed through.
     Capture stdout, parse the last JSON object, return RunResult."""
-    env = dict(os.environ)
-    for k in env_passthrough:
-        if k in os.environ:
-            env[k] = os.environ[k]
+    env = _subprocess_env(env_passthrough)
     try:
-        proc = subprocess.run(
-            cmd, shell=True, capture_output=True, text=True,
-            timeout=timeout_s, cwd=cwd, env=env,
+        proc = subprocess.Popen(
+            cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+            cwd=cwd, env=env, start_new_session=True,
         )
+        stdout, stderr = proc.communicate(timeout=timeout_s)
     except subprocess.TimeoutExpired as e:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except (ProcessLookupError, PermissionError):
+            proc.kill()
+        stdout, stderr = proc.communicate()
         return RunResult(
             ok=False,
-            stdout=(e.stdout or "") if isinstance(e.stdout, str) else "",
-            stderr=(e.stderr or "") if isinstance(e.stderr, str) else "",
+            stdout=stdout or (
+                (e.stdout or "") if isinstance(e.stdout, str) else ""
+            ),
+            stderr=stderr or (
+                (e.stderr or "") if isinstance(e.stderr, str) else ""
+            ),
             error=f"timeout after {timeout_s}s",
+            return_code=proc.returncode,
         )
 
-    last_json = _extract_trailing_json(proc.stdout)
+    last_json = _extract_trailing_json(stdout)
     if last_json is None:
         return RunResult(
             ok=False,
-            stdout=proc.stdout, stderr=proc.stderr,
-            error="run_command did not emit a JSON result on stdout",
+            stdout=stdout, stderr=stderr,
+            error=(
+                "run_command did not emit a JSON result on stdout"
+                if proc.returncode == 0
+                else f"run_command exited with status {proc.returncode} and emitted no JSON result"
+            ),
+            return_code=proc.returncode,
         )
 
+    metrics, metric_error = _validated_metrics(last_json.get("metrics"))
+    ok = proc.returncode == 0 and metric_error is None
     return RunResult(
-        ok=proc.returncode == 0,
-        metrics=last_json.get("metrics"),
+        ok=ok,
+        metrics=metrics,
         artifacts=list(last_json.get("artifacts") or []),
         git_commit=last_json.get("git_commit"),
         elapsed_s=last_json.get("elapsed_s"),
-        stdout=proc.stdout,
-        stderr=proc.stderr,
+        stdout=stdout,
+        stderr=stderr,
+        error=(
+            metric_error
+            if metric_error is not None
+            else (f"run_command exited with status {proc.returncode}" if proc.returncode else None)
+        ),
+        return_code=proc.returncode,
     )
 
 
@@ -125,30 +187,76 @@ def _execute_run(config_path: Path) -> RunResult:
     )
 
 
-def _persist_run_result(result: RunResult, run_id: str, config_path: Path) -> None:
+def _persist_run_result(
+    result: RunResult,
+    run_id: str,
+    config_path: Path,
+    *,
+    db_path: Path | None = None,
+    proposal: dict | None = None,
+    config_yaml: str | None = None,
+    stdout_path: Path | None = None,
+    stderr_path: Path | None = None,
+    duration_seconds: float | None = None,
+    started_at: str | None = None,
+    seed: int | None = None,
+) -> None:
     """Insert a row into lab/runs.sqlite from a RunResult.
 
-    Skips when result.metrics is None (failed run with no parseable metrics).
-    If a metric column doesn't exist, ALTER TABLE to add it and retry once.
+    Every attempt gets a row. Failed-run metrics are retained in
+    ``raw_metrics_json`` for diagnosis but are not copied into scored metric
+    columns, so they cannot become a downstream "best run".
     """
-    if not result.metrics:
-        return
-    db_path = Path("lab/runs.sqlite")
-    cols = ["run_id", "started_at", "ended_at", "config_path"]
+    db_path = Path(db_path) if db_path is not None else Path("lab/runs.sqlite")
+    proposal = proposal or {}
+    cols = [
+        "run_id", "started_at", "ended_at", "config_path",
+        "campaign_id", "researcher_mode", "student_id", "status",
+        "exit_code", "error", "stdout_path", "stderr_path",
+        "config_yaml", "config_hash", "artifacts_json", "raw_metrics_json",
+        "seed",
+    ]
     now = datetime.now(timezone.utc).isoformat()
-    vals: list = [run_id, now, now, str(config_path)]
-    for k, v in result.metrics.items():
-        cols.append(k)
-        vals.append(v)
+    config_hash = (
+        "sha256:" + hashlib.sha256(config_yaml.encode()).hexdigest()
+        if config_yaml is not None
+        else None
+    )
+    vals: list = [
+        run_id,
+        started_at or now,
+        now,
+        str(config_path),
+        proposal.get("campaign_id"),
+        proposal.get("mode"),
+        proposal.get("student_id") or "primary",
+        "succeeded" if result.ok else "failed",
+        result.return_code,
+        result.error,
+        str(stdout_path) if stdout_path else None,
+        str(stderr_path) if stderr_path else None,
+        config_yaml,
+        config_hash,
+        json.dumps(result.artifacts),
+        json.dumps(result.metrics or {}),
+        seed,
+    ]
+    if result.ok:
+        for key, value in (result.metrics or {}).items():
+            if not _COL_NAME_RE.fullmatch(key):
+                raise ValueError(f"unsafe metric column name: {key!r}")
+            cols.append(key)
+            vals.append(value)
     if result.git_commit:
         cols.append("git_commit")
         vals.append(result.git_commit)
-    if result.elapsed_s is not None:
+    elapsed = duration_seconds if duration_seconds is not None else result.elapsed_s
+    if elapsed is not None:
         cols.append("duration_seconds")
-        vals.append(result.elapsed_s)
+        vals.append(elapsed)
 
     placeholders = ",".join("?" for _ in vals)
-    col_list = ",".join(cols)
+    col_list = ",".join(f'"{col}"' for col in cols)
     sql = f"INSERT INTO runs ({col_list}) VALUES ({placeholders})"
 
     with sqlite3.connect(db_path) as conn:
@@ -162,10 +270,25 @@ def _persist_run_result(result: RunResult, run_id: str, config_path: Path) -> No
                 print(f"warning: could not persist metric row: {e}")
                 return
             existing = {row[1] for row in conn.execute("PRAGMA table_info(runs)")}
+            metadata_types = {
+                "campaign_id": "TEXT", "researcher_mode": "TEXT",
+                "student_id": "TEXT", "status": "TEXT",
+                "exit_code": "INTEGER", "error": "TEXT",
+                "stdout_path": "TEXT", "stderr_path": "TEXT",
+                "config_yaml": "TEXT", "config_hash": "TEXT",
+                "artifacts_json": "TEXT", "raw_metrics_json": "TEXT",
+                "seed": "INTEGER", "git_commit": "TEXT",
+                "duration_seconds": "REAL",
+            }
             for col in cols:
                 if col not in existing:
                     try:
-                        conn.execute(f"ALTER TABLE runs ADD COLUMN {col} REAL")
+                        if not _COL_NAME_RE.fullmatch(col):
+                            raise ValueError(f"unsafe column name: {col!r}")
+                        sql_type = metadata_types.get(col, "REAL")
+                        conn.execute(
+                            f'ALTER TABLE runs ADD COLUMN "{col}" {sql_type}'
+                        )
                     except sqlite3.OperationalError as alter_err:
                         print(f"warning: could not add column {col}: {alter_err}")
                         return

@@ -226,8 +226,14 @@ def write_phase_a_paper(
         conn = _sqlite3.connect(db)
         conn.row_factory = _sqlite3.Row
         try:
+            cols = {r[1] for r in conn.execute("PRAGMA table_info(runs)")}
+            status_clause = (
+                " AND status = 'succeeded'" if "status" in cols else ""
+            )
             rows = conn.execute(
-                "SELECT * FROM runs WHERE campaign_id = ? ORDER BY started_at ASC",
+                "SELECT * FROM runs WHERE campaign_id = ?"
+                + status_clause
+                + " ORDER BY started_at ASC",
                 (campaign_id,),
             ).fetchall()
         except _sqlite3.OperationalError:
@@ -242,8 +248,14 @@ def write_phase_a_paper(
         conn = _sqlite3.connect(db)
         conn.row_factory = _sqlite3.Row
         try:
+            cols = {r[1] for r in conn.execute("PRAGMA table_info(runs)")}
+            status_clause = (
+                " AND status = 'succeeded'" if "status" in cols else ""
+            )
             rows = conn.execute(
-                "SELECT * FROM runs WHERE campaign_id != ? OR campaign_id IS NULL ORDER BY started_at ASC",
+                "SELECT * FROM runs WHERE (campaign_id != ? OR campaign_id IS NULL)"
+                + status_clause
+                + " ORDER BY started_at ASC",
                 (campaign_id,),
             ).fetchall()
         except _sqlite3.OperationalError:

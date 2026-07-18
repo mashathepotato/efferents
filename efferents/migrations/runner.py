@@ -35,6 +35,16 @@ _NEW_RUN_COLUMNS = (
     # 'primary' so the existing 600+ rows show up under the original
     # student id without a separate data migration.
     ("student_id", "TEXT DEFAULT 'primary'"),
+    ("status", "TEXT DEFAULT 'succeeded'"),
+    ("exit_code", "INTEGER"),
+    ("error", "TEXT"),
+    ("stdout_path", "TEXT"),
+    ("stderr_path", "TEXT"),
+    ("config_yaml", "TEXT"),
+    ("config_hash", "TEXT"),
+    ("artifacts_json", "TEXT"),
+    ("raw_metrics_json", "TEXT"),
+    ("seed", "INTEGER"),
 )
 
 # Idempotent ALTERs for the campaigns table. SQLite can't conditionally add
@@ -82,6 +92,16 @@ CREATE TABLE IF NOT EXISTS runs (
     campaign_id TEXT,
     researcher_mode TEXT,
     student_id TEXT DEFAULT 'primary',
+    status TEXT DEFAULT 'succeeded',
+    exit_code INTEGER,
+    error TEXT,
+    stdout_path TEXT,
+    stderr_path TEXT,
+    config_yaml TEXT,
+    config_hash TEXT,
+    artifacts_json TEXT,
+    raw_metrics_json TEXT,
+    seed INTEGER,
     git_commit TEXT,
     duration_seconds REAL
 );

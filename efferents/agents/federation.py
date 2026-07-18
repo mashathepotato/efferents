@@ -387,18 +387,19 @@ def _campaign_runs(db: Path, campaign_id: str, metric: str | None = None, direct
     try:
         # Detect available columns so we can order by metric only when present.
         cols = {row[1] for row in conn.execute("PRAGMA table_info(runs)").fetchall()}
+        status_clause = " AND status = 'succeeded'" if "status" in cols else ""
         if metric and metric in cols:
             order = "ASC" if direction == "min" else "DESC"
             rows = conn.execute(
                 f"""SELECT * FROM runs
-                   WHERE campaign_id = ? AND {metric} IS NOT NULL
+                   WHERE campaign_id = ?{status_clause} AND {metric} IS NOT NULL
                    ORDER BY {metric} {order}""",
                 (campaign_id,),
             ).fetchall()
         else:
             rows = conn.execute(
-                """SELECT * FROM runs
-                   WHERE campaign_id = ?
+                f"""SELECT * FROM runs
+                   WHERE campaign_id = ?{status_clause}
                    ORDER BY started_at ASC""",
                 (campaign_id,),
             ).fetchall()

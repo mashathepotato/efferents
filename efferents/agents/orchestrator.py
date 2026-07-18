@@ -33,6 +33,8 @@ from efferents.agents.state import (
     load_state,
     notebook_append,
     queue_pop,
+    queue_ack,
+    queue_requeue_inflight,
     queue_push,
     queue_size,
     runs_count,
@@ -185,6 +187,8 @@ class Orchestrator:
             return 0
         if self.dry_run:
             # Hardcoded probe proposal so the loop is exercisable without API calls.
+            opens = campaign_open_list(self.paths.runs_db, _lab.LAB_ID)
+            campaign_id = opens[0]["id"] if opens else None
             queue_push(
                 self.paths.queue,
                 {
@@ -192,6 +196,9 @@ class Orchestrator:
                     "hypothesis": "Dry-run probe: pipeline only.",
                     "expected": "metrics arbitrary",
                     "config_overrides": {"run.seed": 123},
+                    "campaign_id": campaign_id,
+                    "mode": "refine",
+                    "student_id": _lab.DEFAULT_STUDENT_ID,
                 },
             )
             return 1
@@ -288,6 +295,8 @@ class Orchestrator:
     def _maybe_code(self) -> None:
         if self.dry_run or self.client is None:
             return
+        if not _lab.get_config().autonomy.coder_enabled:
+            return
         state = load_state(self.paths.state)
         n_runs = runs_count(self.paths.runs_db)
         # Walk students in declaration order looking for one whose Coder is
@@ -326,15 +335,12 @@ class Orchestrator:
             if result.ok:
                 notify_all(
                     title=f"{_lab_label()}: code committed",
-                    message=f"{result.name}: {result.summary or ''} ({result.commit_sha}) — orchestrator restarting to load new code",
+                    message=f"{result.name}: {result.summary or ''} ({result.commit_sha})",
                 )
-                # Trigger a self-restart so the running process picks up the
-                # newly-committed code on next start.
-                self.restart_requested = True
-                self._stop = True
                 notebook_append(
                     self.paths.notebook,
-                    f"## {now_iso()} — Coder committed; orchestrator self-restart requested\n",
+                    f"## {now_iso()} — Coder committed; subsequent subprocess runs "
+                    "will load the new source\n",
                 )
         except Exception as e:
             notebook_append(
@@ -415,7 +421,13 @@ class Orchestrator:
             # spin-pump on saturation-driven architectural-only rounds.
             time.sleep(60)
             return {"event": "no_proposal", "added": n_added}
-        outcome = executor.execute(paths=self.paths, proposal=proposal)
+        try:
+            outcome = executor.execute(paths=self.paths, proposal=proposal)
+        except Exception:
+            queue_requeue_inflight(self.paths.queue)
+            raise
+        else:
+            queue_ack(self.paths.queue)
         self._maybe_digest()
         self._maybe_code()
         self._maybe_write()
@@ -449,4 +461,3 @@ class Orchestrator:
         # the user already got "code committed; restarting" 2s ago.
         if not self.restart_requested:
             notify_all(title=f"{_lab_label()} stopped", message=f"orchestrator exited after {i} iterations")
-

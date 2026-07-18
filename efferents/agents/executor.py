@@ -68,15 +68,42 @@ def execute(
     # source.dir, which is generally NOT the daemon's cwd, so a relative
     # config path would not resolve for the subprocess.
     config_path = (config_dir / f"run_{run_id}.yaml").resolve()
-    with config_path.open("w") as f:
-        yaml.safe_dump(rendered, f)
+    config_yaml = yaml.safe_dump(rendered, sort_keys=True)
+    config_path.write_text(config_yaml)
 
     started = now_iso()
     t0 = time.monotonic()
     result = _execute_run(config_path)
     duration = time.monotonic() - t0
 
-    _persist_run_result(result, run_id, config_path)
+    logs_dir = paths.root / "logs"
+    logs_dir.mkdir(exist_ok=True)
+    stdout_path = (logs_dir / f"run_{run_id}.stdout.log").resolve()
+    stderr_path = (logs_dir / f"run_{run_id}.stderr.log").resolve()
+    stdout_path.write_text(result.stdout)
+    stderr_path.write_text(result.stderr)
+
+    seed_raw = rendered.get("seed")
+    if seed_raw is None and isinstance(rendered.get("run"), dict):
+        seed_raw = rendered["run"].get("seed")
+    try:
+        seed = int(seed_raw) if seed_raw is not None else None
+    except (TypeError, ValueError):
+        seed = None
+
+    _persist_run_result(
+        result,
+        run_id,
+        config_path,
+        db_path=paths.runs_db,
+        proposal=proposal,
+        config_yaml=config_yaml,
+        stdout_path=stdout_path,
+        stderr_path=stderr_path,
+        duration_seconds=duration,
+        started_at=started,
+        seed=seed,
+    )
 
     notebook_append(
         paths.notebook,
@@ -97,6 +124,8 @@ def execute(
             row.update(result.metrics)
         if result.git_commit:
             row["git_commit"] = result.git_commit
+        row["status"] = "succeeded"
+        row["campaign_id"] = proposal.get("campaign_id")
         return {"ok": True, "name": name, "rows": [row], "duration_seconds": duration}
 
     err_tail = (result.stderr or "")[-200:]

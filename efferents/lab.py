@@ -146,6 +146,18 @@ class Budget:
     sonnet_default: bool = True
 
 
+@dataclass(frozen=True)
+class Autonomy:
+    """Mutation controls for a live lab.
+
+    The Coder is intentionally opt-in. Experiment execution is already
+    authorized by the lab's run command; source-code mutation is a materially
+    different permission and must never be inferred from that.
+    """
+
+    coder_enabled: bool = False
+
+
 class SubmissionError(ValueError):
     """Raised when a submission directory is invalid."""
 
@@ -269,8 +281,52 @@ def _build_labconfig(
             )
     bucket_axes = tuple(bucket_axes_raw)
 
-    # --- budget ---
+    # --- budget / autonomy / peer review / students ---
     budget_raw = raw.get("budget") or {}
+    autonomy_raw = raw.get("autonomy") or {}
+    peer_review_raw = raw.get("peer_review") or {}
+
+    students_raw = raw.get("students")
+    if students_raw is None:
+        students = (
+            {"id": "primary", "handle": None, "focus": "", "prompt_overrides": {}},
+        )
+    else:
+        if not isinstance(students_raw, list) or not students_raw:
+            raise SubmissionError("lab.yaml: students must be a non-empty list")
+        parsed_students: list[dict] = []
+        seen_student_ids: set[str] = set()
+        for i, student in enumerate(students_raw):
+            if not isinstance(student, dict):
+                raise SubmissionError(f"students[{i}] must be a mapping")
+            student_id = student.get("id")
+            if not isinstance(student_id, str) or not re.fullmatch(
+                r"[a-z][a-z0-9_-]*", student_id
+            ):
+                raise SubmissionError(
+                    f"students[{i}].id must match [a-z][a-z0-9_-]*"
+                )
+            if student_id in seen_student_ids:
+                raise SubmissionError(f"duplicate student id: {student_id!r}")
+            seen_student_ids.add(student_id)
+            overrides = student.get("prompt_overrides") or {}
+            if not isinstance(overrides, dict):
+                raise SubmissionError(
+                    f"students[{i}].prompt_overrides must be a mapping"
+                )
+            parsed_students.append({
+                "id": student_id,
+                "handle": student.get("handle"),
+                "focus": str(student.get("focus") or ""),
+                "prompt_overrides": dict(overrides),
+            })
+        students = tuple(parsed_students)
+
+    default_student_id = str(raw.get("default_student_id") or students[0]["id"])
+    if default_student_id not in {s["id"] for s in students}:
+        raise SubmissionError(
+            f"default_student_id {default_student_id!r} is not present in students"
+        )
 
     # --- lab_id: prefer lab.yaml, fall back to hypothesis slug ---
     lab_id = raw.get("lab_id") or fm.get("slug")
@@ -285,7 +341,9 @@ def _build_labconfig(
     return LabConfig(
         lab_id=lab_id,
         domain=raw.get("domain", "unspecified"),
+        subdomain=raw.get("subdomain"),
         pi_handle=raw.get("pi_handle"),
+        code_repo=raw.get("code_repo"),
         source=Source(
             dir=src_dir,
             allowed_patterns=tuple(src_block.get("allowed_patterns") or ("**/*.py",)),
@@ -308,6 +366,21 @@ def _build_labconfig(
             daily_cap_usd=float(budget_raw.get("daily_cap_usd", 10.0)),
             sonnet_default=bool(budget_raw.get("sonnet_default", True)),
         ),
+        autonomy=Autonomy(
+            coder_enabled=bool(autonomy_raw.get("coder_enabled", False)),
+        ),
+        default_student_id=default_student_id,
+        max_open_campaigns_per_student=int(
+            raw.get("max_open_campaigns_per_student", 2)
+        ),
+        students=students,
+        peer_review_enabled=bool(peer_review_raw.get("enabled", False)),
+        peer_review_accept_mean_threshold=float(
+            peer_review_raw.get("accept_mean_threshold", 6.0)
+        ),
+        peer_review_accept_min_threshold=int(
+            peer_review_raw.get("accept_min_threshold", 4)
+        ),
         prompts_dir=prompts_dir,
     )
 
@@ -321,6 +394,9 @@ class LabConfig:
     executor: Executor
     metrics: Metrics
     budget: Budget
+    subdomain: str | None = None
+    code_repo: str | None = None
+    autonomy: Autonomy = field(default_factory=Autonomy)
     default_student_id: str = "primary"
     max_open_campaigns_per_student: int = 2
     students: tuple[dict, ...] = field(default_factory=lambda: (
@@ -359,9 +435,28 @@ _active: LabConfig | None = None
 
 
 def set_config(cfg: LabConfig) -> None:
-    """Install the active LabConfig. Called by the daemon at startup."""
-    global _active
+    """Install the active LabConfig and synchronize legacy module attributes.
+
+    Several Phase-A modules still read ``lab.LAB_ID`` and related attributes.
+    Synchronizing them here keeps those paths correct while the remaining
+    callers migrate to ``get_config()``.
+    """
+    global _active, LAB_ID, DOMAIN, SUBDOMAIN, PI_HANDLE, CODE_REPO
+    global DEFAULT_STUDENT_ID, MAX_OPEN_CAMPAIGNS_PER_STUDENT, STUDENTS
+    global PEER_REVIEW_ENABLED, PEER_REVIEW_ACCEPT_MEAN_THRESHOLD
+    global PEER_REVIEW_ACCEPT_MIN_THRESHOLD
     _active = cfg
+    LAB_ID = cfg.lab_id
+    DOMAIN = cfg.domain
+    SUBDOMAIN = cfg.subdomain
+    PI_HANDLE = cfg.pi_handle
+    CODE_REPO = cfg.code_repo or ""
+    DEFAULT_STUDENT_ID = cfg.default_student_id
+    MAX_OPEN_CAMPAIGNS_PER_STUDENT = cfg.max_open_campaigns_per_student
+    STUDENTS = [dict(student) for student in cfg.students]
+    PEER_REVIEW_ENABLED = cfg.peer_review_enabled
+    PEER_REVIEW_ACCEPT_MEAN_THRESHOLD = cfg.peer_review_accept_mean_threshold
+    PEER_REVIEW_ACCEPT_MIN_THRESHOLD = cfg.peer_review_accept_min_threshold
 
 
 def get_config() -> LabConfig:
@@ -380,9 +475,9 @@ def _labconfig_attr_via_shim(name: str):
     mapping = {
         "LAB_ID": cfg.lab_id,
         "DOMAIN": cfg.domain,
-        "SUBDOMAIN": None,
+        "SUBDOMAIN": cfg.subdomain,
         "PI_HANDLE": cfg.pi_handle,
-        "CODE_REPO": "",
+        "CODE_REPO": cfg.code_repo or "",
         "DEFAULT_STUDENT_ID": cfg.default_student_id,
         "MAX_OPEN_CAMPAIGNS_PER_STUDENT": cfg.max_open_campaigns_per_student,
         "STUDENTS": list(cfg.students),
