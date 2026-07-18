@@ -5,7 +5,7 @@
 # to move, and the budget/approval guardrails it must stay inside.
 #
 # This example is runnable offline: `efferents run examples/repo-adapter`
-# executes the toy train.py / eval.py here over the sweep below.
+# writes the plan; add `--approve` to execute the sweep.
 
 goal: "maximize validation F1 by tuning the decision threshold, under 2 GPU hours"
 
@@ -25,13 +25,14 @@ sweep:
 metric: "val_f1"
 maximize: true
 
-# Hard ceilings. The lab halts when it would exceed either.
+# Guardrails. max_gpu_hours is conservatively approximated with subprocess
+# wall time; it is not direct GPU telemetry.
 budget:
   max_gpu_hours: 2
   max_llm_cost_usd: 20
 
 # How much autonomy the lab has.
-#   plan_then_execute — write the experiment plan to the journal, then run.
+#   plan_then_execute — write the plan, pause, and require CLI --approve.
 #   dry_run           — write the plan only, never execute.
 #   autonomous        — run without pausing (use only inside a sandbox).
 approval:

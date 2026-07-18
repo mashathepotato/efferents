@@ -293,7 +293,12 @@ def _cmd_run(args: argparse.Namespace) -> int:
     from efferents.repo_adapter import AdapterConfigError
 
     try:
-        run_adapter(args.repo, args.out, max_iters=args.max_iters)
+        run_adapter(
+            args.repo,
+            args.out,
+            max_iters=args.max_iters,
+            approved=args.approve,
+        )
     except (RunnerError, AdapterConfigError, FileNotFoundError) as e:
         print(f"run failed: {e}", file=sys.stderr)
         return 1
@@ -370,6 +375,11 @@ def build_parser() -> argparse.ArgumentParser:
                        help="Output directory for artifacts (default: ./efferents-run)")
     p_run.add_argument("--max-iters", type=int, default=None,
                        help="Cap the number of experiments")
+    p_run.add_argument(
+        "--approve",
+        action="store_true",
+        help="Authorize a plan_then_execute adapter after inspecting its plan",
+    )
     p_run.set_defaults(func=_cmd_run)
 
     p_serve = sub.add_parser("serve", help="Start the read-only web dashboard")
