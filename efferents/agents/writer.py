@@ -137,6 +137,7 @@ def compose_paper(
     novelty_claim: str,
     code_sha: str | None,
     code_repo: str | None,
+    budget: Any = None,
     model: str = "claude-sonnet-4-6",
     max_tokens: int = 8192,
 ) -> str:
@@ -160,6 +161,19 @@ def compose_paper(
         system=_WRITER_SYSTEM,
         messages=[{"role": "user", "content": user}],
     )
+    if budget is not None:
+        from efferents.agents.budget import CallUsage
+        usage = CallUsage(
+            input_tokens=response.usage.input_tokens,
+            output_tokens=response.usage.output_tokens,
+            cache_creation_input_tokens=(
+                getattr(response.usage, "cache_creation_input_tokens", 0) or 0
+            ),
+            cache_read_input_tokens=(
+                getattr(response.usage, "cache_read_input_tokens", 0) or 0
+            ),
+        )
+        budget.record(agent="writer", model=model, usage=usage, notes="compose paper")
     body = "".join(b.text for b in response.content).strip()
     ok, errors = structural_check(body)
     if not ok:
@@ -304,10 +318,19 @@ def write_phase_a_paper(
     if candidate_value is None:
         return None
 
-    # If no baseline, assume headroom in the improving direction so the gate
-    # can still pass. min → baseline 20% higher; max → 20% lower.
+    # A relative-gain claim requires a measured comparator. Never synthesize
+    # one merely to make a first campaign publishable.
     if baseline_value is None:
-        baseline_value = candidate_value * (1.2 if direction == "min" else 0.8)
+        try:
+            with paths.notebook.open("a") as f:
+                f.write(
+                    f"\n### Writer gate: skipped {campaign_id}\n\n"
+                    f"No successful baseline run exists for `{metric}`. "
+                    "Queue or identify a comparator before publication.\n"
+                )
+        except Exception:
+            pass
+        return None
 
     existing_claims = _load_existing_claims()
     novelty_claim = campaign.get("question", "").strip() or campaign_id
@@ -370,6 +393,7 @@ def write_phase_a_paper(
         novelty_claim=novelty_claim,
         code_sha=sha,
         code_repo=repo,
+        budget=budget,
         model=model,
     )
 

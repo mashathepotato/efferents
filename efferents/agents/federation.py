@@ -30,7 +30,7 @@ import argparse
 import re
 import sys
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 EXTERNAL_HEADER = (
@@ -66,6 +66,23 @@ DEFAULT_REPRO_TOLERANCE = 0.20   # 20% relative error — typical eval-noise ban
 _ENTRY_HEADER_RE = re.compile(
     r"^## (\d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC) [—-] (\S+)\s*$"
 )
+_BUNDLE_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+
+
+def _safe_bundle_id(value: Any, label: str) -> str:
+    if not isinstance(value, str) or not _BUNDLE_ID_RE.fullmatch(value):
+        raise ValueError(f"unsafe {label} in bundle: {value!r}")
+    return value
+
+
+def _safe_bundle_relpath(value: Any) -> Path:
+    if not isinstance(value, str) or not value:
+        raise ValueError(f"unsafe file path in bundle manifest: {value!r}")
+    normalized = value.replace("\\", "/")
+    path = PurePosixPath(normalized)
+    if path.is_absolute() or ".." in path.parts or "." in path.parts:
+        raise ValueError(f"unsafe file path in bundle manifest: {value!r}")
+    return Path(*path.parts)
 
 
 def _now_str() -> str:
@@ -457,6 +474,8 @@ def export_paper_bundle(
         lab_id = lab_id or d_lab_id
         code_repo = code_repo or d_repo
         code_sha = code_sha or d_sha
+    lab_id = _safe_bundle_id(lab_id or "unknown-lab", "lab_id")
+    campaign_id = _safe_bundle_id(campaign_id, "campaign_id")
 
     paper_dir = Path(paper_dir)
     db = Path(db)
@@ -499,7 +518,15 @@ def export_paper_bundle(
     # Hypothesis lookup. hypothesis_path is stored relative to the repo root
     # (paths.root.parent / hypothesis_path), as written by the popper-gate.
     repo_root = paper_dir.parent
-    hyp_path = repo_root / hypothesis_path_str if hypothesis_path_str else None
+    hyp_path = None
+    if hypothesis_path_str:
+        candidate = (repo_root / hypothesis_path_str).resolve()
+        try:
+            candidate.relative_to(popper_corpus_root.resolve())
+        except ValueError:
+            candidate = None
+        if candidate is not None and candidate.is_file():
+            hyp_path = candidate
 
     journal_entry_md = _journal_entry_block(journal_path, campaign_id)
     runs = _campaign_runs(db, campaign_id, metric=metric, direction=direction)
@@ -650,7 +677,9 @@ def import_paper_bundle(
             # Safe extract: reject any member with absolute or escaping path.
             members = tar.getmembers()
             for m in members:
-                if m.name.startswith("/") or ".." in Path(m.name).parts:
+                normalized = m.name.replace("\\", "/")
+                member_path = PurePosixPath(normalized)
+                if member_path.is_absolute() or ".." in member_path.parts:
                     raise ValueError(f"unsafe path in bundle: {m.name!r}")
             # filter="data" (Python 3.12+) is the safest extraction policy —
             # strips ownership, rejects special files (devices, fifos), and
@@ -661,9 +690,16 @@ def import_paper_bundle(
         if not manifest_path.exists():
             raise ValueError("bundle is missing manifest.json")
         manifest = _json.loads(manifest_path.read_text())
+        if not isinstance(manifest, dict):
+            raise ValueError("bundle manifest must be a JSON object")
 
-        lab_id = manifest.get("lab_id") or "unknown-lab"
-        campaign_id = manifest.get("campaign_id") or "unknown-campaign"
+        lab_id = _safe_bundle_id(manifest.get("lab_id") or "unknown-lab", "lab_id")
+        campaign_id = _safe_bundle_id(
+            manifest.get("campaign_id") or "unknown-campaign", "campaign_id"
+        )
+        manifest_files = manifest.get("files", [])
+        if not isinstance(manifest_files, list):
+            raise ValueError("bundle manifest 'files' must be a list")
 
         # Hash verification: recompute sha256 of bundled hypothesis.md and
         # compare to manifest.hypothesis_hash. If verify_hash is True and
@@ -686,14 +722,23 @@ def import_paper_bundle(
         target_dir = paper_dir / "external" / lab_id / campaign_id
         target_dir.mkdir(parents=True, exist_ok=True)
         files_placed: list[str] = []
-        for rel in manifest.get("files", []) + ["manifest.json"]:
-            src = td_path / rel
-            if not src.exists():
+        for raw_rel in manifest_files + ["manifest.json"]:
+            rel = _safe_bundle_relpath(raw_rel)
+            src = (td_path / rel).resolve()
+            try:
+                src.relative_to(td_path.resolve())
+            except ValueError as e:
+                raise ValueError(f"bundle source escapes extraction root: {raw_rel!r}") from e
+            if not src.is_file():
                 continue
-            dst = target_dir / rel
+            dst = (target_dir / rel).resolve()
+            try:
+                dst.relative_to(target_dir.resolve())
+            except ValueError as e:
+                raise ValueError(f"bundle target escapes import root: {raw_rel!r}") from e
             dst.parent.mkdir(parents=True, exist_ok=True)
             dst.write_bytes(src.read_bytes())
-            files_placed.append(rel)
+            files_placed.append(rel.as_posix())
 
         # Consume the journal entry → paper/external_journal.md (dedup by
         # (lab_id, campaign_id) handled by consume_external_journal).

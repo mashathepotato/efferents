@@ -958,6 +958,7 @@ def propose(
             slug=slug,
             corpus_root=corpus_root,
             client=client,
+            budget=budget,
         )
         if gate_result.ok:
             campaign_id = "c-" + uuid.uuid4().hex[:10]

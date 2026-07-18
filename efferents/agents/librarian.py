@@ -58,6 +58,10 @@ CREATE TABLE IF NOT EXISTS kb_papers (
 VALID_INTENTS = ("background", "open-questions", "cross-domain-bridge")
 DEFAULT_TTL_DAYS = 30
 MAX_WEB_SEARCHES = 10
+# Claude web search is billed separately from tokens at $10 / 1,000 searches.
+# Keep this visible beside the server-tool accounting so pricing drift is easy
+# to update.
+WEB_SEARCH_COST_USD = 0.01
 
 # The custom tool definition exposed to other agents (Researcher, Coder, ...).
 # The handler is `librarian.query` via `run_with_lit_review_tool` below.
@@ -348,6 +352,7 @@ def _call_llm(
     n_searches = (server_searches.web_search_requests if server_searches else 0) or 0
     record = budget.record(
         agent="librarian", model=chosen, usage=usage,
+        extra_cost_usd=n_searches * WEB_SEARCH_COST_USD,
         notes=f"topic={topic[:60]} | searches={n_searches}",
     )
     text = "".join(b.text for b in resp.content if getattr(b, "type", "") == "text")

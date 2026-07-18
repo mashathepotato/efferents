@@ -79,3 +79,73 @@ def test_resolve_campaign_metric_invalid_direction_falls_back():
     from efferents.agents.writer import _resolve_campaign_metric
     campaign = {"headline_metric": "acc", "headline_direction": "ascending"}
     assert _resolve_campaign_metric(campaign, default=("e_w1", "min")) == ("acc", "min")
+
+
+def test_write_phase_a_paper_requires_measured_baseline(tmp_path):
+    from efferents import lab as lab_mod
+    from efferents.agents.writer import write_phase_a_paper, writer_paths
+    from efferents.lab import Budget, Executor, Headline, LabConfig, Metrics, Source
+
+    source = tmp_path / "src"
+    source.mkdir()
+    config = source / "config.yaml"
+    config.write_text("x: 1\n")
+    lab_mod.set_config(
+        LabConfig(
+            lab_id="baseline-test",
+            domain="test",
+            pi_handle=None,
+            source=Source(dir=source),
+            executor=Executor(
+                run_command="echo {config_path}",
+                smoke_command=None,
+                config_template=config,
+            ),
+            metrics=Metrics(
+                headline=Headline(column="loss", direction="min"),
+                panels=(),
+            ),
+            budget=Budget(),
+        )
+    )
+    lab_dir = tmp_path / "lab"
+    lab_dir.mkdir()
+    db = lab_dir / "runs.sqlite"
+    conn = sqlite3.connect(db)
+    conn.execute(
+        "CREATE TABLE runs (run_id TEXT, started_at TEXT, campaign_id TEXT, "
+        "status TEXT, seed INTEGER, loss REAL)"
+    )
+    conn.execute(
+        "INSERT INTO runs VALUES (?, ?, ?, ?, ?, ?)",
+        ("r1", "2026-01-01T00:00:00+00:00", "c1", "succeeded", 0, 0.1),
+    )
+    conn.commit()
+    conn.close()
+    paths = writer_paths(
+        lab=lab_dir,
+        paper=lab_dir / "paper",
+        reports=lab_dir / "reports",
+        context=tmp_path / "context",
+    )
+
+    class NoCalls:
+        @property
+        def messages(self):
+            raise AssertionError("writer must not call the model without a baseline")
+
+    result = write_phase_a_paper(
+        paths,
+        {
+            "id": "c1",
+            "question": "candidate improves loss",
+            "hypothesis_path": "popper-corpus/c1/hypothesis.md",
+            "hypothesis_hash": "sha256:" + "0" * 64,
+            "headline_metric": "loss",
+            "headline_direction": "min",
+        },
+        NoCalls(),
+    )
+
+    assert result is None
+    assert "No successful baseline run" in paths.notebook.read_text()

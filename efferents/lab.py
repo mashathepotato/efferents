@@ -41,6 +41,7 @@ CODE_REPO: str = ""
 # min score ≥ PEER_REVIEW_ACCEPT_MIN_THRESHOLD are accepted.
 # ---------------------------------------------------------------------------
 PEER_REVIEW_ENABLED: bool = False
+PEER_REVIEW_GAIN_THRESHOLD: float = 0.05
 PEER_REVIEW_ACCEPT_MEAN_THRESHOLD: float = 6.0
 PEER_REVIEW_ACCEPT_MIN_THRESHOLD: int = 4
 
@@ -214,6 +215,12 @@ def _build_labconfig(
     if not src_dir_str:
         raise SubmissionError("lab.yaml: source.dir is required")
     src_dir = (submission_dir / src_dir_str).resolve()
+    try:
+        src_dir.relative_to(submission_dir.resolve())
+    except ValueError as e:
+        raise SubmissionError(
+            f"source.dir must stay inside the submission directory: {src_dir}"
+        ) from e
     if check_paths and not src_dir.is_dir():
         raise SubmissionError(f"source.dir does not exist on disk: {src_dir}")
 
@@ -230,6 +237,12 @@ def _build_labconfig(
     if not config_template_str:
         raise SubmissionError("lab.yaml: executor.config_template is required")
     abs_config_template = (src_dir / config_template_str).resolve()
+    try:
+        abs_config_template.relative_to(src_dir)
+    except ValueError as e:
+        raise SubmissionError(
+            "executor.config_template must stay inside source.dir"
+        ) from e
     if check_paths and not abs_config_template.is_file():
         raise SubmissionError(
             f"executor.config_template not found under source.dir: {abs_config_template}"
@@ -334,6 +347,51 @@ def _build_labconfig(
         raise SubmissionError(
             "lab_id missing; provide it in lab.yaml or hypothesis.md slug"
         )
+    if not isinstance(lab_id, str) or not re.fullmatch(
+        r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", lab_id
+    ):
+        raise SubmissionError(
+            "lab_id must match [A-Za-z0-9][A-Za-z0-9._-]{0,127}"
+        )
+
+    allowed_patterns = tuple(src_block.get("allowed_patterns") or ("**/*.py",))
+    for i, pattern in enumerate(allowed_patterns):
+        if (
+            not isinstance(pattern, str)
+            or not pattern
+            or Path(pattern).is_absolute()
+            or ".." in Path(pattern).parts
+        ):
+            raise SubmissionError(
+                f"source.allowed_patterns[{i}] must be a relative, non-traversing glob"
+            )
+    env_passthrough = tuple(exe.get("env_passthrough") or ())
+    for i, name in enumerate(env_passthrough):
+        if not isinstance(name, str) or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
+            raise SubmissionError(
+                f"executor.env_passthrough[{i}] is not a valid environment variable name"
+            )
+
+    run_timeout_s = int(exe.get("run_timeout_s", 7200))
+    smoke_timeout_s = int(exe.get("smoke_timeout_s", 300))
+    daily_cap_usd = float(budget_raw.get("daily_cap_usd", 10.0))
+    flat_digest_epsilon = float(metrics_raw.get("flat_digest_epsilon", 0.005))
+    max_open_campaigns = int(raw.get("max_open_campaigns_per_student", 2))
+    gain_threshold = float(peer_review_raw.get("gain_threshold", 0.05))
+    accept_mean = float(peer_review_raw.get("accept_mean_threshold", 6.0))
+    accept_min = int(peer_review_raw.get("accept_min_threshold", 4))
+    if run_timeout_s <= 0 or smoke_timeout_s <= 0:
+        raise SubmissionError("executor timeouts must be positive")
+    if daily_cap_usd < 0:
+        raise SubmissionError("budget.daily_cap_usd must be non-negative")
+    if flat_digest_epsilon < 0:
+        raise SubmissionError("metrics.flat_digest_epsilon must be non-negative")
+    if max_open_campaigns <= 0:
+        raise SubmissionError("max_open_campaigns_per_student must be positive")
+    if gain_threshold < 0:
+        raise SubmissionError("peer_review.gain_threshold must be non-negative")
+    if not 0 <= accept_mean <= 10 or not 0 <= accept_min <= 10:
+        raise SubmissionError("peer-review acceptance thresholds must be between 0 and 10")
 
     prompts_dir_candidate = submission_dir / "prompts"
     prompts_dir = prompts_dir_candidate if prompts_dir_candidate.is_dir() else None
@@ -346,41 +404,36 @@ def _build_labconfig(
         code_repo=raw.get("code_repo"),
         source=Source(
             dir=src_dir,
-            allowed_patterns=tuple(src_block.get("allowed_patterns") or ("**/*.py",)),
+            allowed_patterns=allowed_patterns,
         ),
         executor=Executor(
             run_command=run_command,
             smoke_command=exe.get("smoke_command"),
             config_template=abs_config_template,
-            run_timeout_s=int(exe.get("run_timeout_s", 7200)),
-            smoke_timeout_s=int(exe.get("smoke_timeout_s", 300)),
-            env_passthrough=tuple(exe.get("env_passthrough") or ()),
+            run_timeout_s=run_timeout_s,
+            smoke_timeout_s=smoke_timeout_s,
+            env_passthrough=env_passthrough,
         ),
         metrics=Metrics(
             headline=Headline(column=headline_col, direction=headline_dir),
             panels=panels,
-            flat_digest_epsilon=float(metrics_raw.get("flat_digest_epsilon", 0.005)),
+            flat_digest_epsilon=flat_digest_epsilon,
             bucket_axes=bucket_axes,
         ),
         budget=Budget(
-            daily_cap_usd=float(budget_raw.get("daily_cap_usd", 10.0)),
+            daily_cap_usd=daily_cap_usd,
             sonnet_default=bool(budget_raw.get("sonnet_default", True)),
         ),
         autonomy=Autonomy(
             coder_enabled=bool(autonomy_raw.get("coder_enabled", False)),
         ),
         default_student_id=default_student_id,
-        max_open_campaigns_per_student=int(
-            raw.get("max_open_campaigns_per_student", 2)
-        ),
+        max_open_campaigns_per_student=max_open_campaigns,
         students=students,
         peer_review_enabled=bool(peer_review_raw.get("enabled", False)),
-        peer_review_accept_mean_threshold=float(
-            peer_review_raw.get("accept_mean_threshold", 6.0)
-        ),
-        peer_review_accept_min_threshold=int(
-            peer_review_raw.get("accept_min_threshold", 4)
-        ),
+        peer_review_gain_threshold=gain_threshold,
+        peer_review_accept_mean_threshold=accept_mean,
+        peer_review_accept_min_threshold=accept_min,
         prompts_dir=prompts_dir,
     )
 
@@ -403,6 +456,7 @@ class LabConfig:
         {"id": "primary", "handle": None, "focus": "", "prompt_overrides": {}},
     ))
     peer_review_enabled: bool = False
+    peer_review_gain_threshold: float = 0.05
     peer_review_accept_mean_threshold: float = 6.0
     peer_review_accept_min_threshold: int = 4
     prompts_dir: Path | None = None
@@ -443,7 +497,8 @@ def set_config(cfg: LabConfig) -> None:
     """
     global _active, LAB_ID, DOMAIN, SUBDOMAIN, PI_HANDLE, CODE_REPO
     global DEFAULT_STUDENT_ID, MAX_OPEN_CAMPAIGNS_PER_STUDENT, STUDENTS
-    global PEER_REVIEW_ENABLED, PEER_REVIEW_ACCEPT_MEAN_THRESHOLD
+    global PEER_REVIEW_ENABLED, PEER_REVIEW_GAIN_THRESHOLD
+    global PEER_REVIEW_ACCEPT_MEAN_THRESHOLD
     global PEER_REVIEW_ACCEPT_MIN_THRESHOLD
     _active = cfg
     LAB_ID = cfg.lab_id
@@ -455,6 +510,7 @@ def set_config(cfg: LabConfig) -> None:
     MAX_OPEN_CAMPAIGNS_PER_STUDENT = cfg.max_open_campaigns_per_student
     STUDENTS = [dict(student) for student in cfg.students]
     PEER_REVIEW_ENABLED = cfg.peer_review_enabled
+    PEER_REVIEW_GAIN_THRESHOLD = cfg.peer_review_gain_threshold
     PEER_REVIEW_ACCEPT_MEAN_THRESHOLD = cfg.peer_review_accept_mean_threshold
     PEER_REVIEW_ACCEPT_MIN_THRESHOLD = cfg.peer_review_accept_min_threshold
 
@@ -482,6 +538,7 @@ def _labconfig_attr_via_shim(name: str):
         "MAX_OPEN_CAMPAIGNS_PER_STUDENT": cfg.max_open_campaigns_per_student,
         "STUDENTS": list(cfg.students),
         "PEER_REVIEW_ENABLED": cfg.peer_review_enabled,
+        "PEER_REVIEW_GAIN_THRESHOLD": cfg.peer_review_gain_threshold,
         "PEER_REVIEW_ACCEPT_MEAN_THRESHOLD": cfg.peer_review_accept_mean_threshold,
         "PEER_REVIEW_ACCEPT_MIN_THRESHOLD": cfg.peer_review_accept_min_threshold,
     }

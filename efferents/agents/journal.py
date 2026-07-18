@@ -287,15 +287,23 @@ def auto_commit_paper(
         )
     ).rstrip("\n")
 
+    relative_files = list(dict.fromkeys(files))
     try:
+        staged = subprocess.run(
+            ["git", "diff", "--cached", "--quiet"],
+            cwd=str(repo_root),
+            capture_output=True,
+        )
+        if staged.returncode != 0:
+            return None
         subprocess.run(
-            ["git", "add"] + files,
+            ["git", "add", "--", *relative_files],
             cwd=str(repo_root),
             check=True,
             capture_output=True,
         )
         subprocess.run(
-            ["git", "commit", "-q", "-m", msg],
+            ["git", "commit", "-q", "--only", "-m", msg, "--", *relative_files],
             cwd=str(repo_root),
             check=True,
             capture_output=True,
@@ -309,4 +317,9 @@ def auto_commit_paper(
         ).stdout.strip()
         return sha or None
     except subprocess.CalledProcessError:
+        subprocess.run(
+            ["git", "restore", "--staged", "--", *relative_files],
+            cwd=str(repo_root),
+            capture_output=True,
+        )
         return None

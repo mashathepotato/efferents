@@ -373,7 +373,11 @@ class Orchestrator:
                 continue  # one paper per campaign; no re-write / re-review
             try:
                 artifact = writer.write_phase_a_paper(
-                    wpaths, campaign, client=self.client, budget=self.budget,
+                    wpaths,
+                    campaign,
+                    client=self.client,
+                    budget=self.budget,
+                    gain_threshold=_lab.PEER_REVIEW_GAIN_THRESHOLD,
                 )
                 if artifact is not None:
                     notify_all(
