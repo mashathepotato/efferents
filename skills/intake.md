@@ -12,6 +12,7 @@ submission-only flow that used to live here and adds:
 - existing-repo, fresh-lab, and framework-contributor entry paths;
 - first-hypothesis creation through popper-probe;
 - a bounded first run and dashboard review; and
-- the explicit private research group versus public lab decision.
+- the explicit private research group versus public lab decision, including the
+  fail-closed `efferents public-check` release preflight.
 
 Do not combine the old flow with the canonical one.

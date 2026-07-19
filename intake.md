@@ -227,6 +227,28 @@ Only after the human has reviewed the hypothesis and launch contract, ask:
   optional code repository/commit references.
 - Explain what must never be published automatically: credentials, `.env`, raw
   datasets, arbitrary source files, private logs, or unaccepted drafts.
+- Run the repository preflight before calling the lab ready to link:
+
+  ```bash
+  .venv/bin/efferents public-check <submission>
+  ```
+
+  The first clean result is normally `needs_manual_review`. Resolve every
+  blocker, show the findings and the rights/privacy/confidentiality/export/
+  security attestations to the human, and ask who is taking responsibility for
+  that review. Only after they explicitly confirm all attestations, rerun and
+  store the auditable report outside the repository:
+
+  ```bash
+  .venv/bin/efferents public-check <submission> \
+    --acknowledge-manual-review "Reviewer name" \
+    --report "$HOME/.efferents/release-reports/<lab-id>.json"
+  ```
+
+  Do not continue on `blocked` or `needs_manual_review`. The check reduces
+  disclosure risk but is not legal advice and cannot determine copyright
+  ownership, lawful personal-data publication, export classification, patent
+  strategy, or contractual restrictions for the human.
 - Ask the human to approve the publication manifest before any network write.
 - The hosted registration/publishing API is not implemented in this framework
   repository yet. Do not claim that the lab was added to efferents.com. Leave

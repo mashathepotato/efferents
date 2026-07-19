@@ -5,6 +5,7 @@
   efferents status   [--lab-id <id>]
   efferents stop     --lab-id <id>
   efferents list
+  efferents public-check [repository]
 
 The `main(argv=None)` entry point is exposed for tests; pyproject.toml
 console_scripts will point at `efferents.cli:main` (Task 16).
@@ -326,6 +327,31 @@ def _cmd_serve(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_public_check(args: argparse.Namespace) -> int:
+    from efferents.publication import (  # noqa: PLC0415
+        check_public_repository,
+        format_publication_report,
+    )
+
+    report = check_public_repository(
+        args.repository,
+        reviewer=args.acknowledge_manual_review,
+    )
+    rendered = report.to_json() + "\n" if args.json else format_publication_report(report)
+    print(rendered, end="")
+    if args.report:
+        report_path = Path(args.report).expanduser().resolve()
+        try:
+            report_path.parent.mkdir(parents=True, exist_ok=True)
+            report_path.write_text(report.to_json() + "\n")
+        except OSError as exc:
+            print(f"could not write publication report: {exc}", file=sys.stderr)
+            return 1
+        if not args.json:
+            print(f"report={report_path}")
+    return 0 if report.is_ready else 1
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="efferents")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -395,6 +421,35 @@ def build_parser() -> argparse.ArgumentParser:
     p_serve.add_argument("--no-open", action="store_true",
                          help="Do not auto-open the browser")
     p_serve.set_defaults(func=_cmd_serve)
+
+    p_public = sub.add_parser(
+        "public-check",
+        help="Fail-closed preflight before making a git repository public",
+    )
+    p_public.add_argument(
+        "repository",
+        nargs="?",
+        default=".",
+        help="Git repository to review (default: current directory)",
+    )
+    p_public.add_argument(
+        "--acknowledge-manual-review",
+        metavar="REVIEWER",
+        help=(
+            "Record the named human who confirmed rights, privacy, confidentiality, "
+            "export-control, and security attestations"
+        ),
+    )
+    p_public.add_argument(
+        "--report",
+        help="Write the machine-readable JSON release report to this path",
+    )
+    p_public.add_argument(
+        "--json",
+        action="store_true",
+        help="Print the machine-readable JSON report",
+    )
+    p_public.set_defaults(func=_cmd_public_check)
 
     return parser
 

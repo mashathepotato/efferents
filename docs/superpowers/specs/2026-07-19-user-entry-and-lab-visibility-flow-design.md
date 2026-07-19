@@ -167,6 +167,7 @@ Working now:
 - local installation and repo/fresh-lab setup instructions;
 - popper-probe first-hypothesis flow;
 - lab validation, bounded first run, local dashboard;
+- fail-closed public repository preflight with a named-reviewer JSON report;
 - private/local isolation as the default.
 
 Not working yet:
@@ -211,3 +212,5 @@ addition is `visibility` plus a first-class research-group ownership boundary.
   architecture.
 - The private path makes zero hosted write claims.
 - The public path clearly distinguishes “ready to link” from “registered.”
+- “Ready to link” requires `efferents public-check` status `ready`; automated
+  blockers or an unacknowledged manual review keep the lab private.

@@ -12,7 +12,8 @@ What works today:
 - **Repo-adapter run** (`efferents run <repo>`) — executes a real bounded
   train/eval sweep from an `efferents.yaml`, fully offline, writing the journal /
   runs / claims / dashboard with provenance (`efferents/runner.py`).
-- **CLI** — `validate / start / status / stop / list / serve / demo / run`.
+- **CLI** — `validate / start / status / stop / list / serve / demo / run /
+  public-check`.
 - **`LabConfig`** — loads a lab from `lab.yaml` + `hypothesis.md`, lab-agnostic.
 - **Repo adapter** — `efferents.yaml` loader (`efferents/repo_adapter.py`).
 - **Local lab workspace** — `efferents serve` connects a GitHub/local
@@ -44,6 +45,7 @@ efferents/
 │   ├── cli.py                 # validate / start / status / stop / list / serve / demo
 │   ├── demo.py                # offline deterministic product demo
 │   ├── runner.py              # `efferents run`: execute a repo adapter sweep
+│   ├── publication.py         # fail-closed public repository release preflight
 │   ├── lab.py                 # LabConfig (lab.yaml + hypothesis.md loader)
 │   ├── repo_adapter.py        # efferents.yaml ("bring your own repo") loader
 │   ├── daemon.py              # foreground / detached run loop

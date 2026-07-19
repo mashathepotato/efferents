@@ -157,6 +157,12 @@ prints `{"metrics": {"<metric>": <value>}}`.
   → Observe workspace. Connecting a repository clones and validates it but
   never runs its commands. Starting and stopping require an explicit
   confirmation; steering is appended to the auditable research log.
+- **Public-release preflight:** `efferents public-check <repo>` scans the tracked
+  tree and reachable git history for high-confidence disclosure risks, requires
+  explicit licence terms and a clean release commit, and cannot pass until a
+  named human acknowledges the rights/privacy/export/security checklist. It
+  never changes repository visibility or uploads anything. See
+  [`docs/PUBLIC_RELEASE_GUARDRAILS.md`](./docs/PUBLIC_RELEASE_GUARDRAILS.md).
 - **Falsifiability gate:** a hypothesis must pass an adversarial
   [popper-probe](https://github.com/mashathepotato/popper-probe) dialogue before
   the lab will spend compute on it.
