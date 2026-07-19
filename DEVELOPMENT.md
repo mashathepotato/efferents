@@ -15,7 +15,9 @@ What works today:
 - **CLI** — `validate / start / status / stop / list / serve / demo / run`.
 - **`LabConfig`** — loads a lab from `lab.yaml` + `hypothesis.md`, lab-agnostic.
 - **Repo adapter** — `efferents.yaml` loader (`efferents/repo_adapter.py`).
-- **Read-only dashboard** — `efferents serve`.
+- **Local lab workspace** — `efferents serve` connects a GitHub/local
+  submission, records steering, explicitly starts/stops the daemon, and
+  visualizes progress.
 - **Tests** — see `tests/` (run `uv run pytest tests/`).
 
 ### `efferents run` execution contract
@@ -46,7 +48,7 @@ efferents/
 │   ├── repo_adapter.py        # efferents.yaml ("bring your own repo") loader
 │   ├── daemon.py              # foreground / detached run loop
 │   ├── registry.py            # running-lab registry
-│   ├── dashboard/             # read-only HTTP dashboard (server + reader)
+│   ├── dashboard/             # local connect / steer / observe HTTP workspace
 │   ├── journal/               # paper/memo feed renderer
 │   ├── migrations/            # idempotent SQLite schema migration
 │   ├── schemas/               # pydantic paper-bundle schema
@@ -89,6 +91,20 @@ the executor produces a SQLite/JSONL row with metrics. State is file-based (no D
 server): lab state under `lab/`, popper hypotheses under `popper-corpus/`. Every
 Anthropic call goes through `efferents.agents.budget` (Sonnet default; Opus on
 the Analyst and on Researcher escalation).
+
+## Local workspace control boundary
+
+`efferents serve` binds only to `127.0.0.1`. Its entry page accepts a GitHub
+repository/README URL or an absolute local path. Connection may clone, validate,
+initialize file-backed state, and register the stopped lab; it does not execute
+repository commands. Starting and stopping are separate POST requests gated by
+a per-server CSRF token and an explicit confirmation in the UI. Steering only
+appends a timestamped `Human steering` block to
+`context/research_log.md`; the Researcher consumes it on a later pass.
+
+The browser never receives an API-key value, only a boolean indicating whether
+one is available. Static assets use a strict script CSP, responses are
+non-cacheable, and execution remains on the user's machine.
 
 ## The offline demo
 

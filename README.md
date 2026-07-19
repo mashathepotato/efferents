@@ -122,8 +122,10 @@ prints `{"metrics": {"<metric>": <value>}}`.
   conservatively against `max_gpu_hours`; this is a guardrail, not GPU
   telemetry. The live loop records model-token spend (Sonnet by default; Opus
   only where configured). External tool fees are recorded where reported.
-- **Read-only dashboard:** `efferents serve --lab-root <lab>` visualizes a lab
-  without ever mutating its state.
+- **Explicit local execution:** `efferents serve` opens a local Connect → Steer
+  → Observe workspace. Connecting a repository clones and validates it but
+  never runs its commands. Starting and stopping require an explicit
+  confirmation; steering is appended to the auditable research log.
 - **Falsifiability gate:** a hypothesis must pass an adversarial
   [popper-probe](https://github.com/mashathepotato/popper-probe) dialogue before
   the lab will spend compute on it.
@@ -134,15 +136,31 @@ prints `{"metrics": {"<metric>": <value>}}`.
 cp .env.example .env        # add ANTHROPIC_API_KEY
 efferents validate --submission examples/smoke-lab/
 efferents start    --submission examples/smoke-lab/
-efferents serve    --lab-root  examples/smoke-lab/lab   # read-only dashboard
+efferents serve                                      # open the local entry page
 ```
+
+Paste a GitHub repository or README URL into the entry page. A valid lab
+submission has a `README`, `lab.yaml`, and Popper-passed `hypothesis.md`.
+Efferents checks the repository out under `~/.efferents/checkouts/`, initializes
+its file-backed state, and exposes three local views:
+
+- **Connect** validates the submission contract without executing repository
+  code.
+- **Steer** records human direction and an optional one-cycle Researcher mode
+  in `context/research_log.md`.
+- **Observe** shows the current hypothesis, headline metric, run ledger, paper
+  register, budget, and agent activity.
+
+The workspace defaults to a clinical light theme; dark mode is an opt-in
+preference remembered by the browser. To open a known lab directly, use
+`efferents serve --lab-root examples/smoke-lab/lab`.
 
 See [`intake.md`](./intake.md) for the guided "point it at a fresh idea" flow.
 
 ## Status & design partners
 
 efferents is **early and honest about it**: the offline demo and the
-local CLI (`validate / start / status / serve`) work today; the live multi-agent
+local CLI (`validate / start / status / serve`) works today; the live multi-agent
 loop runs but its prompts are still maturing. The lab-agnostic config layer
 (`LabConfig`, the repo adapter) is in place; broader domain coverage is in
 progress.
