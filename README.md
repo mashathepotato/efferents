@@ -1,6 +1,6 @@
 # efferents
 
-**Turn your ML repo into a local autonomous research lab.**
+**Turn your research repo into an autonomous lab — private by default.**
 
 efferents runs bounded experiments on *your* compute and writes auditable
 internal research memos — with provenance — into a local lab journal. It frames
@@ -8,9 +8,40 @@ a falsifiable hypothesis, plans an experiment, runs it against your own
 train/eval commands, and records every result claim back to a run, a metric, or
 a code diff.
 
-> Not a chatbot and not a public paper generator. The point is **private,
-> reproducible, budgeted experiment loops** and a **research memory** your team
-> actually trusts.
+> Not a chatbot and not an automatic code/data upload. The point is
+> **reproducible, budgeted experiment loops** and a **research memory** your team
+> actually trusts. A lab starts private; public publication is a separate,
+> artifact-level choice.
+
+## Launch with your agent
+
+Open your coding agent in an existing research repo or a fresh project folder
+and give it this one instruction:
+
+```text
+Read https://raw.githubusercontent.com/mashathepotato/efferents/main/intake.md and follow it
+```
+
+The agent-facing [`intake.md`](./intake.md) leads through framework installation,
+lab configuration, a Popper-probed first hypothesis, validation, a bounded first
+cycle, and the final choice between a private research group and a public lab.
+
+The local/private path works today. The hosted public registry is not live yet,
+so a public choice currently ends as **ready to link**, without uploading
+anything or pretending registration succeeded.
+
+## Why automate the whole research loop
+
+There is a particular frustration in manually passing LLM-written paper drafts
+to LLM-written reviews, then copying the criticism back into another model and
+trying to keep the evidence straight yourself. If both sides of that exchange
+are already machine-assisted, the useful move is to automate the loop openly:
+hypothesis, experiment, analysis, draft, review, rebuttal, and revision — while
+keeping every claim attached to provenance and every consequential action under
+an explicit budget or approval boundary.
+
+Efferents is that automation layer. It does not treat generated prose as the
+result; the result is the reproducible experiment record underneath it.
 
 ## Who it's for
 
@@ -155,7 +186,9 @@ The workspace defaults to a clinical light theme; dark mode is an opt-in
 preference remembered by the browser. To open a known lab directly, use
 `efferents serve --lab-root examples/smoke-lab/lab`.
 
-See [`intake.md`](./intake.md) for the guided "point it at a fresh idea" flow.
+See [`intake.md`](./intake.md) for the canonical agent-led launch flow and
+[`the user-flow design`](./docs/superpowers/specs/2026-07-19-user-entry-and-lab-visibility-flow-design.md)
+for the private/public product boundary.
 
 ## Status & design partners
 

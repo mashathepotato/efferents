@@ -36,6 +36,25 @@ def test_read_state_budget_sums_cost(tmp_path, smoke_lab_config):
     assert abs(state["budget"]["spent"] - 0.03) < 1e-9
 
 
+def test_read_state_supports_popper_probe_hypothesis_headings(
+    tmp_path, smoke_lab_config
+):
+    (tmp_path / "hypothesis.md").write_text(
+        "# A measurable claim\n\n"
+        "## Operational restatement\n\n"
+        "Treatment improves the score by at least 10%.\n\n"
+        "## Falsifier(s)\n\n"
+        "- Improvement below 10% falsifies the claim.\n"
+    )
+
+    state = reader.read_state(tmp_path)
+
+    assert state["hypothesis"]["claim"] == (
+        "Treatment improves the score by at least 10%."
+    )
+    assert "below 10%" in state["hypothesis"]["falsifier"]
+
+
 def test_read_runs_returns_headline_and_series(tmp_path, smoke_lab_config):
     _make_runs_db(tmp_path / "runs.sqlite")
     out = reader.read_runs(tmp_path)

@@ -1,233 +1,259 @@
-# efferents intake
+# Launch an efferents research lab
 
-You are helping a human launch an autonomous research lab. They have nothing
-installed but you (Claude Code). Work in the human's **current working
-directory** — a fresh, empty project dir. Follow the steps in order and
-translate each into plain conversation for the human. Ask for their research
-claim when you reach Step 3.
+You are the setup agent for a human who wants to create an autonomous research
+lab with efferents. Work conversationally, keep the human informed, and follow
+this file in order.
 
-This runs a *bounded trial*: it exercises the full pipeline (hypothesis →
-experiment runs → dashboard) and is fully disposable — the whole project dir can
-be deleted afterward.
+The outcome is:
 
-## Step 0 — Preflight
+- a local lab configured around the human's code and compute;
+- a first hypothesis that has passed a falsifiability gate;
+- a bounded first run or an explicitly reviewed plan for one; and
+- a deliberate placement choice: a private research group or a public lab.
 
-Confirm the API key is set:
-```bash
-python3 -c "import os,sys; sys.exit(0 if os.environ.get('ANTHROPIC_API_KEY') else 1)" \
-  && echo "ANTHROPIC_API_KEY ok" || echo "MISSING ANTHROPIC_API_KEY"
-```
-If it prints `MISSING`, the key is not in the environment. In a harness where
-env vars do not persist between commands, the reliable fix is to put it in
-`submission/.env` — `run_trial.py` loads that file, and it is deleted at cleanup
-(Step 7):
-```bash
-mkdir -p submission
-printf 'ANTHROPIC_API_KEY=%s\n' "PASTE_KEY_HERE" > submission/.env
-chmod 600 submission/.env
-```
-(Or `export ANTHROPIC_API_KEY=…` in your shell.) Confirm a key is in place
-before continuing.
+The lab is **private by default**. Do not upload research, source code, data,
+logs, hypotheses, papers, credentials, or metrics unless the human explicitly
+chooses the public path and approves the exact artifact being published.
 
-Confirm you can use the **popper-probe:intake** skill (needed in Step 3). If the
-popper-probe plugin is not installed, STOP and tell the human to install it.
+## 0. Explain the boundary
 
-## Step 1 — Install efferents (needs Python ≥ 3.10)
+Tell the human:
 
-efferents requires Python ≥ 3.10. Do NOT assume the system `python3` qualifies —
-on many machines it is 3.9, and `pip install` will fail with
-`requires a different Python`.
+> Efferents runs on your machine, against commands and a budget you approve.
+> We will create the lab privately first. After you review the first hypothesis,
+> you can keep it inside your private research group or choose to make the lab
+> public. Public means selected research artifacts are published; it does not
+> expose your filesystem, data, secrets, or full repository.
 
-If `uv` is available (preferred — it can fetch a suitable Python for you):
+Do not start repository commands yet.
+
+## 1. Identify the starting point
+
+Inspect the current directory and determine which path applies:
+
+1. **Existing research repository** — use its root as the submission directory.
+   Confirm it is a git repository and show the human any uncommitted changes.
+   Never discard or overwrite their work.
+2. **Fresh research lab** — ask for a short lab name, create a new directory,
+   initialize git, and create the minimal executor/config layout after Step 3.
+3. **Framework contributor** — if the human wants to modify efferents itself,
+   clone `https://github.com/mashathepotato/efferents` and install it editable.
+
+For an existing or fresh lab, the submission directory will contain
+`README.md`, `lab.yaml`, and `hypothesis.md`. The code under `source.dir` must
+stay inside that directory in the current framework version.
+
+## 2. Install the framework
+
+Efferents requires Python 3.10 or newer. Prefer `uv`:
+
 ```bash
 uv venv --python 3.12 .venv
 uv pip install --python .venv/bin/python "git+https://github.com/mashathepotato/efferents.git"
 .venv/bin/efferents --help
 ```
 
-Otherwise, pick a system Python ≥ 3.10 explicitly and build the venv with it:
+If this is an editable framework checkout:
+
 ```bash
-PY=""
-for c in python3.13 python3.12 python3.11 python3.10; do
-  command -v "$c" >/dev/null 2>&1 && { PY="$c"; break; }
-done
-[ -z "$PY" ] && { echo "No Python >=3.10 found — install one (e.g. 'brew install python@3.12') and retry."; exit 1; }
-"$PY" -m venv .venv
-.venv/bin/pip install --upgrade pip
-.venv/bin/pip install "git+https://github.com/mashathepotato/efferents.git"
+uv venv --python 3.12 .venv
+uv pip install --python .venv/bin/python -e .
 .venv/bin/efferents --help
 ```
 
-The help output must list a `serve` subcommand. Later steps call the venv
-binaries directly (`.venv/bin/python`, `.venv/bin/efferents`) so they work even
-if your shell does not keep the venv activated between commands.
+If `uv` is unavailable, use an explicitly selected Python 3.10+ interpreter
+and `python -m venv .venv`. Do not assume the system `python3` is new enough.
 
-> Heads-up: your agent's permission policy may **block installing from a remote
-> git repo** (it gates untrusted installs — this is expected, not an error). If
-> the install is blocked, the human can approve it, or run the install line
-> themselves by pasting it at the prompt prefixed with `!`.
+The help output must include `validate`, `start`, `status`, `stop`, and `serve`.
+If installation is blocked by the agent's permission policy, ask the human to
+approve the install or run the displayed command themselves.
 
-## Step 2 — Scaffold the disposable trial kit
+## 3. Create the first falsifiable hypothesis
 
-Create these four files exactly as given.
+Ask the human for the research claim or open question they want the lab to
+start from. Ask one question at a time.
 
-`executor/stub_run.py`:
-```python
-"""Trial stub run: reads config, computes synthetic_loss, emits stdout JSON.
+Use the `popper-probe:intake` skill if it is installed. For Claude Code, its
+installation commands are:
 
-This is a stub for exercising the efferents pipeline end to end — NOT real
-research. Replace it (Step 4) if you want the trial to test your real claim.
-"""
-from __future__ import annotations
-
-import argparse
-import json
-import random
-import subprocess
-import time
-import uuid
-
-import yaml
-
-
-def _git_commit() -> str:
-    try:
-        return subprocess.check_output(
-            ["git", "rev-parse", "HEAD"], text=True, timeout=2
-        ).strip()
-    except Exception:
-        return ""
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--config", required=True)
-    parser.add_argument("--smoke", action="store_true")
-    args = parser.parse_args()
-
-    cfg = yaml.safe_load(open(args.config))
-    coefficient = float(cfg.get("coefficient", 0.5))
-    seed = int(cfg.get("seed", 42))
-    rng = random.Random(seed)
-
-    start = time.time()
-    noise = rng.gauss(0, 0.01) if not args.smoke else 0.0
-    synthetic_loss = abs(0.8 - coefficient) + noise
-
-    payload = {
-        "run_id": str(uuid.uuid4()),
-        "metrics": {"synthetic_loss": synthetic_loss},
-        "git_commit": _git_commit(),
-        "elapsed_s": time.time() - start,
-        "artifacts": [],
-    }
-    print(json.dumps(payload))
-
-
-if __name__ == "__main__":
-    main()
+```text
+/plugin marketplace add mashathepotato/popper-probe
+/plugin install popper-probe@popper
 ```
 
-`configs/default.yaml`:
-```yaml
-coefficient: 0.5
-seed: 42
+After installation, reload plugins before continuing. If the current agent
+cannot install Claude Code plugins, read and follow the agent-readable intake
+protocol instead:
+
+```text
+https://raw.githubusercontent.com/mashathepotato/popper-probe/main/skills/intake/SKILL.md
 ```
 
-`submission/lab.yaml`:
+The dialogue must produce `popper-corpus/<slug>/hypothesis.md`. Show the entire
+draft to the human and get approval before writing it. Continue only when the
+frontmatter contains:
+
 ```yaml
-lab_id: trial
-domain: synthetic
+falsifiability_gate: passed
+status: active
+```
+
+Copy the approved file to `<submission>/hypothesis.md`. If the gate fails,
+surface the diagnostic and help the human narrow or reformulate the claim; do
+not create or start a lab around an unfalsifiable claim.
+
+## 4. Configure the lab around real execution
+
+Ask for these values one at a time:
+
+1. Lab name (`lab_id`, kebab-case) and research domain.
+2. Source directory the lab may inspect or modify, relative to the submission
+   directory.
+3. Allowed file patterns. Default to the narrowest useful set.
+4. Run command containing `{config_path}`.
+5. Optional smoke command containing `{config_path}`.
+6. Config-template path relative to `source.dir`.
+7. Headline metric and whether it should be minimized or maximized.
+8. Daily LLM budget.
+9. Whether the Coder may modify source files. Default to `false`.
+
+If the human does not yet have a real executor, offer two honest choices:
+
+- create only the validated lab shell and stop before execution; or
+- copy the synthetic executor shape from
+  `examples/smoke-lab/` to test the plumbing, clearly labelling its results as
+  unrelated to the human's scientific claim.
+
+Write `<submission>/lab.yaml`. Use this shape:
+
+```yaml
+lab_id: example-lab
+domain: example-domain
+
 source:
-  dir: ../executor/
-  allowed_patterns: ["**/*.py", "**/*.yaml"]
+  dir: .
+  allowed_patterns: ["src/**/*.py", "configs/**/*.yaml"]
+
 executor:
-  run_command: "python3 -m stub_run --config {config_path}"
-  smoke_command: "python3 -m stub_run --config {config_path} --smoke"
-  config_template: ../configs/default.yaml
-  run_timeout_s: 60
+  run_command: "python -m src.run --config {config_path}"
+  smoke_command: "python -m src.run --config {config_path} --smoke"
+  config_template: configs/default.yaml
+  run_timeout_s: 7200
+  smoke_timeout_s: 300
+
 metrics:
-  headline: { column: synthetic_loss, direction: min }
+  headline: { column: validation_score, direction: max }
   panels:
-    - { column: synthetic_loss, label: "Loss" }
+    - { column: validation_score, label: "Validation score", direction: max }
   flat_digest_epsilon: 0.005
+
 budget:
-  daily_cap_usd: 2.0
+  daily_cap_usd: 10.0
+  sonnet_default: true
+
+autonomy:
+  coder_enabled: false
 ```
 
-`run_trial.py`:
-```python
-"""Disposable bounded trial runner. Not part of the efferents framework.
+Adapt the values; do not copy placeholders into a real lab. Keep credentials in
+the environment or `<submission>/.env`, never in `lab.yaml` or git.
 
-Mirrors `efferents start` minus the daemon: load config, init the lab dir, then
-run a bounded number of orchestrator iterations. Delete with the project dir.
-"""
-import os
-from pathlib import Path
+## 5. Validate and present the launch contract
 
-from efferents.lab import LabConfig
-from efferents import lab as lab_mod
-from efferents.cli import _init_lab_root
-from efferents.agents.orchestrator import Orchestrator
-from efferents.envfile import load_dotenv
-
-HERE = Path(__file__).resolve().parent
-SUB = HERE / "submission"
-MAX_ITERS = int(os.environ.get("TRIAL_MAX_ITERS", "3"))
-
-cfg = LabConfig.from_submission(SUB)
-load_dotenv(SUB / ".env")  # optional; falls back to inherited env
-lab_mod.set_config(cfg)
-lab_root = SUB / "lab"
-_init_lab_root(SUB, lab_root)
-os.chdir(SUB)  # Orchestrator uses lab_dir/context_dir relative to cwd
-Orchestrator(
-    lab_dir="lab",
-    context_dir="context",
-    daily_cap_usd=cfg.budget.daily_cap_usd,
-    dry_run=False,
-    startup_message=f"trial for lab_id={cfg.lab_id}",
-).run(max_iterations=MAX_ITERS)
-print("\nTrial done. View it:\n  .venv/bin/efferents serve --lab-root submission/lab")
-```
-
-## Step 3 — Falsifiability intake (popper-probe, in the terminal)
-
-Ask the human for their research claim. Invoke the **popper-probe:intake** skill
-on that claim — it runs the adversarial dialogue and writes a `hypothesis.md`
-with `falsifiability_gate: passed`. Copy that file to `submission/hypothesis.md`.
-
-If popper-probe emits `falsifiability_gate: failed`, the claim could not be made
-falsifiable — tell the human and re-run intake with a sharper claim.
-
-## Step 4 — (optional) Choose a real executor
-
-By default the trial uses the bundled **stub** executor, which computes a
-synthetic `synthetic_loss` unrelated to the human's claim — it proves the
-plumbing without real compute. Now that the hypothesis exists, the human may
-replace `executor/stub_run.py` and the `executor`/`metrics` blocks of
-`submission/lab.yaml` with a real executor for their domain. Otherwise continue
-with the stub.
-
-## Step 5 — Run one bounded trial
+Run:
 
 ```bash
-.venv/bin/python run_trial.py
+.venv/bin/efferents validate --submission <submission>
 ```
-Runs a bounded number of orchestrator iterations (default 3; override with
-`TRIAL_MAX_ITERS=N`) against the submission, writing results to `submission/lab/`.
-A bounded run may pause ~60s after a caught step error (e.g. a Coder/git step in
-a fresh non-git dir) before continuing — that is expected; do not abort.
 
-## Step 6 — Watch it on the dashboard
+Fix field-level errors until validation succeeds. Then present a concise launch
+contract containing:
+
+- lab id and domain;
+- hypothesis title and falsifier;
+- source directory and allowed patterns;
+- exact run and smoke commands;
+- headline metric and direction;
+- Coder enabled/disabled;
+- daily budget;
+- current placement: **private, unlinked**.
+
+Ask for explicit approval before executing any repository-defined command.
+
+## 6. Run the first bounded cycle
+
+If the human wants a no-LLM plumbing check first:
 
 ```bash
-.venv/bin/efferents serve --lab-root submission/lab
+.venv/bin/efferents start --submission <submission> --dry-run --max-iterations 1
 ```
-Open the printed `http://localhost:8800` link and report it to the human. The
-read-only dashboard shows the hypothesis, the trial run(s), the headline metric,
-and agent activity.
 
-## Step 7 — Cleanup
+If `ANTHROPIC_API_KEY` is available and the human approved real execution:
 
-When the human is done, the entire project dir is disposable: `rm -rf` it.
+```bash
+.venv/bin/efferents start --submission <submission> --max-iterations 3
+```
+
+Do not detach the first run. Keep it bounded so the human can inspect what the
+lab does. Then open the workspace:
+
+```bash
+.venv/bin/efferents serve --lab-root <submission>/lab
+```
+
+Report the local URL. Show the first hypothesis, run ledger, budget, agent log,
+and any paper/memo produced. If no experiment ran, say so plainly and explain
+what executor or approval is still missing.
+
+## 7. Ask where the lab belongs
+
+Only after the human has reviewed the hypothesis and launch contract, ask:
+
+> Keep this lab in your private research group, or prepare it as a public lab
+> on efferents.com?
+
+### Private research group — default
+
+- Keep the full lab state in its isolated local environment.
+- Do not publish or sync hypotheses, papers, metrics, logs, source, or data.
+- Other labs and other users receive no feed access and share no files with it.
+- Explain that team invitations/private hosted group sync are a future platform
+  capability; the framework's working privacy boundary today is local storage.
+
+### Public lab — explicit opt-in
+
+- Explain exactly what may eventually be published: lab identity/domain, the
+  approved seed hypothesis, accepted paper bundles, metric provenance, and
+  optional code repository/commit references.
+- Explain what must never be published automatically: credentials, `.env`, raw
+  datasets, arbitrary source files, private logs, or unaccepted drafts.
+- Ask the human to approve the publication manifest before any network write.
+- The hosted registration/publishing API is not implemented in this framework
+  repository yet. Do not claim that the lab was added to efferents.com. Leave
+  it private and report it as **ready to link** when the hosted surface ships.
+
+Changing from private to public must always be an explicit later action. Making
+a public lab private stops future publication; it cannot silently erase
+artifacts that were already made public.
+
+## 8. Handoff
+
+Report:
+
+- lab id and local path;
+- first hypothesis path;
+- validation and first-run outcome;
+- dashboard command;
+- placement choice and whether it is local, ready to link, or linked;
+- how to start a longer run, only if the human wants one:
+
+```bash
+.venv/bin/efferents start --submission <submission> --detach
+.venv/bin/efferents status --lab-id <lab-id>
+```
+
+The human remains the owner of the lab and can stop it with:
+
+```bash
+.venv/bin/efferents stop --lab-id <lab-id>
+```

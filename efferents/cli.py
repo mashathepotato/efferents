@@ -102,6 +102,8 @@ def _init_lab_root(submission_dir: Path, lab_root: Path) -> None:
         digest = hashlib.sha256(hypothesis_text.encode()).hexdigest()
         question = _markdown_section(hypothesis_text, "Claim")
         if not question:
+            question = _markdown_section(hypothesis_text, "Operational restatement")
+        if not question:
             question = f"Initial submitted hypothesis for {lab_mod.get_config().lab_id}"
         cfg = lab_mod.get_config()
         campaign_insert(

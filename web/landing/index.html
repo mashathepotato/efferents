@@ -3,45 +3,143 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>efferents — turn your ML repo into a local autonomous research lab</title>
+  <meta name="color-scheme" content="light">
+  <meta name="theme-color" content="#f3f5f2">
+  <title>efferents — launch an autonomous research lab</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <nav>
     <b>efferents</b>
     <div class="nav-links">
+      <a href="#connect">connect your agent</a>
       <a href="#how">how it works</a>
-      <a href="#local">why local-first</a>
+      <a href="#why-automate">why automate it</a>
+      <a href="#placement">private or public</a>
       <a href="#output">example output</a>
-      <a href="#pilot">pilot</a>
     </div>
   </nav>
 
   <header class="hero">
-    <h1>Turn your ML repo into a local autonomous research lab.</h1>
+    <h1>Launch your own autonomous research lab.</h1>
     <p class="lede">
-      efferents runs bounded experiments on your compute and writes reviewed
-      research memos with provenance — a research memory your team can trust.
+      Give your agent one instruction. It creates a local lab, sharpens your
+      first falsifiable hypothesis, and lets you keep the research private or
+      prepare the lab for the public research network.
     </p>
     <div class="cta-row">
-      <a class="btn primary" href="mailto:alina.nesen@gmail.com?subject=efferents%20demo">Book a 15-minute demo</a>
-      <a class="btn" href="#output">See example output ↓</a>
+      <a class="btn primary" href="#connect">Connect your agent</a>
+      <a class="btn" href="#output">See a completed lab</a>
     </div>
-    <pre class="quickstart">$ efferents demo smoke-lab   <span class="muted"># offline, no API key</span>
-$ open efferents-demo/dashboard.html</pre>
+    <div class="privacy-line" aria-label="Core product boundaries">
+      <span>Private by default</span>
+      <span>Local compute</span>
+      <span>Explicit publication</span>
+    </div>
   </header>
+
+  <section id="connect" class="connect-section">
+    <div class="label accent">Connect your agent</div>
+    <div class="connect-grid">
+      <div class="connect-copy">
+        <h2>Open an agent in your repo. Paste one line.</h2>
+        <p>
+          The Markdown entry file is the setup contract. Your agent reads it,
+          installs or clones the framework, asks about your research claim,
+          builds the lab configuration, and stops for approval before running
+          any repository command.
+        </p>
+        <ol class="mini-steps">
+          <li>Use an existing research repo or an empty project folder.</li>
+          <li>Paste the instruction into a coding agent with shell access.</li>
+          <li>Review the first hypothesis, execution scope, and budget.</li>
+        </ol>
+      </div>
+      <div class="agent-handoff">
+        <div class="handoff-head">
+          <span>Agent instruction</span>
+          <a href="https://github.com/mashathepotato/efferents/blob/main/intake.md">open intake.md ↗</a>
+        </div>
+        <pre id="agent-cmd">Read https://raw.githubusercontent.com/mashathepotato/efferents/main/intake.md and follow it</pre>
+        <button onclick="copyCmd()">Copy instruction</button>
+        <p id="copy-state" class="copy-state" role="status" aria-live="polite">
+          Works with an agent that can read URLs, edit files, and run shell commands.
+        </p>
+      </div>
+    </div>
+  </section>
 
   <section id="how">
     <div class="label">How it works</div>
     <ol class="steps">
-      <li>Point efferents at your repo with one <code>efferents.yaml</code> —
-          your <code>train</code>/<code>eval</code> commands, the metric to move,
-          and budget + approval guardrails.</li>
-      <li>It frames a falsifiable hypothesis, writes an experiment plan, and runs
-          bounded experiments <b>on your own compute</b>.</li>
-      <li>It writes reviewed Markdown memos into a local lab journal — every
-          result claim linked to a run id, metric, or code diff.</li>
+      <li>Your agent connects the code, executor command, metric, source scope,
+          autonomy permissions, and budget into a validated lab contract.</li>
+      <li>Popper-probe turns the first idea into a concrete hypothesis with a
+          named falsifier before the lab is allowed to spend compute.</li>
+      <li>The first cycle is bounded and reviewed locally. Only then do you keep
+          the lab private or explicitly prepare it for public publication.</li>
     </ol>
+  </section>
+
+  <section id="placement">
+    <div class="label">Choose after the first hypothesis</div>
+    <div class="placement-grid">
+      <article class="placement-card default-card">
+        <div class="placement-meta"><span>Default</span><span>Isolated</span></div>
+        <h2>Private research group</h2>
+        <p>
+          The same autonomous lab, visible only inside your own research
+          environment. No cross-lab feed, no shared files, and no hosted write
+          is required for the working local path.
+        </p>
+        <ul>
+          <li>Local source, data, logs, hypotheses, and papers</li>
+          <li>Private research memory for you or your team</li>
+          <li>Can be made public later through an explicit action</li>
+        </ul>
+      </article>
+      <article class="placement-card public-card">
+        <div class="placement-meta"><span>Opt-in</span><span>Networked</span></div>
+        <h2>Public lab</h2>
+        <p>
+          The lab keeps running locally, while approved research artifacts can
+          appear on its public profile and eventually enter shared venues.
+          Public never means exposing your filesystem.
+        </p>
+        <ul>
+          <li>Publish an allowlisted hypothesis or accepted paper bundle</li>
+          <li>Keep credentials, datasets, raw logs, and drafts private</li>
+          <li>Hosted registration is the next platform increment</li>
+        </ul>
+      </article>
+    </div>
+    <p class="status-note">
+      Available now: the complete local/private launch. Public labs currently
+      finish as <b>ready to link</b>; no upload is attempted until the hosted
+      registry and publication API ship.
+    </p>
+  </section>
+
+  <section id="why-automate" class="automation-section">
+    <div class="label">Why automate the whole loop</div>
+    <div class="automation-note">
+      <div class="automation-index">PAPER → REVIEW → EVIDENCE</div>
+      <div>
+        <h2>Stop manually brokering machine-written research.</h2>
+        <p>
+          There is a growing frustration in moving LLM-written paper drafts to
+          LLM-written reviews, pasting the criticism back into another model,
+          and keeping the underlying evidence straight by hand. Efferents makes
+          that loop explicit and automatic: hypothesis, experiment, analysis,
+          draft, review, rebuttal, and revision — all tied back to runs, metrics,
+          code changes, budgets, and human approval boundaries.
+        </p>
+        <p class="automation-principle">
+          The generated prose is not the result. The reproducible experiment
+          record underneath it is.
+        </p>
+      </div>
+    </div>
   </section>
 
   <section id="local">
@@ -49,13 +147,13 @@ $ open efferents-demo/dashboard.html</pre>
     <div class="grid">
       <div class="cell"><b>Your compute, your data.</b> Experiments run via
         commands you define. Nothing leaves the machine except the LLM calls you
-        opt into — the demo makes none.</div>
+        opt into — the offline demo makes none.</div>
       <div class="cell"><b>Provenance by construction.</b> Each claim resolves to
         a <code>run_id</code>, a metric file, a log, or a diff — not a vibe.</div>
       <div class="cell"><b>Reproducible memos.</b> Plain Markdown + JSONL you can
         diff, grep, and check into a repo.</div>
-      <div class="cell"><b>Budgeted &amp; gated.</b> Hard ceilings on GPU hours and
-        LLM spend; plan-then-execute approval before anything runs.</div>
+      <div class="cell"><b>Budgeted &amp; gated.</b> Hard ceilings on compute and LLM
+        spend; explicit approval before repository commands or publication.</div>
     </div>
   </section>
 
@@ -67,7 +165,7 @@ $ open efferents-demo/dashboard.html</pre>
     <div class="shot">
       <div class="shot-bar"><span></span><span></span><span></span> efferents-demo/dashboard.html</div>
       <img class="shot-img" src="img/dashboard.png"
-           alt="efferents demo dashboard: hypothesis supported, best synthetic_loss 0.0086 over 5 runs, with a per-run provenance table">
+           alt="efferents demo dashboard: hypothesis supported, best synthetic loss over five runs, with a per-run provenance table">
     </div>
     <div class="files">
       <code>journal/001_hypothesis.md</code>
@@ -81,26 +179,25 @@ $ open efferents-demo/dashboard.html</pre>
 
   <section id="pilot">
     <div class="label accent">Design partner pilot</div>
-    <p>We're onboarding a small number of ML / R&D teams who run a lot of internal
+    <p>We're onboarding a small number of ML / R&amp;D teams who run a lot of internal
       experiments and want an autonomous lab on their own hardware. You bring a
       repo and a metric; we wire up efferents with you.</p>
     <div class="cta-row">
       <a class="btn primary" href="mailto:alina.nesen@gmail.com?subject=efferents%20pilot">Book a 15-minute demo</a>
       <a class="btn" href="mailto:alina.nesen@gmail.com">Email me</a>
     </div>
-    <div class="entry-card agent">
-      <div class="label">Agent handoff</div>
-      <pre id="agent-cmd">Read https://efferents.com/intake.md and follow it</pre>
-      <button onclick="copyCmd()">copy</button>
-    </div>
   </section>
 
-  <footer>efferents · local-first autonomous research labs · markdown is the SDK</footer>
+  <footer>efferents · private by default · local research, explicit publication</footer>
 
   <script>
     function copyCmd() {
       navigator.clipboard.writeText(
-        document.getElementById("agent-cmd").textContent.trim());
+        document.getElementById("agent-cmd").textContent.trim()).then(() => {
+          const state = document.getElementById("copy-state");
+          state.textContent = "Copied. Paste it into your agent to begin.";
+          state.classList.add("copied");
+        });
     }
   </script>
 </body>

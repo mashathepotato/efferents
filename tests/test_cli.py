@@ -73,6 +73,30 @@ def test_start_foreground_registers_and_runs(tmp_path, monkeypatch, capsys):
     assert "sample-conjecture research log" in context_log.read_text()
 
 
+def test_start_seeds_campaign_from_popper_operational_restatement(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setenv("EFFERENTS_HOME", str(tmp_path / "home"))
+    sub = tmp_path / "sub"
+    shutil.copytree(SAMPLE, sub)
+    (sub / "hypothesis.md").write_text(
+        "---\nslug: sample-conjecture\nfalsifiability_gate: passed\n"
+        "status: active\n---\n\n"
+        "# Claim title\n\n"
+        "## Operational restatement\n\n"
+        "Treatment improves the score by at least 10%.\n\n"
+        "## Falsifier(s)\n\n- Less than 10% improvement.\n"
+    )
+    monkeypatch.setattr("efferents.cli._orchestrator_loop", lambda **kwargs: None)
+
+    assert main(["start", "--submission", str(sub)]) == 0
+
+    import sqlite3
+    with sqlite3.connect(sub / "lab" / "runs.sqlite") as conn:
+        question = conn.execute("SELECT question FROM campaigns").fetchone()[0]
+    assert question == "Treatment improves the score by at least 10%."
+
+
 def test_start_detach_writes_pidfile(tmp_path, monkeypatch):
     """Detach path forks; we test the post-fork bookkeeping via a stubbed daemonize call."""
     monkeypatch.setenv("EFFERENTS_HOME", str(tmp_path / "home"))

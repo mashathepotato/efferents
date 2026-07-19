@@ -136,8 +136,8 @@ def _current_hypothesis(lab_root: Path, lab_id: str) -> dict:
     claim = falsifier = ""
     if hyp_md.exists():
         text = hyp_md.read_text()
-        claim = _section(text, "Claim")
-        falsifier = _section(text, "Falsifier")
+        claim = _section(text, "Claim") or _section(text, "Operational restatement")
+        falsifier = _section(text, "Falsifier") or _section(text, "Falsifier(s)")
     return {"question": question, "claim": claim,
             "falsifier": falsifier, "student": student}
 
