@@ -11,18 +11,22 @@ import json
 import math
 import sqlite3
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from efferents import daemon
 from efferents import lab as lab_mod
 from efferents.agents import state as state_mod
 from efferents.journal.feed import render_feed
 
+if TYPE_CHECKING:
+    from efferents.lab import LabConfig
+
 _ACTIVITY_BODY_PREVIEW = 300
 
 
-def read_state(lab_root: Path) -> dict:
+def read_state(lab_root: Path, cfg: "LabConfig | None" = None) -> dict:
     lab_root = Path(lab_root)
-    cfg = lab_mod.get_config()
+    cfg = cfg or lab_mod.get_config()
     pid = daemon.read_pidfile(lab_root / "daemon.pid")
     running = pid is not None and daemon.is_pid_alive(pid)
     return {
@@ -37,9 +41,11 @@ def read_state(lab_root: Path) -> dict:
     }
 
 
-def read_runs(lab_root: Path, n: int = 30) -> dict:
+def read_runs(
+    lab_root: Path, n: int = 30, cfg: "LabConfig | None" = None
+) -> dict:
     lab_root = Path(lab_root)
-    cfg = lab_mod.get_config()
+    cfg = cfg or lab_mod.get_config()
     column = cfg.metrics.headline.column
     direction = cfg.metrics.headline.direction
     def _finite(x):

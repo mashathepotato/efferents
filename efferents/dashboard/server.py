@@ -9,14 +9,17 @@ from __future__ import annotations
 
 import json
 import logging
+import secrets
 import webbrowser
 from functools import partial
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
+from efferents.dashboard.control import ControlContext, ControlError
 from efferents.dashboard import reader
 
 STATIC_DIR = Path(__file__).parent / "static"
+_MAX_BODY_BYTES = 32_768
 
 _log = logging.getLogger(__name__)
 
@@ -28,10 +31,21 @@ _CONTENT_TYPES = {
 
 
 class DashboardHandler(BaseHTTPRequestHandler):
-    lab_root: Path
+    lab_root: Path | None
+    control: ControlContext
+    csrf_token: str
 
-    def __init__(self, *args, lab_root: Path, **kwargs):
-        self.lab_root = Path(lab_root)
+    def __init__(
+        self,
+        *args,
+        lab_root: Path | None,
+        control: ControlContext,
+        csrf_token: str,
+        **kwargs,
+    ):
+        self.lab_root = Path(lab_root) if lab_root is not None else None
+        self.control = control
+        self.csrf_token = csrf_token
         super().__init__(*args, **kwargs)
 
     def do_GET(self):  # noqa: N802 (stdlib naming)
@@ -39,14 +53,32 @@ class DashboardHandler(BaseHTTPRequestHandler):
             path = self.path.split("?", 1)[0]
             if path in ("/", "/index.html"):
                 return self._send_file(STATIC_DIR / "dashboard.html")
+            if path == "/api/control":
+                payload = self.control.info()
+                payload["csrf_token"] = self.csrf_token
+                return self._send_json(payload)
+
+            connected = self.control.snapshot()
             if path == "/api/state":
-                return self._send_json(reader.read_state(self.lab_root))
+                if connected is None:
+                    return self._send_json(_empty_state())
+                return self._send_json(
+                    reader.read_state(connected.lab_root, cfg=connected.cfg)
+                )
             if path == "/api/runs":
-                return self._send_json(reader.read_runs(self.lab_root))
+                if connected is None:
+                    return self._send_json(_empty_runs())
+                return self._send_json(
+                    reader.read_runs(connected.lab_root, cfg=connected.cfg)
+                )
             if path == "/api/papers":
-                return self._send_json(reader.read_papers(self.lab_root))
+                return self._send_json(
+                    reader.read_papers(connected.lab_root) if connected else []
+                )
             if path == "/api/activity":
-                return self._send_json(reader.read_activity(self.lab_root))
+                return self._send_json(
+                    reader.read_activity(connected.lab_root) if connected else []
+                )
             if path.startswith("/static/"):
                 target = (STATIC_DIR / path[len("/static/"):]).resolve()
                 if STATIC_DIR in target.parents and target.is_file():
@@ -56,11 +88,76 @@ class DashboardHandler(BaseHTTPRequestHandler):
             _log.exception("dashboard request failed: %s", self.path)
             self.send_error(500)
 
-    def _send_json(self, obj) -> None:
+    def do_POST(self):  # noqa: N802 (stdlib naming)
+        path = self.path.split("?", 1)[0]
+        try:
+            self._require_csrf()
+            payload = self._read_json()
+            if path == "/api/connect":
+                return self._send_json(
+                    self.control.connect(str(payload.get("source") or "")),
+                    status=200,
+                )
+            if path == "/api/steer":
+                return self._send_json(self.control.steer(
+                    str(payload.get("message") or ""),
+                    str(payload.get("mode") or "auto"),
+                ))
+            if path == "/api/lab/start":
+                return self._send_json(
+                    self.control.start(payload.get("confirmed") is True)
+                )
+            if path == "/api/lab/stop":
+                return self._send_json(
+                    self.control.stop(payload.get("confirmed") is True)
+                )
+            self.send_error(404)
+        except ControlError as exc:
+            self._send_json({"error": str(exc)}, status=exc.status)
+        except (json.JSONDecodeError, UnicodeDecodeError, TypeError, ValueError):
+            self._send_json({"error": "Request body must be valid JSON."}, status=400)
+        except Exception:
+            _log.exception("dashboard mutation failed: %s", path)
+            self._send_json({"error": "Local control request failed."}, status=500)
+
+    def _require_csrf(self) -> None:
+        supplied = self.headers.get("X-Efferents-CSRF", "")
+        if not secrets.compare_digest(supplied, self.csrf_token):
+            raise ControlError("Missing or invalid local control token.", status=403)
+
+    def _read_json(self) -> dict:
+        content_type = self.headers.get("Content-Type", "").split(";", 1)[0].strip()
+        if content_type != "application/json":
+            raise ControlError("Content-Type must be application/json.", status=415)
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+        except ValueError as exc:
+            raise ControlError("Content-Length is invalid.") from exc
+        if length <= 0 or length > _MAX_BODY_BYTES:
+            raise ControlError("Request body is empty or too large.", status=413)
+        payload = json.loads(self.rfile.read(length).decode("utf-8"))
+        if not isinstance(payload, dict):
+            raise ControlError("Request body must be a JSON object.")
+        return payload
+
+    def _security_headers(self) -> None:
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("Referrer-Policy", "no-referrer")
+        self.send_header(
+            "Content-Security-Policy",
+            "default-src 'self'; img-src 'self' data:; "
+            "style-src 'self'; script-src 'self'; connect-src 'self'; "
+            "object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
+        )
+
+    def _send_json(self, obj, *, status: int = 200) -> None:
         body = json.dumps(obj).encode()
-        self.send_response(200)
+        self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
+        self._security_headers()
         self.end_headers()
         self.wfile.write(body)
 
@@ -72,6 +169,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Type",
                          _CONTENT_TYPES.get(path.suffix, "application/octet-stream"))
         self.send_header("Content-Length", str(len(data)))
+        self._security_headers()
         self.end_headers()
         self.wfile.write(data)
 
@@ -79,12 +177,46 @@ class DashboardHandler(BaseHTTPRequestHandler):
         pass
 
 
-def make_server(lab_root: Path, port: int = 8800) -> ThreadingHTTPServer:
-    handler = partial(DashboardHandler, lab_root=Path(lab_root))
+def _empty_state() -> dict:
+    return {
+        "lab_id": "no-lab-connected",
+        "domain": "",
+        "status": "disconnected",
+        "budget": {"spent": 0.0, "cap": 0.0},
+        "hypothesis": {"question": "", "claim": "", "falsifier": "", "student": ""},
+    }
+
+
+def _empty_runs() -> dict:
+    return {
+        "headline": {"column": "metric", "direction": "min"},
+        "runs": [],
+        "series": [],
+    }
+
+
+def make_server(
+    lab_root: Path | None,
+    port: int = 8800,
+    *,
+    control: ControlContext | None = None,
+) -> ThreadingHTTPServer:
+    control = control or ControlContext.from_initial_root(lab_root)
+    csrf_token = secrets.token_urlsafe(32)
+    handler = partial(
+        DashboardHandler,
+        lab_root=Path(lab_root) if lab_root is not None else None,
+        control=control,
+        csrf_token=csrf_token,
+    )
     return ThreadingHTTPServer(("127.0.0.1", port), handler)
 
 
-def serve(lab_root: Path, port: int = 8800, open_browser: bool = True) -> None:
+def serve(
+    lab_root: Path | None,
+    port: int = 8800,
+    open_browser: bool = True,
+) -> None:
     httpd = make_server(lab_root, port)
     url = f"http://localhost:{httpd.server_address[1]}"
     print(f"efferents dashboard: {url}  (Ctrl-C to stop)")

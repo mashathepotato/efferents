@@ -313,13 +313,14 @@ def _cmd_serve(args: argparse.Namespace) -> int:
     # lab root is a valid config source, but source.dir and config_template in
     # that copied lab.yaml are relative to the *submission* root, not lab/.
     # We don't need to run code here (serve is read-only), so skip path checks.
+    connected_root: Path | None = lab_root
     try:
         cfg = LabConfig.from_submission(lab_root, check_paths=False)
-    except SubmissionError as e:
-        print(f"could not load lab config from {lab_root}: {e}", file=sys.stderr)
-        return 1
-    lab_mod.set_config(cfg)
-    dash_server.serve(lab_root, port=args.port, open_browser=not args.no_open)
+    except SubmissionError:
+        connected_root = None
+    else:
+        lab_mod.set_config(cfg)
+    dash_server.serve(connected_root, port=args.port, open_browser=not args.no_open)
     return 0
 
 
@@ -382,7 +383,10 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_run.set_defaults(func=_cmd_run)
 
-    p_serve = sub.add_parser("serve", help="Start the read-only web dashboard")
+    p_serve = sub.add_parser(
+        "serve",
+        help="Start the local lab connection, steering, and observer app",
+    )
     p_serve.add_argument("--lab-root", default="lab",
                          help="Initialized lab directory (relative to cwd)")
     p_serve.add_argument("--port", type=int, default=8800)

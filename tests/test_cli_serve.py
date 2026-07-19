@@ -49,3 +49,24 @@ def test_cmd_serve_loads_config_and_starts(tmp_path, monkeypatch):
     assert rc == 0
     assert called["port"] == 8800
     assert called["open_browser"] is False
+
+
+def test_cmd_serve_starts_entry_page_without_existing_lab(tmp_path, monkeypatch):
+    called = {}
+
+    def fake_serve(lab_root, port, open_browser):
+        called["lab_root"] = lab_root
+        called["port"] = port
+
+    monkeypatch.setattr("efferents.dashboard.server.serve", fake_serve)
+
+    import argparse
+    args = argparse.Namespace(
+        lab_root=str(tmp_path / "not-connected"),
+        port=8800,
+        no_open=True,
+    )
+    rc = cli._cmd_serve(args)
+
+    assert rc == 0
+    assert called["lab_root"] is None
