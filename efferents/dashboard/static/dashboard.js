@@ -1,7 +1,31 @@
+let csrfToken = "";
+let controlState = { connected: false };
+let isConnecting = false;
+let runtimeAction = "start";
+
 async function getJSON(path) {
   const response = await fetch(path);
-  if (!response.ok) throw new Error(`${path} ${response.status}`);
-  return response.json();
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(payload.error || `${path} returned ${response.status}`);
+  }
+  return payload;
+}
+
+async function postJSON(path, payload) {
+  const response = await fetch(path, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Efferents-CSRF": csrfToken,
+    },
+    body: JSON.stringify(payload),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(body.error || `${path} returned ${response.status}`);
+  }
+  return body;
 }
 
 function esc(value) {
@@ -17,6 +41,13 @@ function text(id, value) {
   if (element) element.textContent = value == null ? "" : String(value);
 }
 
+function showMessage(id, message = "", type = "") {
+  const element = document.getElementById(id);
+  if (!element) return;
+  element.textContent = message;
+  element.className = `form-message${type ? ` ${type}` : ""}`;
+}
+
 function formatMetric(value) {
   if (value == null || !Number.isFinite(Number(value))) return "—";
   const number = Number(value);
@@ -30,7 +61,9 @@ function formatMetric(value) {
 function formatTimestamp(value, compact = false) {
   if (!value) return "—";
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return String(value).replace("T", " ").slice(0, compact ? 16 : 19);
+  if (Number.isNaN(date.getTime())) {
+    return String(value).replace("T", " ").slice(0, compact ? 16 : 19);
+  }
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "UTC",
     year: "numeric",
@@ -46,14 +79,157 @@ function formatTimestamp(value, compact = false) {
     (compact ? "" : `:${get("second")}`);
 }
 
-function renderState(state) {
-  text("lab-id", state.lab_id || "unnamed-lab");
-  text("domain", state.domain || "unclassified");
+function setTheme(theme) {
+  const dark = theme === "dark";
+  document.documentElement.dataset.theme = dark ? "dark" : "light";
+  text("theme-label", dark ? "Light" : "Dark");
+  const toggle = document.getElementById("theme-toggle");
+  toggle.setAttribute("aria-label", dark ? "Switch to light theme" : "Switch to dark theme");
+}
 
-  const status = String(state.status || "stopped").toLowerCase();
+function initTheme() {
+  const stored = localStorage.getItem("efferents-theme");
+  setTheme(stored === "dark" ? "dark" : "light");
+  document.getElementById("theme-toggle").addEventListener("click", () => {
+    const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+    localStorage.setItem("efferents-theme", next);
+    setTheme(next);
+  });
+}
+
+function currentRoute() {
+  const route = window.location.hash.replace(/^#/, "");
+  return ["connect", "steer", "observe"].includes(route) ? route : "connect";
+}
+
+function renderRoute() {
+  let route = currentRoute();
+  if (!controlState.connected && route !== "connect") {
+    route = "connect";
+    if (window.location.hash !== "#connect") {
+      history.replaceState(null, "", "#connect");
+    }
+  }
+  document.querySelectorAll("[data-route-view]").forEach((view) => {
+    view.hidden = view.dataset.routeView !== route;
+  });
+  document.querySelectorAll("[data-route-link]").forEach((link) => {
+    if (link.dataset.routeLink === route) {
+      link.setAttribute("aria-current", "page");
+    } else {
+      link.removeAttribute("aria-current");
+    }
+  });
+  document.title = `efferents — ${route}`;
+}
+
+function initRouting() {
+  window.addEventListener("hashchange", renderRoute);
+  document.querySelectorAll("[data-route-link]").forEach((link) => {
+    link.addEventListener("click", (event) => {
+      if (link.getAttribute("aria-disabled") === "true") {
+        event.preventDefault();
+        showMessage("connect-message", "Connect a lab before opening this workspace.", "error");
+      }
+    });
+  });
+  renderRoute();
+}
+
+function setRuntimeStatus(status) {
+  const normalized = String(status || "stopped").toLowerCase();
   const badge = document.getElementById("status-badge");
-  badge.className = `status-badge ${status}`;
-  text("status-text", status);
+  badge.className = `status-badge ${normalized}`;
+  text("status-text", normalized);
+  text("connected-summary-status", normalized);
+  text("steer-runtime-state", normalized === "running" ? "agent is running" : "queued locally");
+}
+
+function setContractState(contract, phase = "result") {
+  document.querySelectorAll("[data-contract]").forEach((item) => {
+    const key = item.dataset.contract;
+    const state = item.querySelector(".check-state");
+    item.classList.remove("checking", "passed");
+    if (phase === "checking") {
+      item.classList.add("checking");
+      state.textContent = "checking";
+    } else if (contract?.[key]) {
+      item.classList.add("passed");
+      state.textContent = "passed";
+    } else {
+      state.textContent = "waiting";
+    }
+  });
+}
+
+function renderSteering(records) {
+  const steering = Array.isArray(records) ? records : [];
+  text("steering-count", `${steering.length} ${steering.length === 1 ? "record" : "records"}`);
+  const element = document.getElementById("steering-history");
+  if (!steering.length) {
+    element.innerHTML = '<div class="empty-state">No human directions recorded yet</div>';
+    return;
+  }
+  element.innerHTML = steering.map((record) => {
+    const mode = String(record.mode || "auto").replace(/_/g, " ");
+    return `<article class="steering-record">` +
+      `<div class="steering-record-meta">` +
+        `<time>${esc(formatTimestamp(record.timestamp, true))} UTC</time>` +
+        `<span class="steering-mode">${esc(mode)}</span>` +
+      `</div>` +
+      `<p>${esc(record.message || "")}</p>` +
+    `</article>`;
+  }).join("");
+}
+
+function renderControl(info) {
+  if (info.csrf_token) csrfToken = info.csrf_token;
+  controlState = { ...controlState, ...info };
+  const connected = Boolean(info.connected);
+  controlState.connected = connected;
+
+  document.querySelectorAll('[data-route-link="steer"], [data-route-link="observe"]').forEach((link) => {
+    link.setAttribute("aria-disabled", connected ? "false" : "true");
+  });
+
+  const connectionBar = document.getElementById("connection-bar");
+  const summary = document.getElementById("connected-summary");
+  const budget = document.getElementById("budget-meta");
+  connectionBar.hidden = !connected;
+  summary.hidden = !connected;
+  budget.hidden = !connected;
+
+  if (!connected) {
+    text("lab-id", "connect a lab");
+    text("domain", "local");
+    setRuntimeStatus("disconnected");
+    if (!isConnecting) setContractState(info.contract);
+    renderSteering([]);
+    renderRoute();
+    return;
+  }
+
+  text("lab-id", info.lab_id || "unnamed-lab");
+  text("domain", info.domain || "unclassified");
+  text("connection-source", info.source || info.submission_dir || "local submission");
+  text("connected-summary-name", info.lab_id || "unnamed-lab");
+  text("connected-summary-domain", info.domain || "unclassified");
+  text("connected-summary-path", info.submission_dir || "—");
+  setRuntimeStatus(info.status);
+  setContractState(info.contract);
+  renderSteering(info.steering);
+
+  const keyState = document.getElementById("api-key-state");
+  keyState.textContent = info.has_api_key ? "API key ready" : "API key missing";
+  keyState.classList.toggle("ready", Boolean(info.has_api_key));
+  document.getElementById("start-lab").hidden = info.status === "running";
+  document.getElementById("stop-lab").hidden = info.status !== "running";
+  renderRoute();
+}
+
+function renderState(state) {
+  if (!controlState.connected) return;
+  setRuntimeStatus(state.status || controlState.status);
 
   const spent = Number(state.budget?.spent || 0);
   const cap = Number(state.budget?.cap || 0);
@@ -260,21 +436,153 @@ function renderActivity(activities) {
   }).join("");
 }
 
-async function renderFrom(path, renderer) {
-  renderer(await getJSON(path));
+async function refreshObserver() {
+  if (!controlState.connected) return;
+  const requests = [
+    ["/api/state", renderState],
+    ["/api/runs", renderRuns],
+    ["/api/papers", renderPapers],
+    ["/api/activity", renderActivity],
+  ];
+  const results = await Promise.allSettled(
+    requests.map(async ([path, renderer]) => renderer(await getJSON(path)))
+  );
+  results
+    .filter((result) => result.status === "rejected")
+    .forEach((result) => console.error(result.reason));
 }
 
-async function tick() {
-  const results = await Promise.allSettled([
-    renderFrom("/api/state", renderState),
-    renderFrom("/api/runs", renderRuns),
-    renderFrom("/api/papers", renderPapers),
-    renderFrom("/api/activity", renderActivity),
-  ]);
-  const errors = results.filter((result) => result.status === "rejected");
-  errors.forEach((error) => console.error(error.reason));
-  text("last-sync", `${new Date().toISOString().slice(0, 19).replace("T", " ")} UTC`);
+async function refresh() {
+  try {
+    const info = await getJSON("/api/control");
+    renderControl(info);
+    await refreshObserver();
+    text("last-sync", `${new Date().toISOString().slice(0, 19).replace("T", " ")} UTC`);
+  } catch (error) {
+    console.error(error);
+  }
 }
 
-tick();
-setInterval(tick, 4000);
+function initConnectForm() {
+  const form = document.getElementById("connect-form");
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const source = document.getElementById("github-source").value.trim();
+    const button = document.getElementById("connect-submit");
+    isConnecting = true;
+    button.disabled = true;
+    button.textContent = "Connecting…";
+    setContractState({}, "checking");
+    showMessage("connect-message", "Checking out and validating the submission contract…");
+    try {
+      const info = await postJSON("/api/connect", { source });
+      renderControl(info);
+      showMessage(
+        "connect-message",
+        `${info.lab_id} is connected. Repository code has not been executed.`,
+        "success",
+      );
+      window.location.hash = "steer";
+      await refreshObserver();
+    } catch (error) {
+      setContractState({});
+      showMessage("connect-message", error.message, "error");
+    } finally {
+      isConnecting = false;
+      button.disabled = false;
+      button.textContent = "Connect lab";
+    }
+  });
+}
+
+function initSteeringForm() {
+  const form = document.getElementById("steer-form");
+  const message = document.getElementById("steer-message");
+  message.addEventListener("input", () => text("steer-count", message.value.length));
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const submit = form.querySelector('button[type="submit"]');
+    submit.disabled = true;
+    showMessage("steer-message-state", "Recording direction in the local research log…");
+    try {
+      const result = await postJSON("/api/steer", {
+        message: message.value,
+        mode: document.getElementById("steer-mode").value,
+      });
+      message.value = "";
+      text("steer-count", "0");
+      renderSteering(result.steering);
+      showMessage(
+        "steer-message-state",
+        result.status === "running"
+          ? "Direction recorded. The running agent will read it on its next research pass."
+          : "Direction recorded locally. It will be read when the lab starts.",
+        "success",
+      );
+    } catch (error) {
+      showMessage("steer-message-state", error.message, "error");
+    } finally {
+      submit.disabled = false;
+    }
+  });
+}
+
+function openRuntimeDialog(action) {
+  runtimeAction = action;
+  const starting = action === "start";
+  text("runtime-dialog-kicker", starting ? "Local execution" : "Stop local execution");
+  text("runtime-dialog-title", starting ? "Start this lab?" : "Stop this lab?");
+  text(
+    "runtime-dialog-copy",
+    starting
+      ? "Starting executes repository-defined commands and can incur local compute and LLM cost under the configured budget."
+      : "Stopping interrupts the local agent loop after its current process receives the shutdown signal.",
+  );
+  text(
+    "runtime-confirm-label",
+    starting
+      ? "I understand and authorize this local run."
+      : "I understand and want to stop this local run.",
+  );
+  text("runtime-confirm-button", starting ? "Confirm start" : "Confirm stop");
+  const checkbox = document.getElementById("runtime-confirm-check");
+  checkbox.checked = false;
+  document.getElementById("runtime-confirm-button").disabled = true;
+  showMessage("runtime-dialog-message");
+  document.getElementById("runtime-dialog").showModal();
+}
+
+function initRuntimeControls() {
+  const dialog = document.getElementById("runtime-dialog");
+  const checkbox = document.getElementById("runtime-confirm-check");
+  const confirm = document.getElementById("runtime-confirm-button");
+  document.getElementById("start-lab").addEventListener("click", () => openRuntimeDialog("start"));
+  document.getElementById("stop-lab").addEventListener("click", () => openRuntimeDialog("stop"));
+  checkbox.addEventListener("change", () => {
+    confirm.disabled = !checkbox.checked;
+  });
+  confirm.addEventListener("click", async () => {
+    confirm.disabled = true;
+    showMessage(
+      "runtime-dialog-message",
+      runtimeAction === "start" ? "Starting the local daemon…" : "Stopping the local daemon…",
+    );
+    try {
+      const info = await postJSON(`/api/lab/${runtimeAction}`, { confirmed: true });
+      renderControl(info);
+      dialog.close();
+      await refreshObserver();
+    } catch (error) {
+      showMessage("runtime-dialog-message", error.message, "error");
+      confirm.disabled = false;
+    }
+  });
+}
+
+initTheme();
+initRouting();
+initConnectForm();
+initSteeringForm();
+initRuntimeControls();
+refresh();
+setInterval(refresh, 4000);

@@ -3,137 +3,318 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="dark">
-  <title>efferents — lab observer</title>
+  <meta name="color-scheme" content="light dark">
+  <title>efferents — local lab</title>
   <link rel="stylesheet" href="/static/dashboard.css">
 </head>
 <body>
-  <a class="skip-link" href="#workspace">Skip to lab data</a>
+  <a class="skip-link" href="#app">Skip to workspace</a>
 
   <header id="topbar">
-    <div class="identity">
-      <div class="brand-mark" aria-hidden="true">EF</div>
-      <div>
-        <div class="eyebrow">efferents / lab observer</div>
-        <div class="lab-title">
-          <strong id="lab-id">loading</strong>
-          <span id="domain" class="domain-tag"></span>
-        </div>
-      </div>
-    </div>
+    <a class="identity" href="#connect" aria-label="efferents connection page">
+      <span class="brand-mark" aria-hidden="true">EF</span>
+      <span class="identity-copy">
+        <span class="eyebrow">efferents / local research</span>
+        <span class="lab-title">
+          <strong id="lab-id">connect a lab</strong>
+          <span id="domain" class="domain-tag">local</span>
+        </span>
+      </span>
+    </a>
+
+    <nav class="workspace-nav" aria-label="Lab workspace">
+      <a href="#connect" data-route-link="connect">Connect</a>
+      <a href="#steer" data-route-link="steer" aria-disabled="true">Steer</a>
+      <a href="#observe" data-route-link="observe" aria-disabled="true">Observe</a>
+    </nav>
 
     <div class="topbar-right">
-      <span class="read-only">read only</span>
-      <span id="status-badge" class="status-badge">
+      <button id="theme-toggle" class="quiet-button" type="button"
+              aria-label="Switch to dark theme">
+        <span class="theme-icon" aria-hidden="true">◐</span>
+        <span id="theme-label">Dark</span>
+      </button>
+      <span id="status-badge" class="status-badge disconnected">
         <span class="status-dot" aria-hidden="true"></span>
-        <span id="status-text">connecting</span>
+        <span id="status-text">disconnected</span>
       </span>
-      <div class="budget-meta">
+      <div class="budget-meta" id="budget-meta">
         <span id="budget">—</span>
         <span class="budget-track" aria-hidden="true"><span id="budget-fill"></span></span>
       </div>
     </div>
   </header>
 
-  <main id="workspace">
-    <section class="overview-grid" aria-label="Current research state">
-      <article class="panel hypothesis-panel">
-        <header class="panel-header">
-          <span class="section-index">01</span>
-          <h1>Active hypothesis</h1>
-          <span id="student" class="header-meta"></span>
-        </header>
+  <div id="connection-bar" class="connection-bar" hidden>
+    <div class="connection-path">
+      <span class="field-label">Connected submission</span>
+      <span id="connection-source">—</span>
+    </div>
+    <div class="connection-actions">
+      <span id="api-key-state" class="key-state">API key unknown</span>
+      <button id="start-lab" class="compact-button" type="button">Start lab</button>
+      <button id="stop-lab" class="compact-button danger" type="button" hidden>Stop lab</button>
+    </div>
+  </div>
 
-        <div id="question" class="research-question">Waiting for campaign state…</div>
-
-        <div class="thesis-grid">
-          <div class="thesis-block">
-            <div class="field-label">Claim</div>
-            <div id="claim" class="thesis-copy">—</div>
-          </div>
-          <div class="thesis-block falsifier-block">
-            <div class="field-label">Falsification condition</div>
-            <div id="falsifier" class="thesis-copy">—</div>
+  <main id="app">
+    <section id="connect-view" class="app-view" data-route-view="connect">
+      <div class="entry-layout">
+        <div class="entry-intro">
+          <div class="route-kicker">00 / Repository intake</div>
+          <h1>Connect your repository to a local research lab.</h1>
+          <p>
+            Paste the GitHub README for the directory that contains your lab
+            submission. Efferents checks out the repository, validates the
+            machine-readable contract, and connects its local state.
+          </p>
+          <div class="intake-boundary">
+            <span>Connection is non-executing</span>
+            <p>
+              We clone and validate only. Repository commands run only after you
+              explicitly start the lab.
+            </p>
           </div>
         </div>
-      </article>
 
-      <article class="panel metric-panel">
+        <section class="connector panel" aria-labelledby="connector-heading">
+          <header class="panel-header">
+            <span class="section-index">01</span>
+            <h2 id="connector-heading">GitHub source</h2>
+            <span class="header-meta">README → lab</span>
+          </header>
+          <form id="connect-form" class="connector-form">
+            <label for="github-source">GitHub README URL</label>
+            <div class="url-entry">
+              <input id="github-source" name="source" type="text" inputmode="url"
+                     placeholder="https://github.com/org/repo/blob/main/lab/README.md"
+                     autocomplete="url" spellcheck="false" required>
+              <button id="connect-submit" class="primary-button" type="submit">
+                Connect lab
+              </button>
+            </div>
+            <p class="form-hint">
+              Repository URLs are also accepted. For local development, an
+              absolute README or submission path works too.
+            </p>
+          </form>
+
+          <ol id="contract-checks" class="contract-checks" aria-label="Connection checks">
+            <li data-contract="readme">
+              <span class="check-mark" aria-hidden="true">01</span>
+              <span><b>Repository located</b><small>README path and checkout</small></span>
+              <span class="check-state">waiting</span>
+            </li>
+            <li data-contract="lab_yaml">
+              <span class="check-mark" aria-hidden="true">02</span>
+              <span><b>Executor contract</b><small>lab.yaml validates</small></span>
+              <span class="check-state">waiting</span>
+            </li>
+            <li data-contract="hypothesis">
+              <span class="check-mark" aria-hidden="true">03</span>
+              <span><b>Falsifiability gate</b><small>hypothesis.md passed</small></span>
+              <span class="check-state">waiting</span>
+            </li>
+          </ol>
+          <div id="connect-message" class="form-message" role="status" aria-live="polite"></div>
+        </section>
+      </div>
+
+      <section id="connected-summary" class="connected-summary panel" hidden>
         <header class="panel-header">
           <span class="section-index">02</span>
-          <h2 id="metric-label">Headline metric</h2>
-          <span id="metric-direction" class="header-meta">—</span>
+          <h2>Connected lab</h2>
+          <span id="connected-summary-status" class="header-meta">stopped</span>
         </header>
-
-        <div class="metric-readout">
+        <div class="connected-summary-body">
           <div>
-            <div class="field-label">Best observed</div>
-            <div id="metric-best" class="metric-value">—</div>
+            <span class="field-label">Lab identity</span>
+            <strong id="connected-summary-name">—</strong>
+            <span id="connected-summary-domain" class="summary-domain">—</span>
           </div>
-          <div class="metric-secondary">
-            <div class="field-label">Latest / best gap</div>
-            <div id="metric-delta">—</div>
+          <div>
+            <span class="field-label">Submission</span>
+            <code id="connected-summary-path">—</code>
+          </div>
+          <div class="summary-actions">
+            <a class="primary-button" href="#steer">Steer research</a>
+            <a class="secondary-button" href="#observe">Open observer</a>
           </div>
         </div>
-
-        <div class="chart-frame">
-          <svg id="trend" viewBox="0 0 600 180" preserveAspectRatio="none"
-               role="img" aria-label="Headline metric trend"></svg>
-        </div>
-        <div class="chart-footer">
-          <span id="trend-caption">No observations</span>
-          <span id="metric-range">—</span>
-        </div>
-      </article>
+      </section>
     </section>
 
-    <section class="data-grid" aria-label="Lab records">
-      <article class="panel runs-panel">
-        <header class="panel-header">
-          <span class="section-index">03</span>
-          <h2>Run ledger</h2>
-          <span id="run-count" class="header-meta">0 records</span>
-        </header>
-        <div class="table-wrap">
-          <table id="runs">
-            <thead>
-              <tr>
-                <th scope="col">Seq</th>
-                <th scope="col">Run ID</th>
-                <th scope="col">Started · UTC</th>
-                <th scope="col" id="run-metric-header">Result</th>
-                <th scope="col">Signal</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
-        </div>
-      </article>
+    <section id="steer-view" class="app-view" data-route-view="steer" hidden>
+      <header class="view-heading">
+        <div class="route-kicker">01 / Human direction</div>
+        <h1>Steer the next research cycle.</h1>
+        <p>
+          Directions are appended to the lab’s auditable research log. The
+          Researcher reads them on its next pass; a mode override applies once.
+        </p>
+      </header>
 
-      <aside class="side-stack">
-        <section class="panel papers-panel">
+      <div class="steer-layout">
+        <section class="panel">
           <header class="panel-header">
-            <span class="section-index">04</span>
-            <h2>Paper register</h2>
-            <span id="paper-count" class="header-meta">0 records</span>
+            <span class="section-index">01</span>
+            <h2>New direction</h2>
+            <span id="steer-runtime-state" class="header-meta">queued locally</span>
           </header>
-          <div id="papers" class="records-list"></div>
+          <form id="steer-form" class="steer-form">
+            <label for="steer-message">Research instruction</label>
+            <textarea id="steer-message" name="message" maxlength="4000" required
+              placeholder="Example: Verify the current best result on a held-out seed before broadening the sweep."></textarea>
+            <div class="steer-options">
+              <label for="steer-mode">
+                Researcher mode
+                <select id="steer-mode" name="mode">
+                  <option value="auto">Auto-select</option>
+                  <option value="refine">Refine</option>
+                  <option value="moonshot">Moonshot</option>
+                  <option value="devils_advocate">Devil’s advocate</option>
+                  <option value="escape_to_code">Escape to code</option>
+                </select>
+              </label>
+              <span class="char-count"><span id="steer-count">0</span> / 4000</span>
+              <button class="primary-button" type="submit">Record direction</button>
+            </div>
+          </form>
+          <div id="steer-message-state" class="form-message" role="status" aria-live="polite"></div>
         </section>
 
-        <section class="panel activity-panel">
+        <section class="panel steering-history-panel">
           <header class="panel-header">
-            <span class="section-index">05</span>
-            <h2>Agent log</h2>
-            <span class="live-mark"><span aria-hidden="true"></span> live</span>
+            <span class="section-index">02</span>
+            <h2>Direction log</h2>
+            <span id="steering-count" class="header-meta">0 records</span>
           </header>
-          <div id="activity" class="activity-list"></div>
+          <div id="steering-history" class="steering-history"></div>
         </section>
-      </aside>
+      </div>
+    </section>
+
+    <section id="observe-view" class="app-view" data-route-view="observe" hidden>
+      <section class="overview-grid" aria-label="Current research state">
+        <article class="panel hypothesis-panel">
+          <header class="panel-header">
+            <span class="section-index">01</span>
+            <h1>Active hypothesis</h1>
+            <span id="student" class="header-meta"></span>
+          </header>
+
+          <div id="question" class="research-question">Waiting for campaign state…</div>
+
+          <div class="thesis-grid">
+            <div class="thesis-block">
+              <div class="field-label">Claim</div>
+              <div id="claim" class="thesis-copy">—</div>
+            </div>
+            <div class="thesis-block falsifier-block">
+              <div class="field-label">Falsification condition</div>
+              <div id="falsifier" class="thesis-copy">—</div>
+            </div>
+          </div>
+        </article>
+
+        <article class="panel metric-panel">
+          <header class="panel-header">
+            <span class="section-index">02</span>
+            <h2 id="metric-label">Headline metric</h2>
+            <span id="metric-direction" class="header-meta">—</span>
+          </header>
+
+          <div class="metric-readout">
+            <div>
+              <div class="field-label">Best observed</div>
+              <div id="metric-best" class="metric-value">—</div>
+            </div>
+            <div class="metric-secondary">
+              <div class="field-label">Latest / best gap</div>
+              <div id="metric-delta">—</div>
+            </div>
+          </div>
+
+          <div class="chart-frame">
+            <svg id="trend" viewBox="0 0 600 180" preserveAspectRatio="none"
+                 role="img" aria-label="Headline metric trend"></svg>
+          </div>
+          <div class="chart-footer">
+            <span id="trend-caption">No observations</span>
+            <span id="metric-range">—</span>
+          </div>
+        </article>
+      </section>
+
+      <section class="data-grid" aria-label="Lab records">
+        <article class="panel runs-panel">
+          <header class="panel-header">
+            <span class="section-index">03</span>
+            <h2>Run ledger</h2>
+            <span id="run-count" class="header-meta">0 records</span>
+          </header>
+          <div class="table-wrap">
+            <table id="runs">
+              <thead>
+                <tr>
+                  <th scope="col">Seq</th>
+                  <th scope="col">Run ID</th>
+                  <th scope="col">Started · UTC</th>
+                  <th scope="col" id="run-metric-header">Result</th>
+                  <th scope="col">Signal</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </article>
+
+        <aside class="side-stack">
+          <section class="panel papers-panel">
+            <header class="panel-header">
+              <span class="section-index">04</span>
+              <h2>Paper register</h2>
+              <span id="paper-count" class="header-meta">0 records</span>
+            </header>
+            <div id="papers" class="records-list"></div>
+          </section>
+
+          <section class="panel activity-panel">
+            <header class="panel-header">
+              <span class="section-index">05</span>
+              <h2>Agent log</h2>
+              <span class="live-mark"><span aria-hidden="true"></span> live</span>
+            </header>
+            <div id="activity" class="activity-list"></div>
+          </section>
+        </aside>
+      </section>
     </section>
   </main>
 
+  <dialog id="runtime-dialog">
+    <form method="dialog" class="runtime-dialog-card">
+      <div class="route-kicker" id="runtime-dialog-kicker">Local execution</div>
+      <h2 id="runtime-dialog-title">Start this lab?</h2>
+      <p id="runtime-dialog-copy">
+        Starting executes repository-defined commands and can incur local compute
+        and LLM cost under the configured budget.
+      </p>
+      <label class="execution-confirm">
+        <input id="runtime-confirm-check" type="checkbox">
+        <span id="runtime-confirm-label">I understand and authorize this local run.</span>
+      </label>
+      <div id="runtime-dialog-message" class="form-message" role="status"></div>
+      <div class="dialog-actions">
+        <button class="secondary-button" value="cancel" type="submit">Cancel</button>
+        <button id="runtime-confirm-button" class="primary-button" value="default"
+                type="button" disabled>Confirm start</button>
+      </div>
+    </form>
+  </dialog>
+
   <footer>
-    <span>local state / no write surface</span>
+    <span>local state / explicit execution / auditable steering</span>
     <span>last sync <time id="last-sync">—</time></span>
   </footer>
 

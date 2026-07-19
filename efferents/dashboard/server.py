@@ -1,8 +1,9 @@
-"""Local read-only HTTP server for the lab dashboard.
+"""Local HTTP workspace for connecting, steering, and observing a lab.
 
-Stdlib http.server only — no web framework dependency. Serves the static
-dashboard page plus JSON endpoints backed by `reader`. Read-only: there are no
-POST/PUT routes and nothing here mutates lab state.
+Stdlib http.server only — no web framework dependency. Repository connection
+validates and initializes local state without executing repository code.
+Mutating routes require a per-process CSRF token and execution is separately
+confirmed by the user.
 """
 
 from __future__ import annotations
@@ -148,7 +149,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self.send_header(
             "Content-Security-Policy",
             "default-src 'self'; img-src 'self' data:; "
-            "style-src 'self'; script-src 'self'; connect-src 'self'; "
+            "style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; "
             "object-src 'none'; base-uri 'none'; frame-ancestors 'none'",
         )
 
