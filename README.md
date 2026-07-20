@@ -204,17 +204,7 @@ loop runs but its prompts are still maturing. The lab-agnostic config layer
 (`LabConfig`, the repo adapter) is in place; broader domain coverage is in
 progress.
 
-**Looking for design partners.** If you run internal ML experiments and want an
-autonomous lab on your own hardware, we'd like to build with you.
-📧 alina.nesen@gmail.com · or open an issue.
 
-## More
-
-- [`DEVELOPMENT.md`](./DEVELOPMENT.md) — architecture, package layout, the
-  multi-lab vision, and the QML reference-lab history.
-- [`examples/smoke-lab/`](./examples/smoke-lab/) — a complete non-toy-domain lab.
-- [`context/journal_vision.md`](./context/journal_vision.md) — the long-term
-  multi-lab journal design.
 
 ## Acknowledgements
 
