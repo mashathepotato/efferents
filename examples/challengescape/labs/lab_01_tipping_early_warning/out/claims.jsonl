@@ -1,0 +1,4 @@
+{"claim": "Best mean_lead_time = 97.5 at window=200", "evidence_type": "run_metric", "source_path": "logs/iter_04.log", "run_id": "run_04", "metric": "mean_lead_time", "value": 97.5}
+{"claim": "mean_lead_time varied across the configured window sweep", "evidence_type": "metric_aggregate", "source_path": "runs.jsonl", "run_id": null, "metric": "mean_lead_time", "value": "range=18.5..97.5"}
+{"claim": "Experiment plan recorded before execution", "evidence_type": "document", "source_path": "journal/002_experiment_plan.md", "run_id": null, "metric": null, "value": "approval=plan_then_execute; execution_authorized=true"}
+{"claim": "Execution stayed within the configured wall-clock compute proxy", "evidence_type": "budget", "source_path": "journal/004_research_memo.md", "run_id": null, "metric": null, "value": "<= 0.2 GPU-h, $0 LLM"}

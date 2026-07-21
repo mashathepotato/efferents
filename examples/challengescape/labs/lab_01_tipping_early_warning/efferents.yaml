@@ -1,0 +1,31 @@
+# Challengescape lab 01 — tipping-point early warning.
+# Challenge framing: "Climate systems cannot be monitored early enough to
+# anticipate tipping transitions" (Encode Challengescape, Climate domain).
+
+goal: >
+  maximize the mean detection lead time of an early-warning alarm for a
+  tipping transition, at a fixed ~5% series-level false-alarm rate, by tuning
+  the rolling-window length of the lag-1 autocorrelation indicator
+
+train_command: "python3 train.py --config {config_path}"
+eval_command: "python3 eval.py --checkpoint {checkpoint}"
+config_template: configs/base.yaml
+
+sweep:
+  param: window
+  values: [10, 25, 50, 100, 200, 300, 380]
+
+metric: "mean_lead_time"
+maximize: true
+
+budget:
+  max_gpu_hours: 0.2
+  max_llm_cost_usd: 0
+
+approval:
+  mode: "plan_then_execute"
+
+outputs:
+  journal_dir: "journal"
+  runs_file: "runs.jsonl"
+  claims_file: "claims.jsonl"

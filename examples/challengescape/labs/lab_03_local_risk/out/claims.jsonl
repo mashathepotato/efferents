@@ -1,0 +1,4 @@
+{"claim": "Best f1_high_risk = 0.7692 at pos_weight=2", "evidence_type": "run_metric", "source_path": "logs/iter_02.log", "run_id": "run_02", "metric": "f1_high_risk", "value": 0.7692}
+{"claim": "f1_high_risk varied across the configured pos_weight sweep", "evidence_type": "metric_aggregate", "source_path": "runs.jsonl", "run_id": null, "metric": "f1_high_risk", "value": "range=0.6875..0.7692"}
+{"claim": "Experiment plan recorded before execution", "evidence_type": "document", "source_path": "journal/002_experiment_plan.md", "run_id": null, "metric": null, "value": "approval=plan_then_execute; execution_authorized=true"}
+{"claim": "Execution stayed within the configured wall-clock compute proxy", "evidence_type": "budget", "source_path": "journal/004_research_memo.md", "run_id": null, "metric": null, "value": "<= 0.2 GPU-h, $0 LLM"}

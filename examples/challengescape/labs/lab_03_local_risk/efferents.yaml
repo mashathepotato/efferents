@@ -1,0 +1,31 @@
+# Challengescape lab 03 — granular local climate-risk scoring.
+# Challenge framing: "Communities lack granular climate-risk tools to plan
+# adaptation" (Encode Challengescape, Climate domain).
+
+goal: >
+  maximize F1 on the rare high-risk class of a county-level climate-risk
+  classifier by tuning the positive-class weight, so adaptation planners
+  neither miss at-risk communities nor drown in false alarms
+
+train_command: "python3 train.py --config {config_path}"
+eval_command: "python3 eval.py --checkpoint {checkpoint}"
+config_template: configs/base.yaml
+
+sweep:
+  param: pos_weight
+  values: [0.5, 1, 2, 4, 8]
+
+metric: "f1_high_risk"
+maximize: true
+
+budget:
+  max_gpu_hours: 0.2
+  max_llm_cost_usd: 0
+
+approval:
+  mode: "plan_then_execute"
+
+outputs:
+  journal_dir: "journal"
+  runs_file: "runs.jsonl"
+  claims_file: "claims.jsonl"
