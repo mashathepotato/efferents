@@ -11,6 +11,7 @@ license-files = ["LICENSE", "NOTICE"]
 requires-python = ">=3.10"
 dependencies = [
     "anthropic>=0.40",
+    "litellm>=1.72",
     "pyyaml",
     "pydantic>=2.0",
     "matplotlib",   # progress dashboard renders inline charts

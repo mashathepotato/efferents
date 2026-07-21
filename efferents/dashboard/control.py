@@ -230,19 +230,24 @@ def _local_source(value: str) -> tuple[Path, Path] | None:
 
 
 def _dotenv_has_key(submission_dir: Path) -> bool:
-    if os.environ.get("ANTHROPIC_API_KEY"):
+    from efferents.agents.model_client import credentials_available
+    if credentials_available():
         return True
     env_file = submission_dir / ".env"
     if not env_file.is_file():
         return False
     try:
+        values: dict[str, str] = {}
         for line in env_file.read_text().splitlines():
             key, separator, value = line.partition("=")
-            if separator and key.strip() == "ANTHROPIC_API_KEY" and value.strip():
-                return True
+            if separator and key.strip() and value.strip():
+                values[key.strip()] = value.strip().strip("'\"")
+        model = values.get("EFFERENTS_MODEL") or os.environ.get("EFFERENTS_MODEL")
+        from efferents.agents.model_client import required_key_env
+        key_name = required_key_env(model)
+        return key_name is None or bool(values.get(key_name) or os.environ.get(key_name, "").strip())
     except OSError:
         return False
-    return False
 
 
 def _recent_steering(path: Path, limit: int = 8) -> list[dict]:
@@ -430,9 +435,10 @@ class ControlContext:
                 status=409,
             )
         if not _dotenv_has_key(connected.submission_dir):
+            from efferents.agents.model_client import credential_help
             raise ControlError(
-                "ANTHROPIC_API_KEY is not available. Put it in the submission .env "
-                "or export it before starting.",
+                f"{credential_help()} Put the selected provider's credentials in "
+                "the submission .env or export them before starting.",
                 status=409,
             )
         pid = daemon.read_pidfile(connected.lab_root / "daemon.pid")

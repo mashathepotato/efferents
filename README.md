@@ -167,14 +167,29 @@ prints `{"metrics": {"<metric>": <value>}}`.
   [popper-probe](https://github.com/mashathepotato/popper-probe) dialogue before
   the lab will spend compute on it.
 
-## Running a live lab (needs an API key)
+## Running a live lab (needs a model provider)
 
 ```bash
-cp .env.example .env        # add ANTHROPIC_API_KEY
+cp .env.example .env        # choose a model and add its provider key
 efferents validate --submission examples/smoke-lab/
 efferents start    --submission examples/smoke-lab/
 efferents serve                                      # open the local entry page
 ```
+
+Claude remains the zero-configuration default (`ANTHROPIC_API_KEY`). To use a
+different provider, set a [LiteLLM model identifier](https://docs.litellm.ai/docs/providers)
+and its provider credential, for example:
+
+```dotenv
+EFFERENTS_MODEL=openai/gpt-5
+OPENAI_API_KEY=...
+```
+
+`EFFERENTS_MODEL_<ROLE>` can override individual roles such as `CODER`,
+`ANALYST`, or `REVIEWER`. `EFFERENTS_API_BASE` points OpenAI-compatible models
+at a custom endpoint. Local providers such as `ollama/...` do not require an
+API key. Provider credentials remain daemon-only and are not exposed to the
+lab's experiment commands.
 
 Paste a GitHub repository or README URL into the entry page. A valid lab
 submission has a `README`, `lab.yaml`, and Popper-passed `hypothesis.md`.

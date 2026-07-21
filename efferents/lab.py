@@ -371,6 +371,12 @@ def _build_labconfig(
             raise SubmissionError(
                 f"executor.env_passthrough[{i}] is not a valid environment variable name"
             )
+        from efferents.agents.model_client import PROVIDER_KEY_ENV
+        daemon_credentials = set(PROVIDER_KEY_ENV.values()) | {"NTFY_TOPIC"}
+        if name in daemon_credentials:
+            raise SubmissionError(
+                f"executor.env_passthrough[{i}] must not name daemon credentials ({name})"
+            )
 
     run_timeout_s = int(exe.get("run_timeout_s", 7200))
     smoke_timeout_s = int(exe.get("smoke_timeout_s", 300))

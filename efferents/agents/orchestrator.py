@@ -17,10 +17,9 @@ from typing import Any
 
 import re as _re
 
-import anthropic
-
 from efferents.agents import analyst, coder, executor, researcher, writer
 from efferents.agents.budget import BudgetTracker
+from efferents.agents.model_client import make_client
 from efferents.agents.notify import notify_all
 from efferents.agents.state import (
     LabPaths,
@@ -141,9 +140,9 @@ class Orchestrator:
         # the lab's modules are reloaded fresh from disk.
         self.restart_requested = False
 
-        self.client: anthropic.Anthropic | None = None
+        self.client: Any | None = None
         if not dry_run:
-            self.client = anthropic.Anthropic()  # uses ANTHROPIC_API_KEY
+            self.client = make_client()
 
         signal.signal(signal.SIGTERM, self._handle_signal)
         signal.signal(signal.SIGINT, self._handle_signal)

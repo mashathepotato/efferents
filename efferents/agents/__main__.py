@@ -13,32 +13,32 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 from pathlib import Path
 
-import anthropic
-
 from efferents.agents import analyst, coder, researcher
 from efferents.agents.budget import BudgetTracker
+from efferents.agents.model_client import (
+    credential_help, credentials_available, make_client,
+)
 from efferents.agents.orchestrator import Orchestrator
 from efferents.agents.state import init_lab, lab_paths, load_state, recent_runs, runs_count
 from efferents.envfile import load_dotenv as _load_dotenv
 from efferents.migrations.runner import apply_campaigns_migration
 
 
-def _make_client_or_die() -> anthropic.Anthropic:
+def _make_client_or_die():
     _load_dotenv()
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        print("ERROR: ANTHROPIC_API_KEY not set (checked env and .env).", file=sys.stderr)
+    if not credentials_available():
+        print(f"ERROR: {credential_help()} (checked env and .env).", file=sys.stderr)
         sys.exit(2)
-    return anthropic.Anthropic()
+    return make_client()
 
 
 def cmd_start(args: argparse.Namespace) -> int:
     _load_dotenv()
-    if not args.dry_run and not os.environ.get("ANTHROPIC_API_KEY"):
-        print("ERROR: ANTHROPIC_API_KEY not set (checked env and .env).", file=sys.stderr)
+    if not args.dry_run and not credentials_available():
+        print(f"ERROR: {credential_help()} (checked env and .env).", file=sys.stderr)
         return 2
     o = Orchestrator(
         lab_dir=args.lab,

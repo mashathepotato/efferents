@@ -58,7 +58,22 @@ class CallUsage:
 def cost_usd(model: str, usage: CallUsage) -> float:
     p = PRICING_PER_MTOK.get(model)
     if p is None:
-        return 0.0
+        # LiteLLM maintains pricing for its provider catalogue.  Keep the
+        # framework's small Claude table as the stable default, then consult
+        # that catalogue for provider-qualified models.
+        try:
+            import litellm
+            candidates = (model, model.split("/", 1)[-1])
+            entry = next((litellm.model_cost.get(name) for name in candidates
+                          if litellm.model_cost.get(name)), None)
+        except (ImportError, AttributeError):
+            entry = None
+        if entry is None:
+            return 0.0
+        return (
+            usage.input_tokens * float(entry.get("input_cost_per_token", 0.0) or 0.0)
+            + usage.output_tokens * float(entry.get("output_cost_per_token", 0.0) or 0.0)
+        )
     base_in = p["input"] / 1_000_000
     base_out = p["output"] / 1_000_000
     return (
@@ -141,6 +156,13 @@ class BudgetTracker:
 def model_for(role: str, override: str | None = None) -> str | None:
     if override:
         return override
+    import os
+    role_override = os.environ.get(f"EFFERENTS_MODEL_{role.upper()}")
+    if role_override:
+        return role_override
+    default_override = os.environ.get("EFFERENTS_MODEL")
+    if default_override:
+        return default_override
     return ROLE_MODEL.get(role)
 
 
@@ -148,6 +170,10 @@ def model_for_supervisor(saturation_streak: int) -> str:
     """Supervisor escalates to Opus when the saturation score has been high
     for ``SUPERVISOR_OPUS_STREAK_THRESHOLD`` consecutive iterations — the loop
     is genuinely stuck and Sonnet's pivots aren't landing."""
+    import os
+    configured = os.environ.get("EFFERENTS_MODEL_SUPERVISOR") or os.environ.get("EFFERENTS_MODEL")
+    if configured:
+        return configured
     if saturation_streak >= SUPERVISOR_OPUS_STREAK_THRESHOLD:
         return "claude-opus-4-7"
     return ROLE_MODEL["supervisor"]
