@@ -1,14 +1,17 @@
 # Challenge: tipping-point early warning
 
 > **"Climate systems cannot be monitored early enough to anticipate tipping
-> transitions"** — [Encode Challengescape](https://encode-challengescape.pillar.vc/),
-> Climate domain.
+> transitions and direct timely adaptation."** —
+> [Encode Challengescape](https://encode-challengescape.pillar.vc/), Climate
+> domain (quoted verbatim from the challenge card).
 
-- **Source**: Encode: AI for Science Challengescape (Pillar VC / ARIA). Title
-  quoted verbatim from the public challenge map.
-- **Point of contact**: listed on the challenge card at the Challengescape
-  site. <!-- TODO: capture name/affiliation manually from the site before outreach -->
-- **Domain**: climate dynamics / early-warning signals.
+- **Source**: Encode: AI for Science Challengescape (Pillar VC / ARIA).
+- **Scientific field**: Geophysics and Climate.
+- **Translational application**: Environmental Monitoring, Climate Mitigation
+  Systems.
+- **ARIA opportunity space**: Scoping Our Planet.
+- **Point of contact**: none publicly listed on the card; route outreach via
+  the Challengescape "Get Involved" page.
 
 ## The bottleneck, as this lab frames it
 

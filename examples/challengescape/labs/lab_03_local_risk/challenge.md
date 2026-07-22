@@ -1,14 +1,17 @@
 # Challenge: granular local climate-risk tools
 
-> **"Communities lack granular climate-risk tools to plan adaptation"**
-> — [Encode Challengescape](https://encode-challengescape.pillar.vc/),
-> Climate domain.
+> **"Communities lack granular climate-risk tools to plan adaptation and
+> resilient infrastructure."** —
+> [Encode Challengescape](https://encode-challengescape.pillar.vc/), Climate
+> domain (quoted verbatim from the challenge card).
 
-- **Source**: Encode: AI for Science Challengescape (Pillar VC / ARIA). Title
-  quoted verbatim from the public challenge map.
-- **Point of contact**: listed on the challenge card at the Challengescape
-  site. <!-- TODO: capture name/affiliation manually from the site before outreach -->
-- **Domain**: climate adaptation, tabular risk modeling.
+- **Source**: Encode: AI for Science Challengescape (Pillar VC / ARIA).
+- **Scientific field**: Geophysics and Climate.
+- **Translational application**: Natural Disaster Mitigation.
+- **ARIA opportunity space**: Future Proofing Our Climate and Weather,
+  Scoping Our Planet.
+- **Point of contact**: none publicly listed on the card; route outreach via
+  the Challengescape "Get Involved" page.
 
 ## The bottleneck, as this lab frames it
 

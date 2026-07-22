@@ -1,14 +1,17 @@
 # Challenge: forecast skill vs. forecaster trust
 
 > **"AI weather models are accurate but uninterpretable and untrusted by
-> forecasters"** — [Encode Challengescape](https://encode-challengescape.pillar.vc/),
-> Climate domain.
+> forecasters and policymakers."** —
+> [Encode Challengescape](https://encode-challengescape.pillar.vc/), Climate
+> domain (quoted verbatim from the challenge card).
 
-- **Source**: Encode: AI for Science Challengescape (Pillar VC / ARIA). Title
-  quoted verbatim from the public challenge map.
-- **Point of contact**: listed on the challenge card at the Challengescape
-  site. <!-- TODO: capture name/affiliation manually from the site before outreach -->
-- **Domain**: weather/climate forecasting, ML interpretability.
+- **Source**: Encode: AI for Science Challengescape (Pillar VC / ARIA).
+- **Scientific field**: Geophysics and Climate.
+- **Translational application**: Climate Mitigation Systems.
+- **ARIA opportunity space**: Mathematics for Safe AI, Scoping Our Planet,
+  Future Proofing Our Climate and Weather.
+- **Point of contact**: none publicly listed on the card; route outreach via
+  the Challengescape "Get Involved" page.
 
 ## The bottleneck, as this lab frames it
 

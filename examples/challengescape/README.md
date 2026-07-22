@@ -23,9 +23,9 @@ on real challenge framings.
 
 | lab | challenge (verbatim from Challengescape) | headline metric |
 |-----|------------------------------------------|-----------------|
-| [lab_01](labs/lab_01_tipping_early_warning/challenge.md) | "Climate systems cannot be monitored early enough to anticipate tipping transitions" | detection lead time at fixed false-alarm rate |
-| [lab_02](labs/lab_02_forecast_trust/challenge.md) | "AI weather models are accurate but uninterpretable and untrusted by forecasters" | forecast skill × attribution stability |
-| [lab_03](labs/lab_03_local_risk/challenge.md) | "Communities lack granular climate-risk tools to plan adaptation" | F1 on the rare high-risk class |
+| [lab_01](labs/lab_01_tipping_early_warning/challenge.md) | "Climate systems cannot be monitored early enough to anticipate tipping transitions and direct timely adaptation." | detection lead time at fixed false-alarm rate |
+| [lab_02](labs/lab_02_forecast_trust/challenge.md) | "AI weather models are accurate but uninterpretable and untrusted by forecasters and policymakers." | forecast skill × attribution stability |
+| [lab_03](labs/lab_03_local_risk/challenge.md) | "Communities lack granular climate-risk tools to plan adaptation and resilient infrastructure." | F1 on the rare high-risk class |
 
 They share a data modality (climate time series / tabular records), a
 bottleneck (models exist; trust and actionability don't), and an evaluation
