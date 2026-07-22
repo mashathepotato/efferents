@@ -129,6 +129,7 @@ def _lab_state(lab_dir: Path) -> dict:
 
     return {
         "name": lab_dir.name,
+        "path": f"examples/challengescape/labs/{lab_dir.name}",
         "challenge": _challenge_title(lab_dir),
         "goal": goal,
         "metric": metric,
@@ -157,8 +158,9 @@ def build_state() -> dict:
             "reviewed": fm.get("reviewed_lab", "?"),
             "adopted": fm.get("status", "").startswith("adopted"),
         })
+    # No timestamp in the payload: the client re-renders only when the payload
+    # bytes change, so an idle lab must produce a byte-identical response.
     return {
-        "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
         "labs": labs,
         "reviews": reviews,
         "themes": list(THEMES),
@@ -168,6 +170,8 @@ def build_state() -> dict:
 def read_artifact(lab: str, rel: str) -> str | None:
     """Whitelisted artifact reader — only files this app itself lists."""
     if lab == "shared":
+        if rel == "index.md" and (ROOT / "shared_journal" / "index.md").is_file():
+            return (ROOT / "shared_journal" / "index.md").read_text()
         if re.fullmatch(r"[\w.\-]+\.md", rel) and (REVIEWS / rel).is_file():
             return (REVIEWS / rel).read_text()
         return None
@@ -321,8 +325,11 @@ following examples/challengescape/prompts/.</pre>
 </div></div>
 <script>
 const SERIES = ["--series-1", "--series-2", "--series-3", "--series-1", "--series-2"];
+const REPO_URL = "https://github.com/mashathepotato/efferents";
+const CHALLENGESCAPE_URL = "https://encode-challengescape.pillar.vc/";
 const tooltip = document.getElementById("tooltip");
 let STATE = null;
+let lastPayload = "";      // re-render only when the state bytes change
 let openArtifact = null;   // {lab, file} persisted across refreshes
 
 const fmt = v => v == null ? "—" : (typeof v === "number" ? +v.toPrecision(4) : v);
@@ -499,16 +506,22 @@ function overview(state) {
   return `
   <header>
     <h1>Challengescape labs — live</h1>
-    <span class="sub">real runs, provenance-tracked · updates every 2s ·
-      <span id="stamp"></span></span>
+    <span class="sub">real runs, provenance-tracked · <span id="stamp"></span> ·
+      sources: <a href="${REPO_URL}" target="_blank" rel="noopener">efferents repo ↗</a> ·
+      <a href="${CHALLENGESCAPE_URL}" target="_blank" rel="noopener">Challengescape ↗</a> ·
+      <a href="#" onclick="showSharedIndex();return false">shared journal</a></span>
     <button class="btn" onclick="openModal()">＋ Submit a new lab</button>
   </header>
+  <div class="viewer" id="viewer" style="display:none;margin-bottom:16px"></div>
   <div class="grid">
     ${state.labs.map(lab => `
     <div class="card click" onclick="location.hash='#/lab/${lab.name}'">
       <h2><span class="swatch" style="background:var(${seriesFor(lab.name)})"></span>
         ${lab.name}</h2>
-      <p class="challenge">&ldquo;${lab.challenge}&rdquo;</p>
+      <p class="challenge"><a href="${CHALLENGESCAPE_URL}" target="_blank" rel="noopener"
+        onclick="event.stopPropagation()"
+        title="Verbatim from the Encode Challengescape Climate section — open the source"
+        >&ldquo;${lab.challenge}&rdquo; ↗</a></p>
       <div class="tiles">
         <div class="tile"><div class="v">${lab.best ? fmt(lab.best.metric_value) : "—"}</div>
           <div class="k">best ${lab.metric}</div></div>
@@ -542,8 +555,15 @@ function labDetail(state, name) {
       ${lab.name}</h1>
     <span class="sub"><span id="stamp"></span></span>
   </header>
-  <p class="challenge" style="font-size:14px">&ldquo;${lab.challenge}&rdquo;</p>
+  <p class="challenge" style="font-size:14px">
+    <a href="${CHALLENGESCAPE_URL}" target="_blank" rel="noopener"
+      title="Verbatim from the Encode Challengescape Climate section — open the source"
+      >&ldquo;${lab.challenge}&rdquo; ↗</a>
+    · <a href="#" onclick="showArtifact('${lab.name}','challenge.md');return false">challenge card</a></p>
   <p style="color:var(--text-secondary);max-width:900px">${lab.goal}</p>
+  <p style="color:var(--text-muted);font-size:12px">source of truth:
+    <code>${lab.path}/</code> ·
+    <a href="${REPO_URL}" target="_blank" rel="noopener">repo ↗</a></p>
   <div class="tiles">
     <div class="tile"><div class="v">${lab.best ? fmt(lab.best.metric_value) : "—"}</div>
       <div class="k">best ${lab.metric}</div></div>
@@ -596,10 +616,17 @@ async function showArtifact(lab, file) {
   const viewer = document.getElementById("viewer");
   if (!viewer) return;
   viewer.style.display = "block";
+  const path = lab === "shared"
+    ? (file === "index.md" ? "examples/challengescape/shared_journal/index.md"
+                           : `examples/challengescape/shared_journal/reviews/${file}`)
+    : `examples/challengescape/labs/${lab}/${file}`;
   const res = await fetch(`/api/artifact?lab=${encodeURIComponent(lab)}&file=${encodeURIComponent(file)}`);
-  viewer.innerHTML = res.ok ? renderMd(await res.text())
-                            : "<p>artifact unavailable</p>";
+  viewer.innerHTML =
+    `<p style="color:var(--text-muted);font-size:11.5px;margin:0 0 8px">
+       source: <code>${path}</code></p>`
+    + (res.ok ? renderMd(await res.text()) : "<p>artifact unavailable</p>");
 }
+function showSharedIndex() { showArtifact("shared", "index.md"); }
 function openModal() { document.getElementById("modal").style.display = "flex"; }
 function closeModal() { document.getElementById("modal").style.display = "none"; }
 async function copyEntry(btn) {
@@ -628,33 +655,48 @@ function currentView() {
   return m ? {view: "lab", name: m[1]} : {view: "overview"};
 }
 
+function setStamp(text) {
+  const stamp = document.getElementById("stamp");
+  if (stamp) stamp.textContent = text;
+}
+
 function render() {
   if (!STATE) return;
   const v = currentView();
   const app = document.getElementById("app");
+  const y = window.scrollY;                      // don't yank the reader around
   app.innerHTML = v.view === "lab" ? labDetail(STATE, v.name) : overview(STATE);
-  const stamp = document.getElementById("stamp");
-  if (stamp) stamp.textContent = "updated " + new Date().toLocaleTimeString();
+  window.scrollTo(0, y);
+  setStamp("live · updated " + new Date().toLocaleTimeString());
   bindTooltips();
-  if (v.view === "lab" && openArtifact && openArtifact.lab !== "shared"
-      && openArtifact.lab !== v.name) openArtifact = null;
-  if (v.view === "lab" && openArtifact) showArtifact(openArtifact.lab, openArtifact.file);
+  if (openArtifact && openArtifact.lab !== "shared"
+      && (v.view !== "lab" || openArtifact.lab !== v.name)) openArtifact = null;
+  if (openArtifact) showArtifact(openArtifact.lab, openArtifact.file);
 }
 
-window.addEventListener("hashchange", () => { openArtifact = null; render(); });
+window.addEventListener("hashchange", () => {
+  openArtifact = null;
+  render();
+  window.scrollTo(0, 0);                         // a navigation SHOULD go to top
+});
 
 async function tick() {
   try {
     const res = await fetch("/api/state");
-    STATE = await res.json();
+    const payload = await res.text();
+    if (payload === lastPayload) {               // idle: touch nothing, keep scroll
+      setStamp("live · no changes since " + new Date().toLocaleTimeString());
+      return;
+    }
+    lastPayload = payload;
+    STATE = JSON.parse(payload);
     render();
   } catch (e) {
-    const stamp = document.getElementById("stamp");
-    if (stamp) stamp.textContent = "reconnecting…";
+    setStamp("reconnecting…");
   }
 }
 tick();
-setInterval(tick, 2000);
+setInterval(tick, 3000);
 </script>
 </body></html>
 """
