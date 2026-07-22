@@ -16,6 +16,7 @@ from typing import Any
 PROVIDER_KEY_ENV = {
     "anthropic": "ANTHROPIC_API_KEY",
     "openai": "OPENAI_API_KEY",
+    "moonshot": "MOONSHOT_API_KEY",
     "azure": "AZURE_API_KEY",
     "gemini": "GEMINI_API_KEY",
     "groq": "GROQ_API_KEY",
@@ -29,9 +30,29 @@ PROVIDER_KEY_ENV = {
 }
 
 
+def parse_chain(value: str) -> list[str]:
+    """Split a comma-separated model chain into ordered candidates.
+
+    Every ``EFFERENTS_MODEL*`` value may be a chain: the first entry is the
+    preferred model, later entries are failovers tried in order when the
+    preferred provider errors or has no credentials.
+    """
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
+def configured_chain() -> list[str]:
+    return parse_chain(os.environ.get("EFFERENTS_MODEL", "claude-sonnet-4-6"))
+
+
 def configured_model() -> str:
-    """Return the default model identifier, preserving the Claude default."""
-    return os.environ.get("EFFERENTS_MODEL", "claude-sonnet-4-6").strip()
+    """Return the preferred (first-choice) model, preserving the Claude default."""
+    return configured_chain()[0]
+
+
+def resolve_chain(model: str | None = None) -> list[str]:
+    if model:
+        return parse_chain(model)
+    return configured_chain()
 
 
 def provider_for_model(model: str | None = None) -> str:
@@ -52,9 +73,14 @@ def required_key_env(model: str | None = None) -> str | None:
     return PROVIDER_KEY_ENV.get(provider, f"{provider.upper()}_API_KEY")
 
 
-def credentials_available(model: str | None = None) -> bool:
-    key_name = required_key_env(model)
+def _candidate_credentials_available(candidate: str) -> bool:
+    key_name = required_key_env(candidate)
     return key_name is None or bool(os.environ.get(key_name, "").strip())
+
+
+def credentials_available(model: str | None = None) -> bool:
+    """True if any candidate in the (possibly chained) model value has keys."""
+    return any(_candidate_credentials_available(c) for c in resolve_chain(model))
 
 
 def credential_help(model: str | None = None) -> str:
@@ -66,12 +92,15 @@ def credential_help(model: str | None = None) -> str:
 
 
 def make_client() -> Any:
-    """Construct the native Anthropic client or the provider-neutral adapter."""
-    provider = provider_for_model()
-    if provider == "anthropic":
-        import anthropic
-        return anthropic.Anthropic()
-    return LiteLLMMessagesClient()
+    """Construct the routing client.
+
+    The routing client dispatches each ``messages.create`` call to the provider
+    of the model it names — the native Anthropic SDK for ``claude-*``, the
+    LiteLLM adapter for everything else — so different roles can run on
+    different providers within one process, and comma-separated model chains
+    fail over across providers.
+    """
+    return RoutingMessagesClient()
 
 
 def _text_from_content(content: Any) -> str:
@@ -200,3 +229,60 @@ class _Messages:
 class LiteLLMMessagesClient:
     def __init__(self) -> None:
         self.messages = _Messages()
+
+
+class _RoutingMessages:
+    def __init__(self, parent: "RoutingMessagesClient") -> None:
+        self._parent = parent
+
+    def create(self, **kwargs: Any) -> Any:
+        chain = resolve_chain(kwargs.get("model"))
+        failures: list[tuple[str, str]] = []
+        last_exc: Exception | None = None
+        for candidate in chain:
+            if not _candidate_credentials_available(candidate):
+                failures.append((candidate, credential_help(candidate)))
+                continue
+            provider = provider_for_model(candidate)
+            model_id = candidate
+            if provider == "anthropic" and candidate.lower().startswith("anthropic/"):
+                model_id = candidate.split("/", 1)[1]
+            delegate = self._parent.delegate_for(provider)
+            try:
+                response = delegate.messages.create(**{**kwargs, "model": model_id})
+            except Exception as exc:  # provider outage/quota/auth — try the next link
+                if len(chain) == 1:
+                    raise
+                last_exc = exc
+                failures.append((candidate, f"{type(exc).__name__}: {exc}"))
+                print(f"model_client: {candidate} failed ({type(exc).__name__}); "
+                      f"failing over", flush=True)
+                continue
+            self._parent.last_served_model = candidate
+            return response
+        detail = "; ".join(f"{model} ({reason})" for model, reason in failures)
+        raise RuntimeError(f"all models in chain failed: {detail}") from last_exc
+
+
+class RoutingMessagesClient:
+    """Per-call provider routing with chain failover.
+
+    ``messages.create(model="moonshot/kimi-k2-thinking,claude-sonnet-5")``
+    tries Kimi first and falls back to Claude on any provider error; a bare
+    single model behaves exactly as before. Provider delegates are cached, so
+    mixed-provider role configs share one client instance.
+    """
+
+    def __init__(self) -> None:
+        self.messages = _RoutingMessages(self)
+        self.last_served_model: str | None = None
+        self._anthropic_client: Any = None
+        self._litellm_client = LiteLLMMessagesClient()
+
+    def delegate_for(self, provider: str) -> Any:
+        if provider == "anthropic":
+            if self._anthropic_client is None:
+                import anthropic
+                self._anthropic_client = anthropic.Anthropic()
+            return self._anthropic_client
+        return self._litellm_client

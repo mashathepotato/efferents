@@ -5,9 +5,12 @@ from types import SimpleNamespace
 from efferents.agents.budget import CallUsage, cost_usd, model_for
 from efferents.agents.model_client import (
     LiteLLMMessagesClient,
+    RoutingMessagesClient,
     credentials_available,
+    parse_chain,
     provider_for_model,
     required_key_env,
+    resolve_chain,
 )
 
 
@@ -70,3 +73,116 @@ def test_litellm_adapter_converts_text_usage_and_model(monkeypatch):
 
 def test_non_anthropic_model_uses_litellm_pricing():
     assert cost_usd("openai/gpt-5", CallUsage(1_000_000, 1_000_000)) > 0
+
+
+def test_parse_chain_and_resolution(monkeypatch):
+    assert parse_chain(" a , b ,, c ") == ["a", "b", "c"]
+    monkeypatch.setenv(
+        "EFFERENTS_MODEL", "moonshot/kimi-k2-thinking, claude-sonnet-5"
+    )
+    assert resolve_chain() == ["moonshot/kimi-k2-thinking", "claude-sonnet-5"]
+    assert resolve_chain("openai/gpt-5") == ["openai/gpt-5"]
+
+
+def test_chain_credentials_available_if_any_candidate_has_keys(monkeypatch):
+    monkeypatch.delenv("MOONSHOT_API_KEY", raising=False)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    assert credentials_available("moonshot/kimi-k2-thinking,claude-sonnet-5")
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    assert not credentials_available("moonshot/kimi-k2-thinking,claude-sonnet-5")
+
+
+def test_chain_cost_priced_at_preferred_entry():
+    chained = cost_usd(
+        "claude-sonnet-4-6,openai/gpt-5", CallUsage(1_000_000, 1_000_000)
+    )
+    assert chained == cost_usd("claude-sonnet-4-6", CallUsage(1_000_000, 1_000_000))
+
+
+class _FakeDelegate:
+    def __init__(self, result=None, error=None):
+        self.calls = []
+        self._result = result
+        self._error = error
+        self.messages = self
+
+    def create(self, **kwargs):
+        self.calls.append(kwargs)
+        if self._error is not None:
+            raise self._error
+        return self._result
+
+
+def _routing_client_with(delegates):
+    client = RoutingMessagesClient()
+    client.delegate_for = lambda provider: delegates[provider]
+    return client
+
+
+def test_routing_dispatches_by_provider_per_call(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "k")
+    monkeypatch.setenv("MOONSHOT_API_KEY", "k")
+    anthropic_delegate = _FakeDelegate(result="claude-response")
+    litellm_delegate = _FakeDelegate(result="kimi-response")
+    client = _routing_client_with(
+        {"anthropic": anthropic_delegate, "moonshot": litellm_delegate}
+    )
+    assert client.messages.create(model="claude-sonnet-5", messages=[]) == "claude-response"
+    assert client.messages.create(model="moonshot/kimi-k2-thinking", messages=[]) == "kimi-response"
+    assert client.last_served_model == "moonshot/kimi-k2-thinking"
+
+
+def test_routing_fails_over_on_provider_error(monkeypatch):
+    monkeypatch.setenv("MOONSHOT_API_KEY", "k")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "k")
+    client = _routing_client_with({
+        "moonshot": _FakeDelegate(error=RuntimeError("quota exhausted")),
+        "anthropic": _FakeDelegate(result="fallback-response"),
+    })
+    response = client.messages.create(
+        model="moonshot/kimi-k2-thinking,claude-sonnet-5", messages=[]
+    )
+    assert response == "fallback-response"
+    assert client.last_served_model == "claude-sonnet-5"
+
+
+def test_routing_skips_candidates_without_credentials(monkeypatch):
+    monkeypatch.delenv("MOONSHOT_API_KEY", raising=False)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "k")
+    kimi = _FakeDelegate(result="never")
+    claude = _FakeDelegate(result="claude-response")
+    client = _routing_client_with({"moonshot": kimi, "anthropic": claude})
+    response = client.messages.create(
+        model="moonshot/kimi-k2-thinking,claude-sonnet-5", messages=[]
+    )
+    assert response == "claude-response"
+    assert kimi.calls == []
+
+
+def test_routing_single_model_error_propagates_unchanged(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "k")
+    boom = ValueError("bad request")
+    client = _routing_client_with({"anthropic": _FakeDelegate(error=boom)})
+    try:
+        client.messages.create(model="claude-sonnet-5", messages=[])
+    except ValueError as exc:
+        assert exc is boom
+    else:
+        raise AssertionError("expected the original error to propagate")
+
+
+def test_routing_exhausted_chain_raises_with_detail(monkeypatch):
+    monkeypatch.setenv("MOONSHOT_API_KEY", "k")
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    client = _routing_client_with({
+        "moonshot": _FakeDelegate(error=RuntimeError("overloaded")),
+        "anthropic": _FakeDelegate(result="never"),
+    })
+    try:
+        client.messages.create(
+            model="moonshot/kimi-k2-thinking,claude-sonnet-5", messages=[]
+        )
+    except RuntimeError as exc:
+        assert "kimi-k2-thinking" in str(exc) and "claude-sonnet-5" in str(exc)
+    else:
+        raise AssertionError("expected chain exhaustion to raise")

@@ -18,6 +18,7 @@ done
 "$PY" "$HERE/crosslab.py"
 echo
 echo "Shared journal: $HERE/shared_journal/index.md"
+echo "Live metrics:   $PY $HERE/live.py   # http://127.0.0.1:8890/"
 echo "Note: reruns regenerate journal entries 001-004 per lab. The review"
 echo "layer (005_review.md, 006_next_experiment_v2.md, shared_journal/reviews/)"
 echo "is the recorded LLM review pass and is not overwritten by this script."

@@ -56,6 +56,10 @@ class CallUsage:
 
 
 def cost_usd(model: str, usage: CallUsage) -> float:
+    if "," in model:
+        # Model chains are priced at their preferred (first) entry; the ledger
+        # notes field records the actually-served model when it differs.
+        model = model.split(",", 1)[0].strip()
     p = PRICING_PER_MTOK.get(model)
     if p is None:
         # LiteLLM maintains pricing for its provider catalogue.  Keep the

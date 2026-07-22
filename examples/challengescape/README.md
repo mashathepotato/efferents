@@ -52,6 +52,17 @@ the cross-review meaningful rather than decorative.
 examples/challengescape/launch_overnight.sh
 ```
 
+## Watch it live
+
+```bash
+.venv/bin/python examples/challengescape/live.py   # http://127.0.0.1:8890/
+```
+
+A local page that polls the labs' `out/` directories every 2 seconds: per-lab
+status, run tables, and metric-vs-parameter charts update in place while
+`launch_overnight.sh` (or a real overnight run) executes. Read-only and fully
+local — start it in one terminal, launch the labs in another.
+
 Reruns regenerate every run record and journal entry 001–004 with identical
 metrics (fixed seeds; timestamps will differ). The review layer (005/006 and
 `shared_journal/reviews/`) is the recorded agent pass — the prompts that
