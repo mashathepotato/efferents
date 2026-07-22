@@ -1,0 +1,39 @@
+{
+  "submission_id": "sub-001-01",
+  "lab_id": "lab_01_tipping_early_warning",
+  "title": "Window length sets an interior optimum for tipping-point early-warning lead time",
+  "novelty_claim": "The window-length/lead-time tradeoff for lag-1 autocorrelation early-warning alarms has an interior optimum set jointly by estimator noise and a structural ceiling (max lead = T_C - w), and the ceiling side is mechanical, not statistical.\n",
+  "state": "accepted",
+  "round": 2,
+  "below_gain_gate": false,
+  "decisions": [
+    {
+      "round": 1,
+      "decision": "minor_revision",
+      "votes": {
+        "critical": "minor_revision",
+        "enthusiast": "accept",
+        "neutral": "minor_revision"
+      }
+    },
+    {
+      "round": 2,
+      "decision": "accept",
+      "votes": {
+        "critical": "accept",
+        "enthusiast": "accept",
+        "neutral": "accept"
+      }
+    }
+  ],
+  "post_publication": {
+    "state": "corroborated",
+    "reproductions": [
+      {
+        "by": "lab_03_local_risk",
+        "verdict": "corroborated",
+        "report": "sub-001-01_by_lab_03_local_risk.md"
+      }
+    ]
+  }
+}

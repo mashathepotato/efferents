@@ -45,6 +45,35 @@ the cross-review meaningful rather than decorative.
    storm-trend suggestion with ceiling-aware bounds** —
    [`006_next_experiment_v2.md`](labs/lab_03_local_risk/out/journal/006_next_experiment_v2.md).
 
+## The venue — real peer review, mechanical reproduction
+
+[`venue/`](venue/) implements the journal lifecycle from
+[`context/journal_vision.md`](../../context/journal_vision.md) (2026-07-22
+addendum) as a file-based state machine ([`venue.py`](venue/venue.py),
+policy in [`venue.yaml`](venue/venue.yaml)):
+
+1. **Submit** — a manuscript must carry the Phase A frontmatter contract
+   (real `code_sha`, content-addressed `hypothesis_hash`, `metric_provenance`
+   citing run_ids), the five required sections, and a **machine-executable
+   reproduction recipe** (command + expected metrics + tolerance).
+2. **Board review** — critical/neutral/enthusiast reviews per round, each
+   with a recommendation; the decision is a deterministic aggregation
+   (`venue.py decide`), consolidating the reviewers' revision requests.
+3. **Revise → resubmit → decide** until **accepted** (camera-ready published
+   to [`venue/proceedings/`](venue/proceedings/index.md)) or **rejected**.
+4. **Reproduce before building on** — `venue.py reproduce <paper> --by <lab>`
+   *re-executes the paper's recipe in a scratch directory* and compares every
+   claimed metric within the venue margin: corroborated/challenged is a
+   mechanical verdict. Retraction after N unanswered challenges.
+
+The three labs went through this for real: sub-001 (minor revision →
+accepted, then **corroborated by lab_03** — every metric reproduced exactly —
+before lab_03 builds on its ceiling result), sub-002 (major revision — the
+board forced the headline metric to change — → accepted), sub-003
+(**rejected**: below the gain gate, winner within noise; resubmission
+expected after its queued experiment). Full event history:
+[`venue/ledger.jsonl`](venue/ledger.jsonl).
+
 ## Reproduce it
 
 ```bash

@@ -1,0 +1,116 @@
+---
+lab_id: lab_02_forecast_trust
+domain: climate-forecast-interpretability
+campaign_id: challengescape-2026-07
+venue: challengescape-climate
+hypothesis_path: out/journal/001_hypothesis.md
+hypothesis_hash: 20080b10eaa7c7e00c6075127e14fc4e12475ccecec654416167ae90139e73f6
+code_repo: https://github.com/mashathepotato/efferents
+code_sha: 5b283d54ada19c5afdfcb592e460b7e2f1d65fba
+novelty_claim: >
+  Under collinear covariates, global attribution stability of a
+  station-temperature forecaster can be bought nearly free: +17.0% stability
+  for a 3.0% skill cost via the ridge penalty — until regularization erases
+  skill entirely.
+metric_provenance:
+  - name: attribution_stability
+    value: 0.8902
+    baseline: 0.7609 at the unconstrained skill optimum (lambda=10, run_02)
+    delta_vs_baseline: 0.170
+    runs: [run_03]
+  - name: skill_vs_climatology
+    value: 0.268
+    baseline: 0.2764 unconstrained maximum (lambda=10, run_02)
+    delta_vs_baseline: -0.030
+    runs: [run_03]
+status: submitted
+---
+
+# Attribution stability is nearly free until regularization destroys forecast skill
+
+## Response to reviewers (round 1)
+
+- **Headline restructured** (critical §1, neutral): the optimized/defended
+  quantity is now the constraint form — maximize skill subject to
+  attribution stability ≥ τ=0.85 — and the primary metric_provenance entry
+  is the stability gained at that operating point (+17.0%) with the skill
+  cost (−3.0%) as the explicit second entry. The composite skill×stability
+  is demoted to a caveated secondary column.
+- **Components table** is now the main Results object (neutral, enthusiast).
+- **Engineered-collinearity scope** stated in Results (critical §2); claim
+  scoped to *global* attribution stability in title-level claim and
+  Conclusion (critical §3).
+No new experiments were run; all numbers derive from the recorded runs.
+
+## Motivation
+
+"Forecasters don't trust AI weather models" is usually treated as a UX
+problem. We operationalize one measurable component: does the model tell the
+same story about *why* it forecasts under refits? Hypothesis (falsifier: no
+penalty setting improves on the base configuration's stability without
+collapsing skill): buy global attribution stability with the ridge penalty
+at minimal skill cost.
+
+## Methods
+
+Deterministic daily station temperature (seed 20260722): seasonal sinusoid +
+AR(1) weather noise (phi=0.7, sd 2.0), 900 days, train t∈[2,600), eval
+t∈[600,900). Features: temp lag-1/lag-2, seasonal sin/cos, two collinear
+near-duplicates of the lags (noise sd 0.05), two pure-noise distractors.
+Model: ridge on standardized features via exact normal equations.
+Attribution stability = mean pairwise Spearman correlation of |coefficient|
+rankings across 20 bootstrap refits. Skill = 1 − rmse_model/
+rmse_climatology (seasonal-features-only ridge). Selection rule: maximize
+skill subject to stability ≥ 0.85. Sweep λ ∈ {0.01, 1, 10, 100, 1000}. Full
+implementation: `datagen.py`, `ridge.py`, `train.py`, `eval.py` at
+`code_sha`.
+
+### Reproduction recipe
+
+```yaml
+lab_dir: examples/challengescape/labs/lab_02_forecast_trust
+command: efferents run {lab_dir} --approve --out {scratch}
+metric: trust_adjusted_skill
+expected:
+  run_00: 0.2041
+  run_01: 0.2108
+  run_02: 0.2103
+  run_03: 0.2386
+  run_04: -0.0
+tolerance: 0.05
+```
+
+## Results
+
+| run | λ | skill | stability | skill×stability (secondary) |
+|-----|---|-------|-----------|------------------------------|
+| run_00 | 0.01 | 0.2700 | 0.7561 | 0.2041 |
+| run_01 | 1 | 0.2722 | 0.7742 | 0.2108 |
+| run_02 | 10 | 0.2764 | 0.7609 | 0.2103 |
+| run_03 | 100 | 0.2680 | 0.8902 | 0.2386 |
+| run_04 | 1000 | −0.0000 | 0.9109 | −0.0 |
+
+Skill sits in a flat 0.270–0.276 band from λ=0.01 to λ=100 while stability
+climbs 0.756→0.890; only λ=100 satisfies the τ=0.85 constraint, at a skill
+cost of 3.0% versus the unconstrained maximum (0.268 vs 0.2764, `run_03` vs
+`run_02`). At λ=1000 skill collapses to ≈0 (rmse 2.6884 vs climatology
+2.6883) while stability tops out at 0.911 — a stable explanation of a
+useless model, and the reason stability is never read alone. Scope: the
+collinearity is injected (twin-noise sd 0.05); the demonstrated object is
+the mechanism and its direction, not its real-data magnitude.
+
+## Conclusion
+
+The falsifier fails: +17.0% global attribution stability for −3.0% skill.
+The constraint form (skill s.t. stability ≥ τ) is the defensible selection
+rule; the composite is reported only as a secondary summary because it
+manufactures a degenerate −0.0 optimum candidate at λ=1000. The claim covers
+*global* importance-ranking stability; per-forecast attribution stability is
+untested here.
+
+## Next questions
+
+- Per-forecast attribution stability (what forecasters actually distrust).
+- Sensitivity of the free-stability band to the injected collinearity level.
+- The same index on a small neural forecaster over a WeatherBench2 subset.
+- Transfer: bootstrap rank-stability of lab_03's risk coefficients.

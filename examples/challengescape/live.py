@@ -32,6 +32,7 @@ import yaml
 ROOT = Path(__file__).resolve().parent
 LABS = ROOT / "labs"
 REVIEWS = ROOT / "shared_journal" / "reviews"
+VENUE_DIR = ROOT / "venue"
 
 RUNNING_WINDOW_S = 15  # runs.jsonl touched this recently => "running"
 
@@ -164,7 +165,31 @@ def build_state() -> dict:
         "labs": labs,
         "reviews": reviews,
         "themes": list(THEMES),
+        "venue": _venue_state(),
     }
+
+
+def _venue_state() -> dict | None:
+    if not (VENUE_DIR / "venue.yaml").is_file():
+        return None
+    cfg = yaml.safe_load((VENUE_DIR / "venue.yaml").read_text())
+    subs = []
+    for status_file in sorted(VENUE_DIR.glob("submissions/sub-*/status.json")):
+        s = json.loads(status_file.read_text())
+        sub_dir = status_file.parent
+        rel = f"submissions/{s['submission_id']}"
+        s["files"] = {
+            "manuscripts": [f"{rel}/{p.name}" for p in sorted(sub_dir.glob("manuscript_v*.md"))],
+            "reviews": [f"{rel}/reviews/{p.name}" for p in sorted((sub_dir / "reviews").glob("r*_*.md"))],
+            "decisions": [f"{rel}/{p.name}" for p in sorted(sub_dir.glob("decision_r*.md"))],
+            "camera_ready": (f"proceedings/{s['submission_id']}.md"
+                             if (VENUE_DIR / "proceedings" / f"{s['submission_id']}.md").is_file()
+                             else None),
+            "reproductions": [f"reproductions/{r['report']}"
+                              for r in s["post_publication"]["reproductions"]],
+        }
+        subs.append(s)
+    return {"name": cfg["name"], "board": cfg["board"], "submissions": subs}
 
 
 def read_artifact(lab: str, rel: str) -> str | None:
@@ -174,6 +199,12 @@ def read_artifact(lab: str, rel: str) -> str | None:
             return (ROOT / "shared_journal" / "index.md").read_text()
         if re.fullmatch(r"[\w.\-]+\.md", rel) and (REVIEWS / rel).is_file():
             return (REVIEWS / rel).read_text()
+        return None
+    if lab == "venue":
+        path = (VENUE_DIR / rel).resolve()
+        if (path.is_file() and path.suffix in (".md", ".yaml", ".jsonl")
+                and path.is_relative_to(VENUE_DIR)):
+            return path.read_text()
         return None
     lab_dir = LABS / lab
     if not lab_dir.is_dir() or lab_dir.parent != LABS:
@@ -537,9 +568,65 @@ function overview(state) {
       <div class="verdict">Open the lab → agents, journal, full chart</div>
     </div>`).join("")}
   </div>
+  ${venueSection(state)}
   <div class="section card">
     <h2>Network map — how the labs connect</h2>
     ${networkMap(state)}
+  </div>`;
+}
+
+/* ---------- venue ------------------------------------------------------- */
+function stateChip(s) {
+  const color = s === "accepted" ? "var(--good)"
+              : s === "reject" ? "var(--series-2)"
+              : "var(--warning)";
+  return `<span class="chip" style="color:${color};font-weight:600">${s.replace("_", " ")}</span>`;
+}
+
+function venueSection(state) {
+  const v = state.venue;
+  if (!v) return "";
+  const rows = v.submissions.map(s => {
+    const f = s.files;
+    const paper = f.camera_ready
+      ? `<a href="#" onclick="showArtifact('venue','${f.camera_ready}');return false"><strong>${s.title}</strong></a>`
+      : `<a href="#" onclick="showArtifact('venue','${f.manuscripts[f.manuscripts.length-1]}');return false">${s.title}</a>`;
+    const reviews = f.reviews.map(p => {
+      const m = p.match(/r(\d+)_(\w+)\.md$/);
+      return `<a href="#" onclick="showArtifact('venue','${p}');return false">r${m[1]} ${m[2]}</a>`;
+    }).join(" · ");
+    const decisions = f.decisions.map((p, i) =>
+      `<a href="#" onclick="showArtifact('venue','${p}');return false">decision r${i+1}</a>`).join(" · ");
+    const pp = s.post_publication;
+    const ppText = pp.reproductions.length
+      ? pp.reproductions.map((r, i) =>
+          `<a href="#" onclick="showArtifact('venue','${f.reproductions[i]}');return false">
+             ${r.verdict} by ${r.by}</a>`).join("; ")
+      : (s.state === "accepted" ? "no reproductions yet" : "—");
+    return `<tr>
+      <td>${paper}<br><span style="color:var(--text-muted);font-size:11.5px">${s.submission_id}
+        · ${s.lab_id}${s.below_gain_gate ? " · flagged: below gain gate" : ""}</span></td>
+      <td>${stateChip(s.state)}<br><span style="color:var(--text-muted);font-size:11.5px">
+        round ${s.round}</span></td>
+      <td style="font-size:12px">${reviews}<br>${decisions}</td>
+      <td style="font-size:12px">${ppText}</td></tr>`;
+  }).join("");
+  return `
+  <div class="section card">
+    <h2>${v.name}</h2>
+    <p style="color:var(--text-muted);font-size:12.5px;margin:6px 0 10px">
+      Real journal lifecycle: submit (methodology + machine-executable
+      reproduction recipe) → board review (${v.board.join(" / ")}) → revision
+      rounds → deterministic accept/reject → proceedings. Labs that build on a
+      paper reproduce it first — <code>venue.py reproduce</code> re-executes
+      the paper's recipe and compares every metric.
+      <a href="#" onclick="showArtifact('venue','proceedings/index.md');return false">proceedings index</a> ·
+      <a href="#" onclick="showArtifact('venue','venue.yaml');return false">venue policy</a> ·
+      <a href="#" onclick="showArtifact('venue','ledger.jsonl');return false">event ledger</a></p>
+    <table>
+      <tr><th>paper</th><th>state</th><th>reviews & decisions</th><th>post-publication</th></tr>
+      ${rows}
+    </table>
   </div>`;
 }
 
@@ -619,12 +706,16 @@ async function showArtifact(lab, file) {
   const path = lab === "shared"
     ? (file === "index.md" ? "examples/challengescape/shared_journal/index.md"
                            : `examples/challengescape/shared_journal/reviews/${file}`)
+    : lab === "venue" ? `examples/challengescape/venue/${file}`
     : `examples/challengescape/labs/${lab}/${file}`;
   const res = await fetch(`/api/artifact?lab=${encodeURIComponent(lab)}&file=${encodeURIComponent(file)}`);
+  const body = res.ok
+    ? (file.endsWith(".md") ? renderMd(await res.text())
+       : `<pre style="font-size:12px;overflow-x:auto">${esc(await res.text())}</pre>`)
+    : "<p>artifact unavailable</p>";
   viewer.innerHTML =
     `<p style="color:var(--text-muted);font-size:11.5px;margin:0 0 8px">
-       source: <code>${path}</code></p>`
-    + (res.ok ? renderMd(await res.text()) : "<p>artifact unavailable</p>");
+       source: <code>${path}</code></p>` + body;
 }
 function showSharedIndex() { showArtifact("shared", "index.md"); }
 function openModal() { document.getElementById("modal").style.display = "flex"; }

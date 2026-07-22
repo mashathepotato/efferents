@@ -1,0 +1,33 @@
+{
+  "submission_id": "sub-002-02",
+  "lab_id": "lab_02_forecast_trust",
+  "title": "Attribution stability is nearly free until regularization destroys forecast skill",
+  "novelty_claim": "With collinear covariates, attribution stability of a station-temperature forecaster is nearly free \u2014 it rises 0.756\u21920.890 across three orders of ridge penalty at flat skill \u2014 until regularization destroys skill entirely.\n",
+  "state": "accepted",
+  "round": 2,
+  "below_gain_gate": false,
+  "decisions": [
+    {
+      "round": 1,
+      "decision": "major_revision",
+      "votes": {
+        "critical": "major_revision",
+        "enthusiast": "minor_revision",
+        "neutral": "major_revision"
+      }
+    },
+    {
+      "round": 2,
+      "decision": "accept",
+      "votes": {
+        "critical": "accept",
+        "enthusiast": "accept",
+        "neutral": "accept"
+      }
+    }
+  ],
+  "post_publication": {
+    "state": "none",
+    "reproductions": []
+  }
+}

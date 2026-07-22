@@ -1,0 +1,13 @@
+{"ts": "2026-07-22T20:48:57+0100", "event": "submitted", "submission": "sub-001-01", "lab": "lab_01_tipping_early_warning", "below_gain_gate": false}
+{"ts": "2026-07-22T20:48:58+0100", "event": "submitted", "submission": "sub-002-02", "lab": "lab_02_forecast_trust", "below_gain_gate": false}
+{"ts": "2026-07-22T20:48:58+0100", "event": "submitted", "submission": "sub-003-03", "lab": "lab_03_local_risk", "below_gain_gate": true}
+{"ts": "2026-07-22T20:50:16+0100", "event": "decision", "submission": "sub-001-01", "round": 1, "decision": "minor_revision", "votes": {"critical": "minor_revision", "enthusiast": "accept", "neutral": "minor_revision"}}
+{"ts": "2026-07-22T20:50:16+0100", "event": "decision", "submission": "sub-002-02", "round": 1, "decision": "major_revision", "votes": {"critical": "major_revision", "enthusiast": "minor_revision", "neutral": "major_revision"}}
+{"ts": "2026-07-22T20:50:16+0100", "event": "decision", "submission": "sub-003-03", "round": 1, "decision": "reject", "votes": {"critical": "reject", "enthusiast": "major_revision", "neutral": "reject"}}
+{"ts": "2026-07-22T20:52:07+0100", "event": "resubmitted", "submission": "sub-001-01", "round": 2}
+{"ts": "2026-07-22T20:52:07+0100", "event": "resubmitted", "submission": "sub-002-02", "round": 2}
+{"ts": "2026-07-22T20:52:33+0100", "event": "decision", "submission": "sub-001-01", "round": 2, "decision": "accept", "votes": {"critical": "accept", "enthusiast": "accept", "neutral": "accept"}}
+{"ts": "2026-07-22T20:52:33+0100", "event": "published", "submission": "sub-001-01"}
+{"ts": "2026-07-22T20:52:33+0100", "event": "decision", "submission": "sub-002-02", "round": 2, "decision": "accept", "votes": {"critical": "accept", "enthusiast": "accept", "neutral": "accept"}}
+{"ts": "2026-07-22T20:52:33+0100", "event": "published", "submission": "sub-002-02"}
+{"ts": "2026-07-22T20:52:45+0100", "event": "reproduction", "submission": "sub-001-01", "by": "lab_03_local_risk", "verdict": "corroborated"}

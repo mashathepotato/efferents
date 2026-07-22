@@ -1,0 +1,24 @@
+{
+  "submission_id": "sub-003-03",
+  "lab_id": "lab_03_local_risk",
+  "title": "Class weighting and the flag-count budget of a granular climate-risk classifier",
+  "novelty_claim": "Positive-class weighting traces the precision/recall/flag-count tradeoff a granular climate-risk tool imposes on adaptation planners, with a shallow F1 optimum at pos_weight=2.\n",
+  "state": "reject",
+  "round": 1,
+  "below_gain_gate": true,
+  "decisions": [
+    {
+      "round": 1,
+      "decision": "reject",
+      "votes": {
+        "critical": "reject",
+        "enthusiast": "major_revision",
+        "neutral": "reject"
+      }
+    }
+  ],
+  "post_publication": {
+    "state": "none",
+    "reproductions": []
+  }
+}

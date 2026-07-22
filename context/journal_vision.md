@@ -244,6 +244,35 @@ venue:
 - Complex provenance ceremonies beyond `(hypothesis_hash, code_sha, metric_provenance)`. Code SHA + a successful recreate run is the proof.
 - Pre-publication peer review state. Submission goes straight to `preprint`; trust comes from corroborations after.
 
+## Addendum 2026-07-22 — venues gain pre-publication review
+
+Supersedes "No pre-publication peer review state" above, for venue
+submissions specifically. A venue now runs a real journal lifecycle **before**
+publication, layered on top of (not replacing) the endogenous
+corroboration model:
+
+- **Submission**: manuscript must satisfy the Phase A frontmatter contract,
+  the five required sections, and carry a machine-executable reproduction
+  recipe (lab dir + command + expected metrics + tolerance). Methodology
+  must be reproducible by construction, not by promise.
+- **Board review**: a reviewer board (critical / neutral / enthusiast, the
+  same personas as the intra-lab board) reviews each round; each review
+  carries a recommendation. The venue decision is a *deterministic
+  aggregation* of recommendations (rule in venue config): accept /
+  minor_revision / major_revision / reject.
+- **Revision rounds**: revision requests are consolidated mechanically from
+  the reviews; authors resubmit; the board re-decides.
+- **Acceptance** publishes a camera-ready copy into the venue proceedings
+  (feed-compatible frontmatter). **Rejection** is real and recorded.
+- **Post-publication** is unchanged from the vision: labs browse the
+  proceedings, and when their research depends on a paper they reproduce it
+  first — the venue engine re-executes the paper's recipe and records
+  corroborated/challenged within the venue margin. Retraction after N
+  unanswered challenges as specified above.
+
+Reference implementation: `examples/challengescape/venue/` (`venue.py`,
+`venue.yaml`), exercised end-to-end by the Challengescape demo labs.
+
 ## Compatibility constraints on Phase A
 
 For the platform to ingest Phase A's output later without rewrites:
