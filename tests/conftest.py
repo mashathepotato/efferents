@@ -24,7 +24,7 @@ def fresh_runs_db(tmp_lab: Path) -> Path:
     conn = sqlite3.connect(db)
     # Snapshot of production schema BEFORE the 2026-05-17 campaigns migration.
     # Do NOT add campaign_id / researcher_mode here — those columns are what
-    # the migration test will verify. Source of truth: auto_qml/run.py RUNS_SCHEMA.
+    # the migration test will verify. Source of truth: reference_lab/run.py RUNS_SCHEMA.
     conn.executescript(
         """
         CREATE TABLE runs (

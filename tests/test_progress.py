@@ -50,7 +50,7 @@ def lab_with_db(tmp_lab):
     return paths
 
 
-@pytest.mark.skip(reason="QML-specific; lives with auto-qml")
+@pytest.mark.skip(reason="reference-domain-specific; lives with reference-lab")
 def test_pre_migration_db_renders_fallback(lab_with_db):
     """No campaigns table → falls back to flat run view without crashing."""
     out = write_progress(lab_with_db)
@@ -70,7 +70,7 @@ def test_no_runs_renders_empty_states(lab_with_db):
 
 def test_best_of_each_metric_in_header(lab_with_db, tmp_path):
     """Header line shows best across multiple metrics drawn from LabConfig panels."""
-    # Configure a LabConfig with four QML-like panels to verify multi-metric rendering.
+    # Configure a LabConfig with four reference-domain-like panels to verify multi-metric rendering.
     src = tmp_path / "src"
     src.mkdir()
     (src / "c.yaml").touch()
@@ -123,7 +123,7 @@ def test_best_of_each_metric_in_header(lab_with_db, tmp_path):
 def test_smoke_lab_config_renders_synthetic_loss(lab_with_db):
     """Under the smoke_lab_config (headline=synthetic_loss/min), the rendered
     HTML must contain the panel label 'Loss' and the value of synthetic_loss;
-    it must NOT contain any QML-specific column names."""
+    it must NOT contain any reference-domain-specific column names."""
     apply_campaigns_migration(lab_with_db.runs_db)
     conn = sqlite3.connect(lab_with_db.runs_db)
     # Add synthetic_loss column (not in this fixture's CREATE TABLE)
@@ -146,10 +146,10 @@ def test_smoke_lab_config_renders_synthetic_loss(lab_with_db):
     # Headline metric value is present
     assert "0.1234" in html
 
-    # No QML-specific column names anywhere in the output
-    for qml_col in ("e_w1", "raw_q", "aug_depth", "radial_l2_log",
+    # No reference-domain-specific column names anywhere in the output
+    for reference_domain_col in ("e_w1", "raw_q", "aug_depth", "radial_l2_log",
                      "val_x0_mse", "gen_max_to_real_max", "eval_kind"):
-        assert qml_col not in html, f"QML column '{qml_col}' found in rendered HTML"
+        assert reference_domain_col not in html, f"reference-domain column '{reference_domain_col}' found in rendered HTML"
 
 
 def test_autodiscovery_column_appears_in_html(lab_with_db):

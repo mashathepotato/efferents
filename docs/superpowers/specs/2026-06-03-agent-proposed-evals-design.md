@@ -2,14 +2,14 @@
 
 **Status:** design, ready for plan.
 **Date:** 2026-06-03
-**Closes:** the Writer/exporter half of CLAUDE.md items 5/6 (metric coupling) for non-QML labs.
-**Blocks:** [`2026-06-03-hosted-submission-surface-design.md`](./2026-06-03-hosted-submission-surface-design.md) — the hosted surface's publish path has nothing to publish until a non-QML lab can emit a paper.
+**Closes:** the Writer/exporter half of CLAUDE.md items 5/6 (metric coupling) for domain-agnostic labs.
+**Blocks:** [`2026-06-03-hosted-submission-surface-design.md`](./2026-06-03-hosted-submission-surface-design.md) — the hosted surface's publish path has nothing to publish until a domain-agnostic lab can emit a paper.
 **Builds on:** [`2026-06-02-prompt-templating-design.md`](./2026-06-02-prompt-templating-design.md) (v0.1.2, templated prompts).
 
 ## Motivation
 
 v0.1.2 templated the agent *prompts*, but the **Writer and the bundle exporter
-are still hardwired to the QML headline metric `e_w1`**. For any non-QML lab
+are still hardwired to the reference-domain headline metric `e_w1`**. For any domain-agnostic lab
 (the smoke lab measures `synthetic_loss`):
 
 - `writer.py:write_phase_a_paper` reads `r["e_w1"]` via `_best_e_w1()`, sets
@@ -19,7 +19,7 @@ are still hardwired to the QML headline metric `e_w1`**. For any non-QML lab
 - `federation.py:export_paper_bundle` builds `metric_provenance` and
   `primary_metric` from hardcoded `e_w1`/`raw_q`.
 
-So a non-QML lab cannot emit a paper at all — which blocks the hosted submission
+So a domain-agnostic lab cannot emit a paper at all — which blocks the hosted submission
 surface (nothing to publish) and the smoke-lab E2E acceptance test.
 
 The fix is not "read one fixed metric column from `lab.yaml`." It is that the
@@ -44,7 +44,7 @@ proposed metric, and the Researcher/Writer/exporter/dashboard don't read one.
 |---|---|
 | `writer.py:write_phase_a_paper` | `_best_e_w1`, `primary_metric_name="e_w1"`, `metric_provenance[].name="e_w1"` |
 | `federation.py:export_paper_bundle` | `metric_provenance` + `primary_metric` hardcode `e_w1`/`raw_q` |
-| `researcher.py:PRIMARY_METRICS` + `_saturation_report` | QML 3-metric set; already guards/no-ops on non-QML schemas — generalize lightly |
+| `researcher.py:PRIMARY_METRICS` + `_saturation_report` | reference-domain 3-metric set; already guards/no-ops on domain-agnostic schemas — generalize lightly |
 
 ---
 
@@ -61,10 +61,10 @@ only-when-missing):
 `state.campaign_insert(...)` gains optional `headline_metric` +
 `headline_direction` params and writes them when present.
 
-**Fallback:** when a campaign's `headline_metric` is null (existing QML
+**Fallback:** when a campaign's `headline_metric` is null (existing reference-domain
 campaigns, or a Researcher that didn't propose one), consumers fall back to
 `lab.get_config().metrics.headline.column` / `.direction`. This preserves
-auto-qml behavior with zero data migration.
+reference-lab behavior with zero data migration.
 
 **Validation:** the proposed metric name must pass the existing SQL-identifier
 sanitizer (the same one `LabConfig` uses for metric columns). An invalid name
@@ -88,7 +88,7 @@ of that campaign emits the metric in its stdout `metrics` dict; the executor's
 existing ALTER-on-demand path creates the column. No new wiring in the executor.
 
 **Back-compat:** if the Researcher omits the metric (older prompts, or an
-override lab that keeps the QML prompt), `headline_metric` stays null and the
+override lab that keeps the reference-domain prompt), `headline_metric` stays null and the
 config default applies.
 
 ---
@@ -141,16 +141,16 @@ appears on the dashboard.
 
 ## 6. Researcher saturation report (light generalization)
 
-`researcher.py:_saturation_report` hardcodes a QML 3-metric `PRIMARY_METRICS`
+`researcher.py:_saturation_report` hardcodes a reference-domain 3-metric `PRIMARY_METRICS`
 set and buckets by `(model, raw_q, eval_kind)`. Generalize:
 
 - Metrics → the metric columns observed in `runs` (same discovery as §5).
 - Buckets → whatever low-cardinality config axes exist, rather than the fixed
-  QML triple.
+  reference-domain triple.
 - Keep the existing graceful no-op when the schema lacks the needed columns.
 
-This is a generalization, not a rewrite: non-QML labs get real (if simpler)
-saturation signal instead of the current silent skip; QML keeps working.
+This is a generalization, not a rewrite: domain-agnostic labs get real (if simpler)
+saturation signal instead of the current silent skip; reference-domain keeps working.
 
 ---
 
@@ -184,8 +184,8 @@ saturation signal instead of the current silent skip; QML keeps working.
 - The Researcher proposes `synthetic_loss` / `min`, the run emits it, and the
   Writer **composes and accepts a paper** for the smoke lab. `@pytest.mark.integration`.
 
-**Existing tests:** QML-coupled Writer/exporter tests that assert on `e_w1`
-move to `tests/lab_reference/` (auto-qml's prompt+config override will re-cover
+**Existing tests:** reference-domain-coupled Writer/exporter tests that assert on `e_w1`
+move to `tests/lab_reference/` (reference-lab's prompt+config override will re-cover
 them when it migrates). Expect a handful of touch-ups.
 
 **Manual verification:** run the smoke daemon foreground ~2 min; confirm a
@@ -207,7 +207,7 @@ note and bump to v0.1.3.
   are stored (any emitted metric becomes a column) and shown on the dashboard,
   but the publish gate is single-metric. Multi-metric corroboration is a
   hosted-surface / cross-lab concern anyway.
-- Auto-qml's own prompt/config override restoring the QML eval set (its repo).
+- Auto-reference_domain's own prompt/config override restoring the reference-domain eval set (its repo).
 
 ---
 
@@ -218,8 +218,8 @@ note and bump to v0.1.3.
 2. **No storage rewrite** — `_persist_run_result`'s ALTER-on-demand already
    persists any emitted metric; the metric lives on the campaign row.
 3. **Config fallback everywhere** — null campaign metric → `LabConfig.metrics.headline`,
-   preserving auto-qml with zero migration.
+   preserving reference-lab with zero migration.
 4. **Full B** — includes dashboard auto-discovery and a light saturation-report
    generalization; multi-objective gating deferred.
 5. **Sequencing:** this slice (v0.1.3) lands *before* the hosted submission
-   surface, which depends on a non-QML lab being able to emit a paper.
+   surface, which depends on a domain-agnostic lab being able to emit a paper.

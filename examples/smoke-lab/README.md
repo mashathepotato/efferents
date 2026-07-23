@@ -5,8 +5,8 @@ without GPU, real data, or real research.
 
 ## What it proves
 
-- LabConfig loads from a non-QML `lab.yaml`
-- Coder modifies code under a non-`auto_qml` source dir
+- LabConfig loads from a domain-agnostic `lab.yaml`
+- Coder modifies code under a lab-configured source directory
 - Run command emits stdout JSON; daemon ingests the row
 - Progress dashboard renders against a custom headline metric (`synthetic_loss`)
 - A full Researcher → Coder → smoke → run → analyst cycle completes in seconds
@@ -36,6 +36,7 @@ For the end-to-end test variant, run: `pytest -m integration tests/integration/`
 ## Known limitation
 
 The live agent prompts (researcher.md, coder.md, …) still carry phrasing from the
-original QML reference lab, so the Researcher's suggestions can read oddly in this
-synthetic domain. Prompt templating is in progress — see [`DEVELOPMENT.md`](../../DEVELOPMENT.md).
+original domain-specific lab, so the Researcher's suggestions can read oddly in
+this synthetic domain. Prompt templating is in progress — see
+[`DEVELOPMENT.md`](../../DEVELOPMENT.md).
 The offline demo above is unaffected.

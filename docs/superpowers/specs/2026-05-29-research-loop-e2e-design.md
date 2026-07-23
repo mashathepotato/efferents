@@ -7,13 +7,13 @@
 
 ## Motivation
 
-v0.1 shipped the entry-flow plugin: a user agent can read `skills/intake.md`, install efferents, validate a submission, and start a daemon. The daemon currently starts cleanly but crashes inside the orchestrator loop because three legacy assumptions about Phase A (the auto-qml-coupled scaffold) were not unwound:
+v0.1 shipped the entry-flow plugin: a user agent can read `skills/intake.md`, install efferents, validate a submission, and start a daemon. The daemon currently starts cleanly but crashes inside the orchestrator loop because three legacy assumptions about Phase A (the reference-lab-coupled scaffold) were not unwound:
 
 1. **Phase A's `Orchestrator` expects a `context/` directory** (with optional `research_log.md`) next to the lab dir. The smoke lab doesn't ship one.
-2. **The `runs` table schema is implicit** — Phase A's `migrations.runner` only ADDs columns; the table itself was created by `auto_qml.run.py`. Without that, `runs` doesn't exist, and Task 17's `_persist_run_result` writes silently fail (caught by `except OperationalError` and dropped).
-3. **`orchestrator.step()` still dispatches via `executor.execute(...)`** which calls `auto_qml.run_from_config` — now lazy-erroring (per Task-0 prep), so the first real run raises.
+2. **The `runs` table schema is implicit** — Phase A's `migrations.runner` only ADDs columns; the table itself was created by `reference_lab.run.py`. Without that, `runs` doesn't exist, and Task 17's `_persist_run_result` writes silently fail (caught by `except OperationalError` and dropped).
+3. **`orchestrator.step()` still dispatches via `executor.execute(...)`** which calls `reference_lab.run_from_config` — now lazy-erroring (per Task-0 prep), so the first real run raises.
 
-v0.1.1 closes all three so the smoke lab actually runs a research cycle end-to-end. The fix is domain-agnostic: no new code paths reference QML.
+v0.1.1 closes all three so the smoke lab actually runs a research cycle end-to-end. The fix is domain-agnostic: no new code paths reference reference-domain.
 
 ## Scope
 
@@ -21,13 +21,13 @@ Three connected changes, one cohesive ship:
 
 - Move `_execute_run` and `_persist_run_result` from `orchestrator.py` to `efferents/exec.py` (their natural home alongside `_run_and_capture`). Add lazy ALTER-on-`OperationalError` to `_persist_run_result`.
 - Add `ensure_runs_table(db_path, cfg)` to `efferents/migrations/runner.py`. Wire it into `_init_lab_root`. Also create an empty `context/research_log.md` stub if absent.
-- Rewrite `efferents/agents/executor.py` so `execute(*, paths, proposal, base_config=None)` preserves its signature but routes through `_execute_run` + `_persist_run_result` instead of `auto_qml.run_from_config`. Notebook formatting becomes generic (columns from `result.metrics.keys()`); the QML-specific column list and amp-ratio heuristics are dropped.
+- Rewrite `efferents/agents/executor.py` so `execute(*, paths, proposal, base_config=None)` preserves its signature but routes through `_execute_run` + `_persist_run_result` instead of `reference_lab.run_from_config`. Notebook formatting becomes generic (columns from `result.metrics.keys()`); the reference-domain-specific column list and amp-ratio heuristics are dropped.
 
 Out of scope:
 - Per-column metric typing (everything is REAL in v1; Phase B can extend).
 - Cleanup contract for `lab/configs/run_*.yaml` files (cheap, no cleanup).
-- Prompt templating — Researcher/Coder prompts remain QML-flavored. Documented limitation already in `intake.md`.
-- Auto-qml's `run.py` stdout-JSON migration (lives in auto-qml's repo).
+- Prompt templating — Researcher/Coder prompts remain reference-domain-flavored. Documented limitation already in `intake.md`.
+- Auto-reference_domain's `run.py` stdout-JSON migration (lives in reference-lab's repo).
 
 ---
 
@@ -60,7 +60,7 @@ efferents/agents/executor.py
   REWRITE: same call signature execute(*, paths, proposal, base_config=None),
   same return shape {ok, name, rows, duration_seconds} OR {ok, name, error,
   traceback, duration_seconds}. New internals — see Section 2.
-  Drops the QML-specific _format_outcome column list and the amp-ratio
+  Drops the reference-domain-specific _format_outcome column list and the amp-ratio
   WALLPAPER/DIM heuristics entirely.
 
 efferents/agents/orchestrator.py
@@ -255,6 +255,6 @@ sqlite3 examples/smoke-lab/lab/state.db "SELECT COUNT(*), MIN(synthetic_loss) FR
 
 - Per-column typing in `ensure_runs_table` (everything is REAL).
 - Cleanup contract for `lab/configs/run_*.yaml`.
-- Prompt templating (Researcher/Coder still QML-flavored — documented limitation).
-- Auto-qml's own `run.py` migration to stdout-JSON contract.
+- Prompt templating (Researcher/Coder still reference-domain-flavored — documented limitation).
+- Auto-reference_domain's own `run.py` migration to stdout-JSON contract.
 - An `efferents prune` CLI.

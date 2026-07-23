@@ -12,7 +12,7 @@ The distribution model mirrors [moltbook](https://moltbook.com): a hosted markdo
 
 ## Scope (Approach A, locked in during brainstorm)
 
-Ship the entry-flow plugin and do the minimum-viable framework decoupling from QML. Specifically:
+Ship the entry-flow plugin and do the minimum-viable framework decoupling from reference-domain. Specifically:
 
 - New: `intake.md` (hosted); `efferents` CLI; `LabConfig` dataclass + loader; lab registry; daemon wrapper. `status.md` is a v1-stretch goal — the local `efferents status` CLI covers the same use case without it.
 - Hosting: v1 serves `intake.md` from a GitHub raw URL (e.g., `raw.githubusercontent.com/mashathepotato/efferents/main/skills/intake.md`). `efferents.com` becomes the canonical URL only when the hosted journal/venue ships in Phase B.
@@ -21,13 +21,13 @@ Ship the entry-flow plugin and do the minimum-viable framework decoupling from Q
   - `efferents/lab.py` becomes a loader, not a static module (item 3)
   - Coder path-scope reads from LabConfig (item 5)
   - progress.py panel metrics read from LabConfig (item 6)
-- A tiny non-QML smoke lab to prove the plumbing.
+- A tiny domain-agnostic smoke lab to prove the plumbing.
 
 Out of scope:
 - Hosted backend / API endpoints / journal venue
 - Lab ownership verification (tweet-flow or otherwise)
 - Cross-lab heartbeat / corroboration / retraction
-- Full prompt templating (CLAUDE.md item 4) — labs inherit QML-flavored prompts in v1
+- Full prompt templating (CLAUDE.md item 4) — labs inherit reference-domain-flavored prompts in v1
 - A full second example lab beyond the smoke lab (CLAUDE.md item 9)
 - `recent_runs` SELECT column generalization (CLAUDE.md item 7) — start with `SELECT *`
 - `efferents init` scaffold (CLAUDE.md item 8) — the submission frontmatter is the scaffold
@@ -72,7 +72,7 @@ Three components, glued by a file contract.
 - Popper-probe stays an external dependency — per CLAUDE.md hard constraint.
 
 **Reused from Phase A as-is:**
-- Orchestrator loop, budget tracker, state primitives, paper writer, analyst, librarian, popper_gate (deprecated for new submissions but kept for auto-qml).
+- Orchestrator loop, budget tracker, state primitives, paper writer, analyst, librarian, popper_gate (deprecated for new submissions but kept for reference-lab).
 
 **New code surfaces:**
 - `efferents/cli.py` — `efferents` console-script entry point
@@ -155,7 +155,7 @@ Validation lives in `efferents.lab.LabConfig.from_submission(dir: Path)` — sin
 - Remote `source.repo: github.com/...` cloning — local path only.
 - Multi-PhD-student concurrent campaigns within one lab — single campaign per submission.
 - `claim_url` / verification flow — Phase B (hosted venue).
-- Custom prompt overrides — labs inherit current QML-flavored prompts; documented limitation in `intake.md`.
+- Custom prompt overrides — labs inherit current reference-domain-flavored prompts; documented limitation in `intake.md`.
 
 ---
 
@@ -218,8 +218,8 @@ If validation fails, surface the field-level error to the human and STOP.
 Tell the human, verbatim:
   - "The daemon will make Anthropic API calls against your ANTHROPIC_API_KEY.
     Budget cap is $<cap>/day; lower it in lab.yaml if you want."
-  - "The framework's agent prompts are currently calibrated for QML-domain
-    research. Non-QML domains may get odd suggestions until prompt overrides
+  - "The framework's agent prompts are currently calibrated for domain-specific
+    research. Non-reference-domain domains may get odd suggestions until prompt overrides
     ship in Phase B."
   - "The Coder agent will autonomously modify files under source.dir.
     Make sure that directory is in git and clean."
@@ -253,7 +253,7 @@ You're done. The daemon owns the lab from here.
 
 ## 4. CLI surface
 
-`pyproject.toml` adds a `console_scripts` entry: `efferents = efferents.cli:main`. The existing `python -m efferents.agents` keeps working for backward compat with auto-qml.
+`pyproject.toml` adds a `console_scripts` entry: `efferents = efferents.cli:main`. The existing `python -m efferents.agents` keeps working for backward compat with reference-lab.
 
 ### Commands
 
@@ -305,7 +305,7 @@ efferents list
   ```
   LAB_ID              STATUS    STARTED              SUBMISSION
   my-conjecture       running   2026-05-26 14:02     ./submissions/my-conjecture/
-  qml-aug-depth-3     stopped   2026-05-24 09:11     ./submissions/qml-aug-depth-3/
+  reference-domain-aug-depth-3     stopped   2026-05-24 09:11     ./submissions/reference-domain-aug-depth-3/
   ```
 
 ### Implementation footprint
@@ -411,7 +411,7 @@ def get_config() -> LabConfig:
         raise RuntimeError("LabConfig not loaded; call set_config() before agent code runs")
     return _active
 
-# Backward-compat shims so auto-qml's existing imports keep working until it migrates:
+# Backward-compat shims so reference-lab's existing imports keep working until it migrates:
 def __getattr__(name: str):  # PEP 562
     cfg = get_config()
     mapping = {
@@ -437,17 +437,17 @@ def student_ids() -> list[str]: ...
 
 **Loader:** `LabConfig.from_submission(dir)` reads `hypothesis.md` (checks `falsifiability_gate: passed`), reads `lab.yaml`, validates per Section 2's rules, returns a fully-resolved frozen `LabConfig`.
 
-**Callsite impact:** zero immediate churn — `__getattr__` shim covers the old API. New code (registry, daemon, CLI) uses `lab.get_config()` directly. We migrate callsites away from the shim opportunistically; auto-qml keeps importing the old names until *its* next session.
+**Callsite impact:** zero immediate churn — `__getattr__` shim covers the old API. New code (registry, daemon, CLI) uses `lab.get_config()` directly. We migrate callsites away from the shim opportunistically; reference-lab keeps importing the old names until *its* next session.
 
 ### 5.2 — Coder path scope (CLAUDE.md item 5)
 
 **Today** (`efferents/agents/coder.py`):
 ```python
-DEFAULT_TARGET_GLOBS = ["auto_qml/*.py", "config/default.yaml", "config/smoke.yaml"]
+DEFAULT_TARGET_GLOBS = ["reference_lab/*.py", "config/default.yaml", "config/smoke.yaml"]
 SMOKE_CONFIG = "config/smoke.yaml"
-_NEW_FILE_PATH_RE = re.compile(r"^auto_qml/[A-Za-z_][A-Za-z0-9_]*\.py$")
+_NEW_FILE_PATH_RE = re.compile(r"^reference_lab/[A-Za-z_][A-Za-z0-9_]*\.py$")
 ```
-Plus the smoke invocation: `python -m auto_qml.run --config config/smoke.yaml`.
+Plus the smoke invocation: `python -m reference_lab.run --config config/smoke.yaml`.
 
 **Change:** these become functions of `lab.get_config()`:
 
@@ -519,10 +519,10 @@ def run(submission_dir: Path) -> None:
 ### What does NOT change in Phase A code
 
 - `orchestrator.py` — unchanged. It already operates on whatever `lab.*` exposes.
-- `state.py` — unchanged in v1. `recent_runs` SELECT stays QML-coupled; documented limitation. Phase B touches this.
+- `state.py` — unchanged in v1. `recent_runs` SELECT stays reference-domain-coupled; documented limitation. Phase B touches this.
 - `analyst.py` — `flat_digest_epsilon` is the only knob, sourced from `cfg.metrics.flat_digest_epsilon`. ~3-line diff.
 - `writer.py` — unchanged in v1. Peer-review thresholds keep reading `lab.PEER_REVIEW_*` via shim.
-- `prompts/*.md` — unchanged in v1. QML-flavored prompts remain; documented limitation in intake.md.
+- `prompts/*.md` — unchanged in v1. reference-domain-flavored prompts remain; documented limitation in intake.md.
 - `researcher.py`, `librarian.py` — unchanged.
 
 ### Total decouple-work footprint
@@ -610,7 +610,7 @@ The Coder agent's smoke test runs `lab.config.executor.run_command` *inside the 
 
 ### The fundamental constraint
 
-Every Phase-A cycle is: Researcher proposes → Coder edits code → smoke test → if smoke passes, real training run → eval → row in `state.db`. The training run is where compute matters. It's domain-specific (GPU minutes for QML/diffusion, CPU for ablations, whatever the lab needs).
+Every Phase-A cycle is: Researcher proposes → Coder edits code → smoke test → if smoke passes, real training run → eval → row in `state.db`. The training run is where compute matters. It's domain-specific (GPU minutes for reference-domain/diffusion, CPU for ablations, whatever the lab needs).
 
 Moltbook's design dodges this because its agents don't *do* anything — they post text. Efferents can't dodge it: empirical results are the whole point.
 
@@ -662,13 +662,13 @@ def _run_and_capture(cmd: str, timeout_s: int) -> RunResult:
 
 Then a small writer that inserts the row into `state.db`.
 
-### Backward compat with auto-qml
+### Backward compat with reference-lab
 
-auto-qml today writes directly to SQLite. The new stdout contract would skip that row. Two options:
-- **(preferred) Migrate auto-qml's `run.py` to emit JSON on stdout.** ~10-line change in auto-qml. Done in auto-qml's next session.
-- **(fallback) Dual-read.** Daemon checks: did a row appear in state.db for this run_id during the subprocess? If yes, use it. If no, fall back to stdout parsing. Keeps auto-qml working unchanged. Ugly but safe.
+reference-lab today writes directly to SQLite. The new stdout contract would skip that row. Two options:
+- **(preferred) Migrate reference-lab's `run.py` to emit JSON on stdout.** ~10-line change in reference-lab. Done in reference-lab's next session.
+- **(fallback) Dual-read.** Daemon checks: did a row appear in state.db for this run_id during the subprocess? If yes, use it. If no, fall back to stdout parsing. Keeps reference-lab working unchanged. Ugly but safe.
 
-Recommend the preferred path — small, clean, and auto-qml's `run.py` is the natural place to own the contract.
+Recommend the preferred path — small, clean, and reference-lab's `run.py` is the natural place to own the contract.
 
 ### What lab.yaml gains for Model B (optional, defaulted)
 
@@ -807,18 +807,18 @@ All new code targets ≥80% line coverage. No mocking the Anthropic client beyon
 
 ### 9.2 — Carrying over Phase A's existing tests
 
-Per CLAUDE.md, 62/65 tests came over from auto-qml. Triage plan:
+Per CLAUDE.md, 62/65 tests came over from reference-lab. Triage plan:
 
 1. Run `uv run pytest tests/` once, capture pass/fail.
 2. **Generic tests** (state primitives, budget tracker, migrations, schemas, popper-gate, paper frontmatter): expected to pass post-decouple. Fix any that break — usually because they imported `lab.LAB_ID` or similar and now need `lab.set_config(...)` setup. Add a `conftest.py` fixture that loads a minimal smoke-lab LabConfig for all tests.
-3. **QML-specific tests** (anything asserting on `e_w1`, jet metrics, QML-shaped run rows): move to `tests/lab_reference/` and mark with `@pytest.mark.skip(reason="QML-specific; lives with auto-qml long-term")` until auto-qml migrates back to consuming `efferents` as a dep. No effort wasted maintaining them here.
+3. **reference-domain-specific tests** (anything asserting on `e_w1`, jet metrics, reference-domain-shaped run rows): move to `tests/lab_reference/` and mark with `@pytest.mark.skip(reason="reference-domain-specific; lives with reference-lab long-term")` until reference-lab migrates back to consuming `efferents` as a dep. No effort wasted maintaining them here.
 4. Document the split in `tests/README.md`.
 
-Goal: every test in `tests/` (excluding `tests/lab_reference/`) passes against the smoke lab fixture. CI should fail if a generic test slips into QML-coupled assertions.
+Goal: every test in `tests/` (excluding `tests/lab_reference/`) passes against the smoke lab fixture. CI should fail if a generic test slips into reference-domain-coupled assertions.
 
 ### 9.3 — The smoke lab (proves the plumbing)
 
-A deliberately trivial non-QML lab. Its purpose is **proving the abstractions hold**, not doing research. Lives at `examples/smoke-lab/`.
+A deliberately trivial domain-agnostic lab. Its purpose is **proving the abstractions hold**, not doing research. Lives at `examples/smoke-lab/`.
 
 ```
 examples/smoke-lab/
@@ -866,7 +866,7 @@ Per the `verification-before-completion` skill, claims of "working" require evid
 2. **Intake flow** — fresh Claude Code session reads the hosted `intake.md` and runs through the steps with the smoke lab as input. Observe popper-probe firing, lab.yaml prompted, daemon started, dashboard reachable.
 3. **Status flow** — close the session, open a new one, ask "check on the smoke lab". Confirm `efferents status` output is informative.
 4. **Crash recovery** — `kill -9` the daemon; re-run `efferents start`. Confirm idempotent re-attach, no data lost.
-5. **auto-qml sanity** — `cd ../auto-qml && uv run pytest tests/` against the new efferents. If any QML tests regress, debug or pin auto-qml to a pre-decouple efferents commit until migration.
+5. **reference-lab sanity** — `cd ../reference-lab && uv run pytest tests/` against the new efferents. If any reference-domain tests regress, debug or pin reference-lab to a pre-decouple efferents commit until migration.
 
 Document the results in a `docs/superpowers/specs/<date>-deployment-verification.md` companion (dated when written) before announcing.
 

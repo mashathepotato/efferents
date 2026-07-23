@@ -150,7 +150,7 @@ Vanilla HTML/CSS/JS, no build step. Panels:
   writer).
 
 Metric panels are driven by the lab's own `metrics.panels` / headline config, so each lab
-shows its own metrics — nothing QML/domain-specific is hardcoded.
+shows its own metrics — nothing reference-domain/domain-specific is hardcoded.
 
 ## Unit 3 — Feed renderer (`efferents/journal/feed.py`)
 

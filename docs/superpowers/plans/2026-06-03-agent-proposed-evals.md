@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Let the Researcher propose a domain-fitting headline metric per hypothesis, stored on the campaign, and read by the Writer, exporter, dashboard, and saturation report (with a `LabConfig` fallback) — so a non-QML lab can gate and emit a paper.
+**Goal:** Let the Researcher propose a domain-fitting headline metric per hypothesis, stored on the campaign, and read by the Writer, exporter, dashboard, and saturation report (with a `LabConfig` fallback) — so a domain-agnostic lab can gate and emit a paper.
 
 **Architecture:** The metric lives on the `campaigns` row (two new columns). The Researcher's `new_campaign` declaration carries `headline_metric` + `direction`; `campaign_insert` persists them. Every downstream consumer resolves `(metric, direction)` from the campaign row, falling back to `lab.get_config().metrics.headline` when null. Run-metric *storage* is unchanged — `exec.py:_persist_run_result` already ALTERs in any emitted metric column.
 
@@ -393,7 +393,7 @@ def test_best_metric_reads_campaign_runs(tmp_path):
 - [ ] **Step 7: Run tests + the existing writer suite**
 
 Run: `uv run pytest tests/test_writer_metric_resolution.py tests/ -k writer -v`
-Expected: new tests PASS; existing non-QML writer tests PASS. (QML `e_w1`-asserting writer tests move in Task 8 — if they fail here on `e_w1`, that is expected and resolved in Task 8.)
+Expected: new tests PASS; existing domain-agnostic writer tests PASS. (reference-domain `e_w1`-asserting writer tests move in Task 8 — if they fail here on `e_w1`, that is expected and resolved in Task 8.)
 
 - [ ] **Step 8: Commit**
 
@@ -786,7 +786,7 @@ from efferents.agents.progress import _discover_metric_columns
 
 def _observed_metric_columns(db_path) -> list[str]:
     """Metric columns present in runs, for saturation analysis. Falls back to
-    the QML PRIMARY_METRICS set only when it is actually present."""
+    the reference-domain PRIMARY_METRICS set only when it is actually present."""
     found = _discover_metric_columns(db_path)
     return found or [m for m in PRIMARY_METRICS]
 ```
@@ -801,7 +801,7 @@ Expected: PASS.
 - [ ] **Step 5: Run existing researcher tests**
 
 Run: `uv run pytest tests/ -k researcher -v`
-Expected: PASS (QML path still uses PRIMARY_METRICS when those columns are present).
+Expected: PASS (reference-domain path still uses PRIMARY_METRICS when those columns are present).
 
 - [ ] **Step 6: Commit**
 
@@ -812,14 +812,14 @@ git commit -m "feat(researcher): saturation report operates over observed metric
 
 ---
 
-### Task 8: Move QML-coupled tests to lab_reference + extend the acceptance gate
+### Task 8: Move reference-domain-coupled tests to lab_reference + extend the acceptance gate
 
 **Files:**
 - Move: any test under `tests/` asserting on `e_w1` in writer/exporter output → `tests/lab_reference/`
 - Modify: `tests/integration/test_smoke_lab_e2e.py` (extend acceptance)
 - Test: the moved + extended tests
 
-- [ ] **Step 1: Find the QML-coupled tests**
+- [ ] **Step 1: Find the reference-domain-coupled tests**
 
 Run: `grep -rln "e_w1" tests/ --include=*.py`
 Expected: a list of test files. For each that asserts `e_w1` as a *framework* expectation (writer/exporter), it is now lab-specific.
@@ -832,11 +832,11 @@ For each identified file, `git mv` it into `tests/lab_reference/` and add at the
 import pytest
 
 pytestmark = pytest.mark.skip(
-    reason="QML-specific; re-covered by auto-qml's lab override after migration"
+    reason="reference-domain-specific; re-covered by reference-lab's lab override after migration"
 )
 ```
 
-(`tests/lab_reference/` is the existing home for QML-coupled tests per `tests/README.md`.)
+(`tests/lab_reference/` is the existing home for reference-domain-coupled tests per `tests/README.md`.)
 
 - [ ] **Step 3: Run the default suite to confirm green**
 
@@ -917,4 +917,4 @@ git commit -m "chore: bump to 0.1.3 — agent-proposed evals; smoke lab emits a 
 
 - **Fallback is load-bearing.** Every consumer must tolerate a null campaign metric and a LabConfig that isn't set (unit tests run without `set_config`). The `try/except → ("e_w1","min")` pattern in Tasks 3-4 handles the latter.
 - **No storage migration for metrics.** Run-metric columns are added on demand by `exec.py:_persist_run_result`. Do not add metric columns to `ensure_runs_table` for agent-proposed metrics — they appear when the first run emits them.
-- **QML stays working** through the config fallback and the `lab_reference` test relocation; auto-qml restores its eval set via its own prompt/config override after it migrates.
+- **reference-domain stays working** through the config fallback and the `lab_reference` test relocation; reference-lab restores its eval set via its own prompt/config override after it migrates.

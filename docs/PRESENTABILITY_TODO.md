@@ -22,7 +22,7 @@ demo, 🟡 hurts credibility, 🟢 nice-to-have.
 - 🟡 Leads with the multi-lab/venue **vision** ("publish papers to a shared
   journal", "efferents.com") instead of the product wedge: **local-first,
   private experiment loops + reviewed internal research memos with provenance.**
-- 🟡 Heavy `auto-qml` / QML framing throughout ("quantum-conditioned diffusion",
+- 🟡 Heavy `reference-lab` / reference-domain framing throughout ("quantum-conditioned diffusion",
   "HEP jet data"). Buyer-irrelevant; belongs in DEVELOPMENT/historical notes.
 - 🟡 No 60-second quickstart, no example output, no budget/approval/safety
   section, no design-partner positioning.
@@ -41,12 +41,12 @@ demo, 🟡 hurts credibility, 🟢 nice-to-have.
 - 🟡 **No LICENSE.** Blocks adoption. (Add a TODO — do not invent a license.)
 - 🟡 **No `.env.example`** though `ANTHROPIC_API_KEY` / `submission/.env` are used.
 - 🟡 `examples/smoke-lab/README.md` carries a "Caveat" admitting prompts are
-  "still calibrated for the QML reference lab." Honest but undercuts confidence;
+  "still calibrated for the original domain-specific lab." Honest but undercuts confidence;
   reframe as a known limitation in DEVELOPMENT, keep example crisp.
-- 🟢 `CLAUDE.md` enumerates QML hardcodes as *open work*; several are now solved
+- 🟢 `CLAUDE.md` enumerates reference-domain hardcodes as *open work*; several are now solved
   by `LabConfig` (lab.py). Stale relative to code — fine internally, but should
   not be the buyer's first impression (it is linked from README top).
-- 🟢 `docs/templates/qml-lab.py.example` is QML-specific but clearly a labeled
+- 🟢 `docs/templates/reference-lab.py.example` is reference-domain-specific but clearly a labeled
   reference template — acceptable.
 
 ### What already works (keep, surface it)
@@ -54,7 +54,7 @@ demo, 🟡 hurts credibility, 🟢 nice-to-have.
 - ✅ `efferents validate / start / status / stop / list / serve` CLI is real.
 - ✅ Read-only dashboard server (`efferents serve`).
 - ✅ 247 unit tests pass (3 skipped, integration/slow excluded).
-- ✅ `examples/smoke-lab/` is a working non-QML lab with a stub executor.
+- ✅ `examples/smoke-lab/` is a working domain-agnostic lab with a stub executor.
 
 ## Plan (small, working changes — no architecture rewrite)
 
@@ -66,7 +66,7 @@ demo, 🟡 hurts credibility, 🟢 nice-to-have.
    minimal loader.
 4. ✅ Make provenance visible: reviewed memo has all sections + an evidence table
    keyed by run_id / metric / source_path.
-5. ✅ Rewrite README top for buyers; move scaffold/QML/architecture notes to
+5. ✅ Rewrite README top for buyers; move scaffold/reference-domain/architecture notes to
    `DEVELOPMENT.md`.
 6. ✅ Rework landing page for the local-first wedge + example output + pilot CTA.
 7. ✅ Add `.env.example`, `LICENSE` (Apache-2.0), gitignore demo output.

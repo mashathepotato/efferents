@@ -4,7 +4,7 @@
 
 **Goal:** Make the agent prompts domain-agnostic and templated so the smoke lab self-drives, with a per-lab override directory for domain-specific prompts.
 
-**Architecture:** A `str.format()`-based `load_prompt(name)` loader renders prompts from a LabConfig-derived variable dict; resolution order is explicit-override-path → `<submission>/prompts/<name>.md` → framework default. All 9 QML-coupled framework prompts are rewritten generic; all 11 get literal braces escaped (so `.format()` is safe). Callsites swap `PROMPT_PATH.read_text()` → `load_prompt(...)`.
+**Architecture:** A `str.format()`-based `load_prompt(name)` loader renders prompts from a LabConfig-derived variable dict; resolution order is explicit-override-path → `<submission>/prompts/<name>.md` → framework default. All 9 reference-domain-coupled framework prompts are rewritten generic; all 11 get literal braces escaped (so `.format()` is safe). Callsites swap `PROMPT_PATH.read_text()` → `load_prompt(...)`.
 
 **Tech Stack:** Python 3.10+, `uv`, pytest. No new dependencies (`str.format` is stdlib).
 
@@ -346,7 +346,7 @@ git commit -m "feat(prompts): add load_prompt loader with LabConfig-derived rend
 
 ## Task 3: Rewrite the Researcher trio (student, supervisor, researcher)
 
-These carry the heaviest QML coupling. Rewrite each to be domain-agnostic + templated, escaping all literal braces.
+These carry the heaviest reference-domain coupling. Rewrite each to be domain-agnostic + templated, escaping all literal braces.
 
 **Files:**
 - Modify: `efferents/agents/prompts/student.md`
@@ -369,15 +369,15 @@ def test_researcher_trio_renders_clean(tmp_path, name):
     assert "{" not in out.replace("{{", "").replace("}}", "")
     # Headline metric is woven in
     assert "synthetic_loss" in out
-    # No QML residue
-    for tok in ("e_w1", "raw_q", "amp_ratio", "QFM", "auto_qml"):
+    # No reference-domain residue
+    for tok in ("e_w1", "raw_q", "amp_ratio", "QFM", "reference_lab"):
         assert tok not in out
 ```
 
 - [ ] **Step 2: Verify failure**
 
 Run: `uv run pytest tests/test_prompt_loader.py -k researcher_trio -v`
-Expected: FAIL — current prompts contain QML tokens, unescaped braces, and no `{headline_metric}`.
+Expected: FAIL — current prompts contain reference-domain tokens, unescaped braces, and no `{headline_metric}`.
 
 - [ ] **Step 3: Rewrite `student.md`**
 
@@ -395,7 +395,7 @@ Read the current file. Apply these transformations (the file is ~460 lines; pres
    >
    > {panel_metrics_block}
 
-3. **Metric definitions** (the `e_w1`/`radial_l2_log`/`active_frac_w1` glossary, lines ~48–62): delete the QML glossary; the panel block above replaces it.
+3. **Metric definitions** (the `e_w1`/`radial_l2_log`/`active_frac_w1` glossary, lines ~48–62): delete the reference-domain glossary; the panel block above replaces it.
 
 4. **Example overrides**: replace any `raw_q`/`aug_depth`/`epochs`/`cond_drop_p` example config knobs with generic phrasing: "config knobs are whatever keys appear in the lab's config template (`{config_template}`); propose overrides as dotted paths into that YAML."
 
@@ -406,14 +406,14 @@ Read the current file. Apply these transformations (the file is ~460 lines; pres
 - [ ] **Step 4: Rewrite `supervisor.md`**
 
 Same approach. The supervisor reviews the student's proposals and allocates budget. Replace:
-- The QML domain framing → `{domain}` + `{hypothesis_body}`.
+- The reference-domain domain framing → `{domain}` + `{hypothesis_body}`.
 - The "reject proposals that ignore amp_ratio" rule → "reject proposals that don't state their expected effect on `{headline_metric}`."
 - The metric vocabulary → `{headline_metric}` / `{panel_metrics}`.
 - Escape literal braces in any JSON/example blocks.
 
 - [ ] **Step 5: Rewrite `researcher.md`**
 
-This is the shared/overview prompt. Replace QML metric references with `{headline_metric}` / `{panel_metrics_block}`, the domain framing with `{domain}`, and escape braces.
+This is the shared/overview prompt. Replace reference-domain metric references with `{headline_metric}` / `{panel_metrics_block}`, the domain framing with `{domain}`, and escape braces.
 
 - [ ] **Step 6: Verify render tests pass**
 
@@ -446,7 +446,7 @@ def test_medium_prompts_render_clean(tmp_path, name):
     _install(tmp_path)
     out = load_prompt(name)
     assert "{" not in out.replace("{{", "").replace("}}", "")
-    for tok in ("e_w1", "raw_q", "amp_ratio", "QFM", "auto_qml", "gen_max"):
+    for tok in ("e_w1", "raw_q", "amp_ratio", "QFM", "reference_lab", "gen_max"):
         assert tok not in out
 ```
 
@@ -457,14 +457,14 @@ Expected: FAIL.
 
 - [ ] **Step 3: Rewrite `coder.md`**
 
-1. Replace `auto_qml/X.py` path references with `{source_dir}` (e.g., "edit files under `{source_dir}`").
-2. Replace `python -m auto_qml.run --config config/smoke.yaml` with `{smoke_command}`.
-3. Delete QML-specific cautions ("don't break the diffusion math", "preserve the QFM encoding"); keep the generic contract: "make minimal diffs; the smoke command must still emit a JSON metrics object on stdout after your change."
+1. Replace `reference_lab/X.py` path references with `{source_dir}` (e.g., "edit files under `{source_dir}`").
+2. Replace `python -m reference_lab.run --config config/smoke.yaml` with `{smoke_command}`.
+3. Delete reference-domain-specific cautions ("don't break the diffusion math", "preserve the QFM encoding"); keep the generic contract: "make minimal diffs; the smoke command must still emit a JSON metrics object on stdout after your change."
 4. Escape literal braces in the edit-plan JSON example.
 
 - [ ] **Step 4: Rewrite `writer.md`**
 
-1. Replace QML metric names in the Results-section guidance with `{headline_metric}` / `{panel_metrics}`.
+1. Replace reference-domain metric names in the Results-section guidance with `{headline_metric}` / `{panel_metrics}`.
 2. The 5-section paper structure (Motivation/Methods/Results/Conclusion/Next) stays.
 3. Escape braces in any frontmatter/JSON example.
 
@@ -484,7 +484,7 @@ git commit -m "refactor(prompts): rewrite coder + writer domain-agnostic + templ
 
 ## Task 5: Rewrite light prompts + escape the two clean ones
 
-The light prompts (librarian, analyst, reviewer_critical, rebuttal) need surgical QML-token swaps. The two already-clean reviewer prompts (reviewer_neutral, reviewer_enthusiast) have **no QML coupling but do have literal braces** — they need brace-escaping only so `load_prompt` doesn't crash.
+The light prompts (librarian, analyst, reviewer_critical, rebuttal) need surgical reference-domain-token swaps. The two already-clean reviewer prompts (reviewer_neutral, reviewer_enthusiast) have **no reference-domain coupling but do have literal braces** — they need brace-escaping only so `load_prompt` doesn't crash.
 
 **Files:**
 - Modify: `efferents/agents/prompts/librarian.md`, `analyst.md`, `reviewer_critical.md`, `rebuttal.md`
@@ -518,10 +518,10 @@ Expected: FAIL on the prompts not yet escaped (librarian, analyst, reviewer_*, r
 
 - [ ] **Step 3: Rewrite the light four**
 
-- `librarian.md`: replace the 4 QML lines (lit-review example topics like "QFM diffusion", "jet") with generic `{domain}` phrasing. Escape its 19 braces.
-- `analyst.md`: replace the 2 QML metric mentions with `{headline_metric}`. (0 literal braces — no escaping needed.)
-- `reviewer_critical.md`: replace the 1 QML token with neutral wording; escape its 3 braces.
-- `rebuttal.md`: replace the 1 QML token; (0 braces).
+- `librarian.md`: replace the 4 reference-domain lines (lit-review example topics like "QFM diffusion", "jet") with generic `{domain}` phrasing. Escape its 19 braces.
+- `analyst.md`: replace the 2 reference-domain metric mentions with `{headline_metric}`. (0 literal braces — no escaping needed.)
+- `reviewer_critical.md`: replace the 1 reference-domain token with neutral wording; escape its 3 braces.
+- `rebuttal.md`: replace the 1 reference-domain token; (0 braces).
 
 - [ ] **Step 4: Brace-escape the two clean reviewers**
 
@@ -595,7 +595,7 @@ Add `from efferents.agents.prompts.loader import load_prompt` to researcher impo
 - [ ] **Step 3: Run the full suite**
 
 Run: `uv run pytest tests/ --ignore=tests/lab_reference --ignore=tests/integration 2>&1 | tail -8`
-Expected: failures only in tests that assert on QML strings in rendered prompts (handled in Task 7). Note which fail.
+Expected: failures only in tests that assert on reference-domain strings in rendered prompts (handled in Task 7). Note which fail.
 
 - [ ] **Step 4: Commit**
 
@@ -606,46 +606,46 @@ git commit -m "refactor(agents): load prompts through load_prompt (templated + o
 
 ---
 
-## Task 7: Coupling guard + fix QML-asserting tests
+## Task 7: Coupling guard + fix reference-domain-asserting tests
 
 **Files:**
 - Create: `tests/test_prompts_domain_agnostic.py`
-- Modify: any test asserting QML strings in rendered prompts (triage from Task 6)
+- Modify: any test asserting reference-domain strings in rendered prompts (triage from Task 6)
 
 - [ ] **Step 1: Write the coupling guard**
 
 Create `tests/test_prompts_domain_agnostic.py`:
 
 ```python
-"""Framework prompts must carry no QML-specific vocabulary."""
+"""Framework prompts must carry no reference-domain-specific vocabulary."""
 from __future__ import annotations
 import re
 from pathlib import Path
 
 PROMPTS_DIR = Path(__file__).parent.parent / "efferents" / "agents" / "prompts"
-QML_TOKENS = re.compile(
-    r"e_w1|raw_q|aug_depth|active_frac|radial_l2|qfm|jet|amp_ratio|wallpaper|auto_qml|gen_max",
+REFERENCE_DOMAIN_TOKENS = re.compile(
+    r"e_w1|raw_q|aug_depth|active_frac|radial_l2|qfm|jet|amp_ratio|wallpaper|reference_lab|gen_max",
     re.IGNORECASE,
 )
 
 
-def test_no_qml_tokens_in_framework_prompts():
+def test_no_reference_domain_tokens_in_framework_prompts():
     offenders = {}
     for md in sorted(PROMPTS_DIR.glob("*.md")):
-        hits = QML_TOKENS.findall(md.read_text())
+        hits = REFERENCE_DOMAIN_TOKENS.findall(md.read_text())
         if hits:
             offenders[md.name] = sorted(set(h.lower() for h in hits))
-    assert not offenders, f"QML tokens found in framework prompts: {offenders}"
+    assert not offenders, f"reference-domain tokens found in framework prompts: {offenders}"
 ```
 
 - [ ] **Step 2: Run it**
 
 Run: `uv run pytest tests/test_prompts_domain_agnostic.py -v`
-Expected: PASS (Tasks 3–5 removed all QML tokens). If it fails, the named offender prompt still has residue — fix that prompt, re-run.
+Expected: PASS (Tasks 3–5 removed all reference-domain tokens). If it fails, the named offender prompt still has residue — fix that prompt, re-run.
 
-- [ ] **Step 3: Triage and fix QML-asserting tests**
+- [ ] **Step 3: Triage and fix reference-domain-asserting tests**
 
-For each test that failed in Task 6 Step 3 because it asserted a QML string appears in a rendered prompt: either genericize the assertion (assert on the new generic phrasing) or, if the test is fundamentally QML-specific, `git mv` it to `tests/lab_reference/` and add `pytestmark = pytest.mark.skip(reason="QML-specific; lives with auto-qml")`.
+For each test that failed in Task 6 Step 3 because it asserted a reference-domain string appears in a rendered prompt: either genericize the assertion (assert on the new generic phrasing) or, if the test is fundamentally reference-domain-specific, `git mv` it to `tests/lab_reference/` and add `pytestmark = pytest.mark.skip(reason="reference-domain-specific; lives with reference-lab")`.
 
 Run the full suite to confirm green:
 
@@ -656,7 +656,7 @@ Expected: all pass, pre-existing skips unchanged.
 
 ```bash
 git add tests/
-git commit -m "test: add prompt coupling guard + genericize QML-asserting prompt tests"
+git commit -m "test: add prompt coupling guard + genericize reference-domain-asserting prompt tests"
 ```
 
 ---
@@ -699,7 +699,7 @@ pkill -f "efferents.cli start"
 - ≥1 row with non-null `synthetic_loss` landed in `runs.sqlite`.
 - No `orchestrator step FAILED: OperationalError: no such column: seed` (the v0.1.1 blocker).
 
-If the Researcher still proposes QML-shaped experiments, a prompt rewrite was incomplete — return to Task 3/4 for the offending prompt. If `synthetic_loss` rows land, the slice is done.
+If the Researcher still proposes reference-domain-shaped experiments, a prompt rewrite was incomplete — return to Task 3/4 for the offending prompt. If `synthetic_loss` rows land, the slice is done.
 
 - [ ] **Step 3: Write the verification note**
 
@@ -715,4 +715,4 @@ git commit -m "chore: bump to 0.1.2 — prompts templated; smoke lab self-drives
 git tag -a v0.1.2 -m "v0.1.2 — domain-agnostic templated prompts + per-lab override dir"
 ```
 
-The smoke lab now runs an autonomous research cycle with zero QML hardcoding. Auto-qml restores its domain prose via its own `prompts/` override dir in its next session.
+The smoke lab now runs an autonomous research cycle with zero reference-domain hardcoding. Auto-reference_domain restores its domain prose via its own `prompts/` override dir in its next session.

@@ -4,7 +4,7 @@
 
 **Goal:** Ship the moltbook-shaped entry-flow for efferents: an agent reads a hosted `intake.md`, runs popper-probe, prompts for lab config, and kicks off a backgrounded daemon that runs the Phase-A orchestrator against a per-submission `LabConfig`.
 
-**Architecture:** New `LabConfig` dataclass loaded from `submission/lab.yaml`; daemon process wraps the existing orchestrator; four targeted decouple edits in Phase A code (coder path scope, progress panels, analyst epsilon, run-result contract); a tiny non-QML smoke lab proves the plumbing.
+**Architecture:** New `LabConfig` dataclass loaded from `submission/lab.yaml`; daemon process wraps the existing orchestrator; four targeted decouple edits in Phase A code (coder path scope, progress panels, analyst epsilon, run-result contract); a tiny domain-agnostic smoke lab proves the plumbing.
 
 **Tech Stack:** Python 3.10+, `uv` for venv, pytest, pyyaml, pydantic 2 (already deps), `argparse` for CLI, `fcntl`+`os.fork` for daemon/registry primitives.
 
@@ -21,7 +21,7 @@
 - `efferents/exec.py` — `_extract_trailing_json`, `_run_and_capture`, `RunResult`
 - `tests/test_lab_config.py`, `tests/test_registry.py`, `tests/test_daemon.py`, `tests/test_cli.py`, `tests/test_exec.py`
 - `tests/integration/__init__.py`, `tests/integration/test_smoke_lab_e2e.py`
-- `tests/lab_reference/__init__.py` (destination for QML-coupled tests)
+- `tests/lab_reference/__init__.py` (destination for reference-domain-coupled tests)
 - `examples/smoke-lab/` (lab.yaml, hypothesis.md, src/, configs/)
 - `skills/intake.md`
 
@@ -678,7 +678,7 @@ def smoke_lab_config(tmp_path_factory):
 - [ ] **Step 2: Run all tests**
 
 Run: `uv run pytest tests/ -x --ignore=tests/integration --ignore=tests/lab_reference 2>&1 | tail -40`
-Expected: most tests pass; some may break with the new fixture installed. Note any failures by file — they're either QML-specific tests (handled in Task 16) or generic tests that need fixture-aware updates (fix now if obvious).
+Expected: most tests pass; some may break with the new fixture installed. Note any failures by file — they're either reference-domain-specific tests (handled in Task 16) or generic tests that need fixture-aware updates (fix now if obvious).
 
 - [ ] **Step 3: Commit**
 
@@ -748,7 +748,7 @@ def test_new_file_path_re_uses_source_dir(tmp_path):
     src_abs = str((tmp_path / "my_research").resolve())
     assert pattern.match(f"{src_abs}/foo.py")
     assert not pattern.match(f"{src_abs}/sub/foo.py")  # no nested dirs
-    assert not pattern.match("auto_qml/foo.py")  # legacy path no longer matches
+    assert not pattern.match("reference_lab/foo.py")  # legacy path no longer matches
 
 
 def test_smoke_command_renders_config_path(tmp_path):
@@ -794,7 +794,7 @@ Replace this section near the top of coder.py:
 ```python
 PROMPT_PATH = Path(__file__).parent / "prompts" / "coder.md"
 DEFAULT_TARGET_GLOBS = [
-    "auto_qml/*.py",
+    "reference_lab/*.py",
     "config/default.yaml",
     "config/smoke.yaml",
 ]
@@ -853,7 +853,7 @@ proc = subprocess.run(
 )
 ```
 
-Replace any existing `subprocess.run(["python", "-m", "auto_qml.run", ...]` or `cwd=...` call with the above pattern. Use grep to find them: `grep -n 'subprocess.run' efferents/agents/coder.py`.
+Replace any existing `subprocess.run(["python", "-m", "reference_lab.run", ...]` or `cwd=...` call with the above pattern. Use grep to find them: `grep -n 'subprocess.run' efferents/agents/coder.py`.
 
 Also replace `SMOKE_TIMEOUT_SECONDS` with `_smoke_timeout()`. Find with: `grep -n SMOKE_TIMEOUT efferents/agents/coder.py`.
 
@@ -863,7 +863,7 @@ Run: `uv run pytest tests/test_coder_path_scope.py -v`
 Expected: 4 passed
 
 Run: `uv run pytest tests/ -k coder -v`
-Expected: existing coder tests still pass (or move to lab_reference if they assert QML paths — defer to Task 16).
+Expected: existing coder tests still pass (or move to lab_reference if they assert reference-domain paths — defer to Task 16).
 
 - [ ] **Step 5: Commit**
 
@@ -983,7 +983,7 @@ Run: `uv run pytest tests/test_progress_panels.py -v`
 Expected: 2 passed
 
 Run: `uv run pytest tests/test_progress.py -v`
-Expected: existing tests pass OR identify QML-specific assertions for Task 16 triage.
+Expected: existing tests pass OR identify reference-domain-specific assertions for Task 16 triage.
 
 - [ ] **Step 5: Commit**
 
@@ -2398,7 +2398,7 @@ git commit -m "feat(cli): add 'efferents list' + console_scripts entry"
 Run: `grep -nE 'subprocess\.(run|Popen)' efferents/agents/`
 Identify each invocation of a run subprocess. Two main places: coder.py's smoke test, and orchestrator.py's real-run scheduler (if it shells out — verify).
 
-If orchestrator.py does NOT directly invoke runs (Phase A's auto-qml had the run logic inside `auto_qml/run.py` and the orchestrator just kicked it off), then add a new helper:
+If orchestrator.py does NOT directly invoke runs (Phase A's reference-lab had the run logic inside `reference_lab/run.py` and the orchestrator just kicked it off), then add a new helper:
 
 ```python
 # efferents/agents/orchestrator.py
@@ -2512,18 +2512,18 @@ git commit -m "feat(orchestrator): persist runs from stdout-JSON via _run_and_ca
 
 ## Phase 7 — Test triage
 
-### Task 18: Move QML-specific tests to `tests/lab_reference/`
+### Task 18: Move reference-domain-specific tests to `tests/lab_reference/`
 
 **Files:**
 - Create: `tests/lab_reference/__init__.py`
-- Move: tests that assert on QML-specific columns (e_w1, active_frac_w1, radial_l2_log, gen_max_to_real_max), reference auto_qml package, or hardcode QML-specific behavior.
+- Move: tests that assert on reference-domain-specific columns (e_w1, active_frac_w1, radial_l2_log, gen_max_to_real_max), reference reference_lab package, or hardcode reference-domain-specific behavior.
 - Create: `tests/README.md`
 
-- [ ] **Step 1: Identify QML-specific tests**
+- [ ] **Step 1: Identify reference-domain-specific tests**
 
-Run: `grep -lE "e_w1|active_frac_w1|radial_l2_log|gen_max_to_real_max|auto_qml" tests/test_*.py`
+Run: `grep -lE "e_w1|active_frac_w1|radial_l2_log|gen_max_to_real_max|reference_lab" tests/test_*.py`
 
-For each file in the output, open it and confirm whether the assertion is genuinely QML-specific (the metric column is hardcoded in test) versus generic (the test parameterizes on whatever column LabConfig provides). Genuinely-QML tests move; generic ones stay.
+For each file in the output, open it and confirm whether the assertion is genuinely reference-domain-specific (the metric column is hardcoded in test) versus generic (the test parameterizes on whatever column LabConfig provides). Genuinely-reference-domain tests move; generic ones stay.
 
 - [ ] **Step 2: Set up the lab_reference dir**
 
@@ -2532,7 +2532,7 @@ mkdir -p tests/lab_reference
 touch tests/lab_reference/__init__.py
 ```
 
-- [ ] **Step 3: Move each QML test**
+- [ ] **Step 3: Move each reference-domain test**
 
 For each identified test file (call it `test_x.py`):
 
@@ -2545,7 +2545,7 @@ At the top of each moved file, after the docstring, add:
 ```python
 import pytest
 pytestmark = pytest.mark.skip(
-    reason="QML-specific; lives with auto-qml. See tests/README.md."
+    reason="reference-domain-specific; lives with reference-lab. See tests/README.md."
 )
 ```
 
@@ -2557,15 +2557,15 @@ Create `tests/README.md`:
 # efferents tests
 
 Tests are split by whether they exercise lab-agnostic framework code or
-QML-specific behavior from the reference lab.
+reference-domain-specific behavior from the reference lab.
 
 - `tests/test_*.py` — generic framework tests. Run against the
-  `smoke_lab_config` fixture in `conftest.py`. Must pass without QML data
-  or auto-qml available.
-- `tests/lab_reference/test_*.py` — QML-specific tests inherited from
-  the auto-qml reference lab. Currently `@pytest.mark.skip`-ed. They will
-  re-enable when auto-qml depends on efferents as a pip package and these
-  tests move into auto-qml's own test suite.
+  `smoke_lab_config` fixture in `conftest.py`. Must pass without reference-domain data
+  or reference-lab available.
+- `tests/lab_reference/test_*.py` — reference-domain-specific tests inherited from
+  the original reference lab. Currently `@pytest.mark.skip`-ed. They will
+  re-enable when reference-lab depends on efferents as a pip package and these
+  tests move into reference-lab's own test suite.
 - `tests/integration/test_smoke_lab_e2e.py` — end-to-end test against
   `examples/smoke-lab/`. Marked `@pytest.mark.integration`; opt in via
   `pytest -m integration`.
@@ -2589,7 +2589,7 @@ If anything still fails, the failure is in generic code we've changed — fix at
 
 ```bash
 git add tests/
-git commit -m "test: move QML-specific tests to tests/lab_reference/ with skip marker"
+git commit -m "test: move reference-domain-specific tests to tests/lab_reference/ with skip marker"
 ```
 
 ---
@@ -2815,8 +2815,8 @@ without GPU, real data, or real research.
 
 ## What it proves
 
-- LabConfig loads from a non-QML `lab.yaml`
-- Coder modifies code under a non-`auto_qml` source dir
+- LabConfig loads from a domain-agnostic `lab.yaml`
+- Coder modifies code under a non-`reference_lab` source dir
 - Run command emits stdout JSON; daemon ingests the row
 - Progress dashboard renders against a custom headline metric (`synthetic_loss`)
 - A full Researcher → Coder → smoke → run → analyst cycle completes in seconds
@@ -2835,7 +2835,7 @@ For the end-to-end test variant, run: `pytest -m integration tests/integration/`
 ## Caveat
 
 The agent prompts (researcher.md, coder.md, etc) are still calibrated for the
-QML reference lab. The Researcher's suggestions may read oddly. This is a
+original domain-specific lab. The Researcher's suggestions may read oddly. This is a
 known limitation — see [`docs/superpowers/specs/2026-05-26-efferents-deployment-design.md`](../../docs/superpowers/specs/2026-05-26-efferents-deployment-design.md)
 Section 5 "Out of scope".
 ```
@@ -3047,8 +3047,8 @@ If validation fails, surface the field-level error to the human and STOP.
 Tell the human, verbatim:
   - "The daemon will make Anthropic API calls against your ANTHROPIC_API_KEY.
     Budget cap is $<cap>/day; lower it in lab.yaml if you want."
-  - "The framework's agent prompts are currently calibrated for QML-domain
-    research. Non-QML domains may get odd suggestions until prompt overrides
+  - "The framework's agent prompts are currently calibrated for domain-specific
+    research. Non-reference-domain domains may get odd suggestions until prompt overrides
     ship in Phase B."
   - "The Coder agent will autonomously modify files under source.dir.
     Make sure that directory is in git and clean."
@@ -3132,12 +3132,12 @@ Kill: `kill -9 $(efferents status --lab-id smoke-coefficient | grep pid | awk -F
 Re-start: `efferents start --submission examples/smoke-lab/ --detach`
 Expected: succeeds (idempotent re-attach), no data lost. `state.db` row count unchanged or increased.
 
-- [ ] **Step 6: auto-qml sanity**
+- [ ] **Step 6: reference-lab sanity**
 
 ```bash
-cd ../auto-qml && uv run pytest tests/ -x 2>&1 | tail -30
+cd ../reference-lab && uv run pytest tests/ -x 2>&1 | tail -30
 ```
-Expected: tests pass OR documented breakage (auto-qml needs `run.py` stdout-JSON migration). If broken, file an issue/note in the verification doc.
+Expected: tests pass OR documented breakage (reference-lab needs `run.py` stdout-JSON migration). If broken, file an issue/note in the verification doc.
 
 - [ ] **Step 7: Write the verification doc**
 
@@ -3146,7 +3146,7 @@ Create `docs/superpowers/specs/<today>-deployment-verification.md` (replace `<to
 - Smoke-lab end-to-end metrics observed
 - Status output
 - Crash recovery outcome
-- auto-qml status
+- reference-lab status
 - Any surprises encountered
 
 Then:

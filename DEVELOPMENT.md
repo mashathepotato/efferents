@@ -32,8 +32,8 @@ JSON. All checkpoints/configs/logs land under the `--out` dir, never the target
 repo. Budget is tracked as a wall-clock GPU-hour proxy; LLM spend is $0 (offline).
 `approval.mode: dry_run` writes the plan and stops before executing.
 
-In progress: the live multi-agent loop runs but several agent prompts are still
-calibrated against the original QML reference lab and read oddly in other
+In progress: the live multi-agent loop runs but several agent prompts still
+carry assumptions from the original domain-specific lab and read oddly in other
 domains; broader domain coverage and prompt templating are ongoing.
 
 ## Package layout
@@ -67,14 +67,14 @@ efferents/
 │       ├── popper_gate.py     # headless popper-probe intake
 │       └── progress.py        # self-contained HTML dashboard
 ├── examples/
-│   ├── smoke-lab/             # a complete non-QML example lab (stub executor)
+│   ├── smoke-lab/             # a complete domain-agnostic example lab (stub executor)
 │   └── repo-adapter/          # efferents.yaml example for an existing ML repo
 ├── web/landing/               # static marketing/landing site
 ├── tests/
 └── docs/
     ├── superpowers/specs/     # design specs
     ├── superpowers/plans/     # implementation plans
-    └── templates/             # qml-lab.py.example (historical reference)
+    └── templates/             # reference-lab.py.example (historical reference)
 ```
 
 ## Two config layers
@@ -124,15 +124,14 @@ hosted at `efferents.com`. That is **out of scope** for the framework package �
 see [`context/journal_vision.md`](./context/journal_vision.md). Build the
 single-lab library first.
 
-## History: the QML reference lab
+## History: the original reference lab
 
-efferents was extracted on 2026-05-26 from
-[auto-qml](https://github.com/mashathepotato/auto-qml), a lab running
-quantum-conditioned diffusion experiments on HEP jet data. The framework-relevant
-subset was copied out and decoupled from QML specifics into `LabConfig`. Some
-agent prompts still carry QML phrasing; `docs/templates/qml-lab.py.example` is a
-historical reference for how that lab parameterized the framework. Do **not**
-re-introduce `auto_qml` imports.
+Efferents was extracted on 2026-05-26 from an earlier domain-specific research
+lab. The framework-relevant subset was copied out and decoupled from that
+domain's assumptions into `LabConfig`. Some agent prompts still carry historical
+phrasing; `docs/templates/reference-lab.py.example` records how the original lab
+parameterized the framework. Do **not** reintroduce imports from the predecessor
+package.
 
 ## Related projects
 

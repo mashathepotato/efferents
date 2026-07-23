@@ -18,7 +18,7 @@ YAML / Python file at orchestrator startup so users define their lab in
 their own repo rather than monkey-patching this module.
 
 A concrete example lab module (modeled on the reference lab) is kept at
-`docs/templates/qml-lab.py.example` for copy-and-modify scaffolding.
+`docs/templates/reference-lab.py.example` for copy-and-modify scaffolding.
 """
 from __future__ import annotations
 

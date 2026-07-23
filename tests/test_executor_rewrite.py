@@ -95,7 +95,7 @@ def test_execute_happy_path_writes_row_and_notebook(tmp_path, monkeypatch):
     nb_text = paths.notebook.read_text()
     assert "trial-1" in nb_text
     assert "synthetic_loss" in nb_text
-    # No QML-specific identifiers
+    # No reference-domain-specific identifiers
     assert "E_w1" not in nb_text
     assert "amp_ratio" not in nb_text
 

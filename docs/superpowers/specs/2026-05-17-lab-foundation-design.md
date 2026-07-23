@@ -6,9 +6,9 @@
 
 ## Context
 
-`auto-qml` is currently a 24/7 orchestrator (Researcher / Executor / Analyst / Coder / Writer / Student / Supervisor) iterating on QFM-conditioned diffusion in the QML niche. The longer-term plan (see `context/journal_vision.md`) is an agent-driven research journal where labs publish papers with attached verifiable code, and other labs replicate-on-demand when they build on a paper.
+`reference-lab` is currently a 24/7 orchestrator (Researcher / Executor / Analyst / Coder / Writer / Student / Supervisor) iterating on QFM-conditioned diffusion in the reference-domain niche. The longer-term plan (see `context/journal_vision.md`) is an agent-driven research journal where labs publish papers with attached verifiable code, and other labs replicate-on-demand when they build on a paper.
 
-This spec covers only the work that makes `auto-qml` (a) better at its current job and (b) the reference implementation of a *lab* on that future journal. The journal platform itself is **not** in scope here.
+This spec covers only the work that makes `reference-lab` (a) better at its current job and (b) the reference implementation of a *lab* on that future journal. The journal platform itself is **not** in scope here.
 
 Three forces shape the spec:
 
@@ -30,6 +30,32 @@ Three forces shape the spec:
 - Migrating to autolab as a host framework (rejected; the orchestrator has more capability than it does).
 - Inter-lab communication (there's no platform yet to read from).
 - Replacing `proposed_changes.md` with autolab-style discoveries log (existing log is richer).
+
+## Design amendment 2026-07-23: funder steering
+
+The human in the loop is best understood as the lab's capital allocator: the
+owner, venture investor, grant maker, principal investigator, or equivalent
+sponsor whose money, compute, time, data access, or institutional authority the
+lab consumes. The funder establishes the initial thesis and constraints when a
+lab is deployed, but autonomous execution does not end their authority.
+
+The lab must therefore produce progress updates that support portfolio-level
+judgment without requiring the funder to inspect every implementation detail or
+read every paper. Those updates should connect active campaigns and recent
+evidence to the original thesis, expose negative results and uncertainty,
+summarize resource burn and remaining runway, identify drift or diminishing
+returns, and state the consequential decisions coming next.
+
+The funder must be able to inject durable, auditable steering that redirects
+priorities, changes scope, pauses further spend, or stops the lab. The
+Supervisor should translate that direction into the research agenda and report
+how it was applied. Steering may change future work; it must not rewrite past
+evidence, suppress challenges, or turn the funder into a public paper moderator.
+
+This distinction is a forward compatibility requirement: cross-lab scientific
+exchange remains agent-to-agent, while direction and resource governance inside
+a funded lab remain human-controlled. This amendment records the principle
+only; it does not specify or authorize an implementation in this slice.
 
 ## Architecture
 
@@ -78,21 +104,21 @@ The orchestrator is headless, so SKILL.md's interactive shape (one probe at a ti
 
 - **Single-shot self-play.** A new helper `agents/popper_gate.py` makes one Anthropic call whose system prompt is the SKILL.md content + an explicit instruction: "Run all probes against the draft claim by playing both roles (claimant + Popperian probe). If Probe 1 or 2 cannot be satisfied, emit a `falsifiability_gate: failed` file with a `## Diagnostic`. Otherwise emit `falsifiability_gate: passed` with full body sections. Output ONLY the hypothesis.md file contents, no commentary."
 - **Validation**: write the model's output to `popper-corpus/<slug>/hypothesis.md`, then `subprocess.run(["python3", "<popper-probe>/scripts/validate_hypothesis.py", <path>])`. Exit 0 → accept, store hash, open campaign. Exit 1 → capture stderr, retry once with the errors in the prompt, then drop.
-- **Popper-probe path resolution**: env var `POPPER_PROBE_REPO`, default `~/Documents/popper-probe`. No vendoring; no new dependency in `auto-qml`'s `pyproject.toml`. The script is pure stdlib so the auto-qml venv can run it directly.
+- **Popper-probe path resolution**: env var `POPPER_PROBE_REPO`, default `~/Documents/popper-probe`. No vendoring; no new dependency in `reference-lab`'s `pyproject.toml`. The script is pure stdlib so the reference-lab venv can run it directly.
 - **No modification to popper-probe needed.** SKILL.md is read as a prompt; the validator is invoked as a subprocess. If popper-probe later ships a programmatic intake entrypoint, swap `popper_gate.py`'s body without changing its interface.
 
 **Known tradeoff of single-shot self-play.** SKILL.md is designed with a human-in-the-loop sharpening conversation. In headless self-play the Researcher gets one chance plus one retry, with no human nudging. Some draft hypotheses that a human dialogue would have rescued will fall through to `falsifiability_gate: failed`. Mitigation: every drop is a notebook entry + ntfy push tagged `popper-rejected`, so the user can intervene in `context/research_log.md` if a borderline case matters. Acceptable failure mode: we'd rather drop fuzzy hypotheses than open campaigns that can't be refuted.
 
 ### 4. Lab identity stub
 
-New module `auto_qml/lab.py`:
+New module `reference_lab/lab.py`:
 
 ```python
 LAB_ID = "qfm-diffusion"
 DOMAIN = "quantum-ml"
 SUBDOMAIN = "qfm-diffusion-hep"
 PI_HANDLE = "@mashathepotato"  # optional, used by future journal claim flow
-CODE_REPO = "https://github.com/<owner>/auto-qml"
+CODE_REPO = "https://github.com/<owner>/<lab-repository>"
 ```
 
 Imported by `agents/writer.py` and `agents/analyst.py`. One value per file in one place; future Phase B (second lab) only edits this module.
@@ -113,7 +139,7 @@ pi_handle: "@mashathepotato"
 campaign_id: <uuid>
 hypothesis_hash: sha256:<...>
 hypothesis_path: popper-corpus/<slug>/hypothesis.md
-code_repo: https://github.com/<owner>/auto-qml   # optional pointer
+code_repo: https://github.com/<owner>/<lab-repository>   # optional pointer
 code_sha: <git commit sha at time of writeup>     # optional pointer
 metric_provenance:
   - name: w1_energy
@@ -151,7 +177,7 @@ The Writer must emit, in order:
 
 Without both, the campaign closes with `close_reason = "no novel publishable result"` and no paper is produced. Lab success metric ≈ count of *published* papers, so the novelty + gains gate is what protects against spam by your own lab.
 
-**Schema**: frontmatter validated by `auto_qml/schemas/paper_frontmatter.py` (pydantic). Body section presence validated by a structural check in the same module. Writer fails loudly when either fails.
+**Schema**: frontmatter validated by `reference_lab/schemas/paper_frontmatter.py` (pydantic). Body section presence validated by a structural check in the same module. Writer fails loudly when either fails.
 
 This is the future submission bundle. Phase B (journal platform) reads these fields and validates the same way at the API boundary.
 
@@ -167,7 +193,7 @@ Researcher.propose(mode)
     └─ proposal(s) ─► queue.jsonl  (tagged with campaign_id + mode)
 
 Executor.execute(proposal)
-    └─ runs auto_qml.run with config ─► runs row INSERT (campaign_id, researcher_mode)
+    └─ runs reference_lab.run with config ─► runs row INSERT (campaign_id, researcher_mode)
 
 Analyst.write_digest()
     └─ recent runs grouped by campaign_id
@@ -181,7 +207,7 @@ Writer.draft_paper(campaign_id)
 
 ## Schema migration
 
-Additive, idempotent, committed as `auto_qml/migrations/2026-05-17_campaigns.sql`:
+Additive, idempotent, committed as `reference_lab/migrations/2026-05-17_campaigns.sql`:
 
 ```sql
 CREATE TABLE IF NOT EXISTS campaigns (
@@ -209,7 +235,7 @@ cp lab/runs.sqlite lab/runs.sqlite.pre-2026-05-17.bak
 
 ## Verification
 
-- **Smoke (no regression)**: `python -m auto_qml.run --config config/default.yaml` still trains, samples, evals, and writes a row. `campaign_id` and `researcher_mode` are `NULL` for direct-CLI invocations. Existing rows untouched.
+- **Smoke (no regression)**: `python -m reference_lab.run --config config/default.yaml` still trains, samples, evals, and writes a row. `campaign_id` and `researcher_mode` are `NULL` for direct-CLI invocations. Existing rows untouched.
 - **Mode selection**: artificially flat-line W1 across 2 digests (force via test fixture). Next Researcher proposal has `mode != "refine"`. Verified by reading `lab/queue.jsonl`.
 - **Mode override**: append `force_mode: devils_advocate` to `context/research_log.md`. Next proposal carries that mode. Notebook entry records the override.
 - **Popper gate, reject path**: feed Researcher a draft hypothesis "make W1 better" (unfalsifiable). Popper intake rejects with rubric notes; no `campaigns` row inserted; notebook entry records reason.
@@ -237,10 +263,11 @@ cp lab/runs.sqlite lab/runs.sqlite.pre-2026-05-17.bak
 - Journal platform — submission API, citation chains, corroboration records. All deferred to a separate spec; see `context/journal_vision.md` for the design intent so this work stays compatible.
 - Replication mechanics — Phase A papers carry a code SHA, but nothing reads it yet.
 - Multi-lab orchestration — second lab is Phase B, after platform exists.
-- Human commentary surfaces — there are none and there won't be.
+- Public human commentary surfaces. Private owner/funder steering is a distinct
+  lab-governance channel and is required by the design amendment above.
 
 ## What this enables next (not built here)
 
 - Journal platform can ingest Writer's frontmatter as the submission bundle (one wiring change).
 - Popper Probe's future Subsystems C+D (observation logging, audit) can read campaign hashes to track corroborations/refutations over time.
-- Phase B (second lab in quantum-algorithms or quantum-optimization) is a one-module edit to `auto_qml/lab.py` and a fresh `lab/` directory; the spec, prompts, and machinery are unchanged.
+- Phase B (second lab in quantum-algorithms or quantum-optimization) is a one-module edit to `reference_lab/lab.py` and a fresh `lab/` directory; the spec, prompts, and machinery are unchanged.

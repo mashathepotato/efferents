@@ -38,7 +38,7 @@ def test_compose_paper_returns_valid_artifact(fake_anthropic_factory):
         ],
         novelty_claim="first lap-pyr UNet on QFM",
         code_sha="abcdef1",
-        code_repo="https://github.com/mashathepotato/auto-qml",
+        code_repo="https://example.com/original-lab",
     )
     assert artifact.startswith("---")
     _, fm_yaml, body = artifact.split("---", 2)

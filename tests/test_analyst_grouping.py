@@ -36,9 +36,9 @@ def test_empty_input():
     assert group_runs_by_campaign([]) == {}
 
 
-def test_recent_runs_table_uses_configured_headline_not_qml(tmp_path):
+def test_recent_runs_table_uses_configured_headline_not_reference_domain(tmp_path):
     # Under smoke_lab_config the headline column is `synthetic_loss`. The
-    # rendered table must use the configured column names, not QML columns.
+    # rendered table must use the configured column names, not reference-domain columns.
     rows = [
         {"run_id": "run-aaaa", "started_at": "2026-01-01", "campaign_id": "c1",
          "researcher_mode": "explore", "synthetic_loss": 0.123, "raw_q": 7},
@@ -48,7 +48,7 @@ def test_recent_runs_table_uses_configured_headline_not_qml(tmp_path):
     assert "e_w1" not in table
 
 
-def test_campaign_blocks_use_configured_headline_not_qml(tmp_path):
+def test_campaign_blocks_use_configured_headline_not_reference_domain(tmp_path):
     rows = [
         {"run_id": "run-bbbb", "campaign_id": "c1", "synthetic_loss": 0.05, "raw_q": 3},
     ]

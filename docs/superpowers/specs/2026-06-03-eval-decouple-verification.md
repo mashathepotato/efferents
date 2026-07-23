@@ -8,7 +8,7 @@
 ## What shipped
 
 The Writer, bundle exporter, dashboard, and saturation report are no longer
-hardwired to the QML metric `e_w1`. A campaign carries an agent-proposed
+hardwired to the reference-domain metric `e_w1`. A campaign carries an agent-proposed
 `headline_metric` + `headline_direction`; every consumer resolves the metric
 from the campaign row and falls back to `LabConfig.metrics.headline` (then to
 `("e_w1","min")` when no config is loaded, for unit tests).
@@ -40,7 +40,7 @@ $ uv run pytest tests/ --ignore=tests/lab_reference --ignore=tests/integration -
   the prompt example lists the metric fields; dashboard auto-discovery; and
   saturation observed-column discovery.
 - The domain-agnostic prompt coupling guard (`tests/test_prompts_domain_agnostic.py`)
-  passes — no QML tokens regressed into the prompts.
+  passes — no reference-domain tokens regressed into the prompts.
 - Every task passed a spec-compliance review; the integration-heavy tasks (3, 5)
   passed a code-quality review that caught and fixed two real bugs: a
   direction-blind publish gate (max metrics would have been silently rejected)

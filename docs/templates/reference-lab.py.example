@@ -1,11 +1,13 @@
-"""Lab identity. The single place that names *this* lab; Phase B sibling
-labs only differ from auto-qml in the constants below."""
+"""Historical lab identity example.
+
+Sibling labs differ from the original reference lab in the constants below.
+"""
 
 LAB_ID: str = "qfm-diffusion"
 DOMAIN: str = "quantum-ml"
 SUBDOMAIN: str | None = "qfm-diffusion-hep"
 PI_HANDLE: str | None = "@mashathepotato"
-CODE_REPO: str = "https://github.com/mashathepotato/auto-qml"
+CODE_REPO: str = "https://github.com/<owner>/<lab-repository>"
 
 # Peer-review gate (applied AFTER the mechanical should_publish gate in
 # agents/writer.py). When enabled, a paper that clears novelty + ≥5% metric

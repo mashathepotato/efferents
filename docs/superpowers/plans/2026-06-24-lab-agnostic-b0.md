@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make `analyst.py` and `progress.py` domain-agnostic by routing all "which column / which is best / did it improve" logic through a new `efferents/metrics_view.py` driven by `LabConfig.metrics`, and delete the dead auto_qml LaTeX/figure path from `writer.py`/`__main__.py`.
+**Goal:** Make `analyst.py` and `progress.py` domain-agnostic by routing all "which column / which is best / did it improve" logic through a new `efferents/metrics_view.py` driven by `LabConfig.metrics`, and delete the dead reference_lab LaTeX/figure path from `writer.py`/`__main__.py`.
 
 **Architecture:** One new helper module (`metrics_view.py`) is the single source of truth: headline + panels are the named metrics (headline+direction drives best-run and the flat-digest counter), all other non-meta columns are auto-discovered and shown generically. The two live consumers (analyst digest, static progress.html) are refactored onto it; the dead writer path is removed.
 
@@ -12,7 +12,7 @@
 
 **Branch:** `feat/lab-agnostic-b0` (already created; spec committed there).
 
-**Note for the implementer:** Tasks 2–4 refactor large existing files (`analyst.py`, `progress.py`, `writer.py`). For those, the plan gives the exact change-list and the pinning tests that define correct generic behavior — **read the target file first**, then make the changes so the (updated) tests pass and no QML column names remain. Run the FULL suite (`uv run pytest -q`) after each task; existing QML-encoding tests are updated within the task that causes them to change.
+**Note for the implementer:** Tasks 2–4 refactor large existing files (`analyst.py`, `progress.py`, `writer.py`). For those, the plan gives the exact change-list and the pinning tests that define correct generic behavior — **read the target file first**, then make the changes so the (updated) tests pass and no reference-domain column names remain. Run the FULL suite (`uv run pytest -q`) after each task; existing reference-domain-encoding tests are updated within the task that causes them to change.
 
 ---
 
@@ -28,7 +28,7 @@
 | `efferents/agents/writer.py` | Delete `write_once`, `regenerate_*`, `ALL_RUNS_SQL`, `_format_all_runs`, unused WriterPaths figure/table fields + imports |
 | `efferents/agents/__main__.py` | Remove `cmd_write_once` + `write-once` subparser; remove `cmd_start_writer`/`start-writer` if it drives `write_once` |
 | `tests/test_analyst_grouping.py`, `test_analyst_epsilon.py`, `test_flat_digest_counter.py` | Update to generic/direction-aware behavior |
-| `tests/test_progress.py`, `test_progress_panels.py`, `test_progress_autodiscovery.py` | Update to config-driven columns; no QML names |
+| `tests/test_progress.py`, `test_progress_panels.py`, `test_progress_autodiscovery.py` | Update to config-driven columns; no reference-domain names |
 | `tests/test_writer_output.py`, `test_writer_metric_resolution.py` | Remove deleted-function tests; keep write_phase_a_paper/should_publish tests |
 
 ---
@@ -285,12 +285,12 @@ def test_flat_digest_counter_direction_max():
         lab_mod._active = None
 ```
 
-In `tests/test_analyst_grouping.py`, change assertions that look for QML columns (`e_w1`, `raw_q`, …) in the digest output to instead assert the digest contains the configured headline column name (`synthetic_loss` under `smoke_lab_config`) and does NOT contain `e_w1`/`raw_q`. (Read the existing test to adapt its fixtures; keep its grouping assertions.)
+In `tests/test_analyst_grouping.py`, change assertions that look for reference-domain columns (`e_w1`, `raw_q`, …) in the digest output to instead assert the digest contains the configured headline column name (`synthetic_loss` under `smoke_lab_config`) and does NOT contain `e_w1`/`raw_q`. (Read the existing test to adapt its fixtures; keep its grouping assertions.)
 
 - [ ] **Step 2: Run the updated tests — expect FAIL**
 
 Run: `uv run pytest tests/test_flat_digest_counter.py tests/test_analyst_epsilon.py tests/test_analyst_grouping.py -v`
-Expected: FAIL (current code still uses `current_best_w1` / QML columns).
+Expected: FAIL (current code still uses `current_best_w1` / reference-domain columns).
 
 - [ ] **Step 3: Apply the analyst change-list above**
 
@@ -301,7 +301,7 @@ Edit `efferents/agents/analyst.py` per the 4-point change-list. Show the diff in
 Run: `uv run pytest tests/test_flat_digest_counter.py tests/test_analyst_epsilon.py tests/test_analyst_grouping.py -v`
 Expected: PASS. Then `uv run pytest -q` — no regressions.
 
-- [ ] **Step 5: Verify no QML columns remain in analyst.py**
+- [ ] **Step 5: Verify no reference-domain columns remain in analyst.py**
 
 Run: `grep -nE "e_w1|raw_q|aug_depth|radial_l2|val_x0_mse|active_frac|gen_max|aug_shared|cond_drop|current_best_w1" efferents/agents/analyst.py || echo "clean"`
 Expected: `clean`.
@@ -325,10 +325,10 @@ git commit -m "refactor(analyst): drive digests + flat-digest counter from metri
 
 1. Remove `_META_COLUMNS` and `_discover_metric_columns` from `progress.py`; add `from efferents import metrics_view as mv` and use `mv.META_COLUMNS` / `mv.discover_columns`.
 2. In `efferents/agents/researcher.py`, change `from efferents.agents.progress import _discover_metric_columns` to `from efferents.metrics_view import discover_columns` and update its call site(s) accordingly (`discover_columns(...)`).
-3. `_snapshot`: replace the hardcoded `wanted` QML column list with `list(mv.META_COLUMNS) + [mv.headline().column] + [p.column for p in mv.panels()] + mv.discover_columns(db_path)` (de-duplicated, order-preserving).
+3. `_snapshot`: replace the hardcoded `wanted` reference-domain column list with `list(mv.META_COLUMNS) + [mv.headline().column] + [p.column for p in mv.panels()] + mv.discover_columns(db_path)` (de-duplicated, order-preserving).
 4. `_scored_sample_runs`: a run is scored iff `mv.headline_value(row) is not None`; remove the `eval_kind == "sample"` filter entirely.
 5. `_best_run_in`: `return mv.best_run(rows)`.
-6. Render functions (`_render_card`, `_render_run_tile`, `_render_architectures`, and any others referencing QML columns): render the headline metric, each configured panel, then the remaining discovered columns as generic key/value pairs. `_render_architectures` becomes a generic "run config" tile from discovered non-panel columns (or is removed if it has no generic meaning — your judgment; note which in your report).
+6. Render functions (`_render_card`, `_render_run_tile`, `_render_architectures`, and any others referencing reference-domain columns): render the headline metric, each configured panel, then the remaining discovered columns as generic key/value pairs. `_render_architectures` becomes a generic "run config" tile from discovered non-panel columns (or is removed if it has no generic meaning — your judgment; note which in your report).
 7. `_panel_metrics` already reads LabConfig — leave it.
 
 - [ ] **Step 1: Update the failing tests first**
@@ -342,7 +342,7 @@ Add an autodiscovery assertion: insert a run row with an arbitrary extra column 
 - [ ] **Step 2: Run the updated tests — expect FAIL**
 
 Run: `uv run pytest tests/test_progress.py tests/test_progress_panels.py tests/test_progress_autodiscovery.py -v`
-Expected: FAIL (current render hardcodes QML columns / filters `eval_kind`).
+Expected: FAIL (current render hardcodes reference-domain columns / filters `eval_kind`).
 
 - [ ] **Step 3: Apply the progress change-list above**
 
@@ -353,7 +353,7 @@ Edit `progress.py` and the `researcher.py` import. Show the diff in your report.
 Run: `uv run pytest tests/test_progress.py tests/test_progress_panels.py tests/test_progress_autodiscovery.py -v`
 Expected: PASS. Then `uv run pytest -q` — no regressions (watch `test_*researcher*` for the import change).
 
-- [ ] **Step 5: Verify no QML columns remain in progress.py**
+- [ ] **Step 5: Verify no reference-domain columns remain in progress.py**
 
 Run: `grep -nE "e_w1|raw_q|aug_depth|radial_l2|val_x0_mse|active_frac|gen_max|aug_shared|cond_drop|eval_kind" efferents/agents/progress.py || echo "clean"`
 Expected: `clean`.
@@ -367,7 +367,7 @@ git commit -m "refactor(progress): render static dashboard from metrics_view (co
 
 ---
 
-## Task 4: Delete the dead auto_qml writer path
+## Task 4: Delete the dead reference_lab writer path
 
 **Files:**
 - Modify: `efferents/agents/writer.py`, `efferents/agents/__main__.py`
@@ -409,7 +409,7 @@ Expected: both print success.
 Run: `uv run pytest tests/test_writer_output.py tests/test_writer_metric_resolution.py -v && uv run pytest -q`
 Expected: writer tests PASS; full suite no regressions.
 
-- [ ] **Step 6: Verify no QML columns remain in writer.py**
+- [ ] **Step 6: Verify no reference-domain columns remain in writer.py**
 
 Run: `grep -nE "e_w1|raw_q|aug_depth|radial_l2|val_x0_mse|active_frac|gen_max|aug_shared|cond_drop" efferents/agents/writer.py || echo "clean"`
 Expected: `clean`.
@@ -418,7 +418,7 @@ Expected: `clean`.
 
 ```bash
 git add efferents/agents/writer.py efferents/agents/__main__.py tests/test_writer_output.py tests/test_writer_metric_resolution.py
-git commit -m "refactor(writer): delete dead auto_qml LaTeX/figure path (write_once + regenerate_*)"
+git commit -m "refactor(writer): delete dead reference_lab LaTeX/figure path (write_once + regenerate_*)"
 ```
 
 ---
@@ -432,7 +432,7 @@ git commit -m "refactor(writer): delete dead auto_qml LaTeX/figure path (write_o
 Run: `uv run pytest -q`
 Expected: all pass (the 3 skipped integration tests may remain skipped). If anything fails, fix within the owning task's file and re-run.
 
-- [ ] **Step 2: No QML column names remain in the three target files**
+- [ ] **Step 2: No reference-domain column names remain in the three target files**
 
 Run:
 ```bash
@@ -446,10 +446,10 @@ The smoke lab (`examples/smoke-lab/`, headline `synthetic_loss`) has a populated
 ```bash
 cd /Users/masha/Documents/efferents
 uv run python -m efferents.agents progress-now --lab examples/smoke-lab/lab --context examples/smoke-lab/context 2>&1 | tail -3
-grep -cE "e_w1|raw_q|aug_depth|eval_kind" examples/smoke-lab/lab/progress.html && echo "FOUND QML (bad)" || echo "progress.html clean of QML"
+grep -cE "e_w1|raw_q|aug_depth|eval_kind" examples/smoke-lab/lab/progress.html && echo "FOUND reference-domain (bad)" || echo "progress.html clean of reference-domain"
 grep -c "synthetic_loss" examples/smoke-lab/lab/progress.html | sed 's/^/synthetic_loss occurrences: /'
 ```
-Expected: `progress.html clean of QML` and a non-zero `synthetic_loss` count. (If `progress-now`'s flags differ, read `efferents/agents/__main__.py:cmd_progress_now` for the exact arg names and adjust.)
+Expected: `progress.html clean of reference-domain` and a non-zero `synthetic_loss` count. (If `progress-now`'s flags differ, read `efferents/agents/__main__.py:cmd_progress_now` for the exact arg names and adjust.)
 
 - [ ] **Step 4: Report readiness** — summarize: metrics_view added; analyst + progress config-driven & direction-aware; dead writer path removed; suite green; smoke progress.html clean.
 

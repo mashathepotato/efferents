@@ -1,4 +1,4 @@
-# Session guidance for Claude Code — efferents framework
+# Session guidance for Codex — efferents framework
 
 ## What this repo is
 

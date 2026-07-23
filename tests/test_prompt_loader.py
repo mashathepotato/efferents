@@ -114,8 +114,8 @@ def test_researcher_trio_renders_clean(tmp_path, name):
     assert "}" not in out.replace("{{", "").replace("}}", "")
     # Headline metric is woven in
     assert "synthetic_loss" in out
-    # No QML residue
-    for tok in ("e_w1", "raw_q", "amp_ratio", "QFM", "auto_qml"):
+    # No reference-domain residue
+    for tok in ("e_w1", "raw_q", "amp_ratio", "QFM", "reference_lab"):
         assert tok not in out
 
 
@@ -125,7 +125,7 @@ def test_medium_prompts_render_clean(tmp_path, name):
     out = load_prompt(name)
     assert "{" not in out.replace("{{", "").replace("}}", "")
     assert "}" not in out.replace("{{", "").replace("}}", "")
-    for tok in ("e_w1", "raw_q", "amp_ratio", "QFM", "auto_qml", "gen_max"):
+    for tok in ("e_w1", "raw_q", "amp_ratio", "QFM", "reference_lab", "gen_max"):
         assert tok not in out
 
 

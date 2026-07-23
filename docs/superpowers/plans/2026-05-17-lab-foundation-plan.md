@@ -4,7 +4,7 @@
 
 **Goal:** Implement Phase A from `docs/superpowers/specs/2026-05-17-lab-foundation-design.md` — Researcher modes, campaigns, Popper-Probe gate, lab identity, agent-readable paper artifacts.
 
-**Architecture:** Additive only. New SQLite columns + new `campaigns` table; new `agents/popper_gate.py` helper that single-shot-invokes Popper Probe's intake prompt and validates with its existing CLI; new `auto_qml/lab.py` identity stub; new `auto_qml/schemas/paper_frontmatter.py` pydantic schema + body structural validator; prompt branches in existing `agents/prompts/*.md`; existing Researcher/Executor/Analyst/Writer modules extended, not rewritten. The orchestrator stays a `while True:` loop with file-based state.
+**Architecture:** Additive only. New SQLite columns + new `campaigns` table; new `agents/popper_gate.py` helper that single-shot-invokes Popper Probe's intake prompt and validates with its existing CLI; new `reference_lab/lab.py` identity stub; new `reference_lab/schemas/paper_frontmatter.py` pydantic schema + body structural validator; prompt branches in existing `agents/prompts/*.md`; existing Researcher/Executor/Analyst/Writer modules extended, not rewritten. The orchestrator stays a `while True:` loop with file-based state.
 
 **Tech Stack:** Python 3.10+ (uv venv at `.venv`), `anthropic>=0.40`, `pyyaml`, SQLite via stdlib, `pydantic` (NEW dep, see Task 1), `pytest` for tests. Popper-probe repo at `~/Documents/popper-probe` (env `POPPER_PROBE_REPO` overrides).
 
@@ -16,12 +16,12 @@
 
 **Create:**
 - `tests/` — new directory; `tests/__init__.py`, `tests/conftest.py`, plus one test file per task.
-- `auto_qml/lab.py` — lab identity constants. Imported by Writer, Analyst.
-- `auto_qml/schemas/__init__.py` — package init.
-- `auto_qml/schemas/paper_frontmatter.py` — pydantic models + body structural validator (single file: schema + a tiny markdown structure checker).
-- `auto_qml/migrations/__init__.py` — package init.
-- `auto_qml/migrations/2026-05-17_campaigns.sql` — DDL for `campaigns` table + `runs.campaign_id` + `runs.researcher_mode`.
-- `auto_qml/migrations/runner.py` — small idempotent migration applier (PRAGMA table_info check before ALTER TABLE).
+- `reference_lab/lab.py` — lab identity constants. Imported by Writer, Analyst.
+- `reference_lab/schemas/__init__.py` — package init.
+- `reference_lab/schemas/paper_frontmatter.py` — pydantic models + body structural validator (single file: schema + a tiny markdown structure checker).
+- `reference_lab/migrations/__init__.py` — package init.
+- `reference_lab/migrations/2026-05-17_campaigns.sql` — DDL for `campaigns` table + `runs.campaign_id` + `runs.researcher_mode`.
+- `reference_lab/migrations/runner.py` — small idempotent migration applier (PRAGMA table_info check before ALTER TABLE).
 - `agents/popper_gate.py` — Popper Probe headless invocation: load SKILL.md as system prompt, single-shot call, write file, subprocess-validate.
 
 **Modify:**
@@ -29,12 +29,12 @@
 - `agents/state.py` — campaign CRUD helpers, `recent_runs` SELECT extended to include new columns.
 - `agents/orchestrator.py` — mode selector heuristic, `force_mode:` override reader, campaign 48h force-close in `step()`, novelty-gate hook before Writer trigger.
 - `agents/researcher.py` — accept `mode` argument, route to prompt-section branch, call popper-gate when opening a campaign, tag proposals with `campaign_id` + `mode`, enforce ≤2 open campaigns cap.
-- `agents/executor.py` — flow `campaign_id` and `researcher_mode` from proposal into `auto_qml.run` invocation via config overrides.
+- `agents/executor.py` — flow `campaign_id` and `researcher_mode` from proposal into `reference_lab.run` invocation via config overrides.
 - `agents/analyst.py` — group recent runs by `campaign_id` when composing digest input.
 - `agents/writer.py` — emit pydantic-validated YAML frontmatter; emit five required body sections; run structural self-check; respect novelty/gain gate from orchestrator.
 - `agents/prompts/researcher.md` — add per-mode sections (`refine`, `moonshot`, `devils_advocate`, `escape_to_code`).
 - `agents/prompts/writer.md` — required-sections discipline + completeness rule.
-- `auto_qml/run.py` — extend `RUNS_SCHEMA` with `campaign_id TEXT NULL, researcher_mode TEXT NULL` (so fresh DBs match migrated DBs); write the values into the row from config.
+- `reference_lab/run.py` — extend `RUNS_SCHEMA` with `campaign_id TEXT NULL, researcher_mode TEXT NULL` (so fresh DBs match migrated DBs); write the values into the row from config.
 - `agents/__main__.py` — apply migration at orchestrator startup (idempotent; no-op if already applied).
 
 ---
@@ -190,16 +190,16 @@ git commit -m "test: scaffold pytest fixtures + pydantic dep"
 ## Task 2: Campaigns migration + state helpers
 
 **Files:**
-- Create: `auto_qml/migrations/__init__.py`, `auto_qml/migrations/2026-05-17_campaigns.sql`, `auto_qml/migrations/runner.py`, `tests/test_migrations.py`, `tests/test_campaigns.py`
+- Create: `reference_lab/migrations/__init__.py`, `reference_lab/migrations/2026-05-17_campaigns.sql`, `reference_lab/migrations/runner.py`, `tests/test_migrations.py`, `tests/test_campaigns.py`
 - Modify: `agents/state.py` (append helpers; do not touch existing ones)
 
 - [ ] **Step 1: Create migrations package init**
 
-`auto_qml/migrations/__init__.py` — empty file.
+`reference_lab/migrations/__init__.py` — empty file.
 
 - [ ] **Step 2: Write the migration SQL**
 
-`auto_qml/migrations/2026-05-17_campaigns.sql`:
+`reference_lab/migrations/2026-05-17_campaigns.sql`:
 
 ```sql
 -- Phase A: campaigns table + new columns on runs.
@@ -233,7 +233,7 @@ import sqlite3
 
 import pytest
 
-from auto_qml.migrations.runner import apply_campaigns_migration
+from reference_lab.migrations.runner import apply_campaigns_migration
 
 
 def _columns(db_path, table):
@@ -295,11 +295,11 @@ def test_migration_preserves_existing_rows(fresh_runs_db):
 - [ ] **Step 4: Run, verify it fails**
 
 Run: `uv run pytest tests/test_migrations.py -v`
-Expected: ImportError (no `auto_qml.migrations.runner`).
+Expected: ImportError (no `reference_lab.migrations.runner`).
 
 - [ ] **Step 5: Implement the runner**
 
-`auto_qml/migrations/runner.py`:
+`reference_lab/migrations/runner.py`:
 
 ```python
 """Idempotent migration applier for Phase A campaign schema.
@@ -357,7 +357,7 @@ from agents.state import (
     campaign_open_list,
     campaign_stale_open,
 )
-from auto_qml.migrations.runner import apply_campaigns_migration
+from reference_lab.migrations.runner import apply_campaigns_migration
 
 
 @pytest.fixture
@@ -501,7 +501,7 @@ Expected: 4 passed.
 - [ ] **Step 11: Commit**
 
 ```bash
-git add auto_qml/migrations/ agents/state.py tests/test_migrations.py tests/test_campaigns.py
+git add reference_lab/migrations/ agents/state.py tests/test_migrations.py tests/test_campaigns.py
 git commit -m "feat(db): campaigns table + idempotent migration + state helpers"
 ```
 
@@ -510,7 +510,7 @@ git commit -m "feat(db): campaigns table + idempotent migration + state helpers"
 ## Task 3: Lab identity module
 
 **Files:**
-- Create: `auto_qml/lab.py`, `tests/test_lab.py`
+- Create: `reference_lab/lab.py`, `tests/test_lab.py`
 
 - [ ] **Step 1: Write failing test**
 
@@ -518,7 +518,7 @@ git commit -m "feat(db): campaigns table + idempotent migration + state helpers"
 
 ```python
 """Lab identity constants — single source of truth for who this lab is."""
-from auto_qml import lab
+from reference_lab import lab
 
 
 def test_required_constants_present():
@@ -538,21 +538,21 @@ def test_pi_handle_optional_but_str_if_present():
 - [ ] **Step 2: Run, verify it fails**
 
 Run: `uv run pytest tests/test_lab.py -v`
-Expected: ImportError on `auto_qml.lab`.
+Expected: ImportError on `reference_lab.lab`.
 
 - [ ] **Step 3: Implement the module**
 
-`auto_qml/lab.py`:
+`reference_lab/lab.py`:
 
 ```python
 """Lab identity. The single place that names *this* lab; Phase B sibling
-labs only differ from auto-qml in the constants below."""
+labs only differ from reference-lab in the constants below."""
 
 LAB_ID: str = "qfm-diffusion"
 DOMAIN: str = "quantum-ml"
 SUBDOMAIN: str | None = "qfm-diffusion-hep"
 PI_HANDLE: str | None = "@mashathepotato"
-CODE_REPO: str = "https://github.com/mashathepotato/auto-qml"
+CODE_REPO: str = "https://example.com/original-lab"
 ```
 
 - [ ] **Step 4: Run, verify passes**
@@ -563,7 +563,7 @@ Expected: 3 passed.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add auto_qml/lab.py tests/test_lab.py
+git add reference_lab/lab.py tests/test_lab.py
 git commit -m "feat(lab): identity constants module"
 ```
 
@@ -572,11 +572,11 @@ git commit -m "feat(lab): identity constants module"
 ## Task 4: Paper frontmatter schema + body structural validator
 
 **Files:**
-- Create: `auto_qml/schemas/__init__.py`, `auto_qml/schemas/paper_frontmatter.py`, `tests/test_paper_frontmatter.py`
+- Create: `reference_lab/schemas/__init__.py`, `reference_lab/schemas/paper_frontmatter.py`, `tests/test_paper_frontmatter.py`
 
 - [ ] **Step 1: Create package init**
 
-`auto_qml/schemas/__init__.py` — empty file.
+`reference_lab/schemas/__init__.py` — empty file.
 
 - [ ] **Step 2: Write failing tests**
 
@@ -589,7 +589,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from auto_qml.schemas.paper_frontmatter import (
+from reference_lab.schemas.paper_frontmatter import (
     MetricProvenance,
     PaperFrontmatter,
     REQUIRED_SECTIONS_IN_ORDER,
@@ -689,7 +689,7 @@ Expected: ImportError.
 
 - [ ] **Step 4: Implement schema + validator**
 
-`auto_qml/schemas/paper_frontmatter.py`:
+`reference_lab/schemas/paper_frontmatter.py`:
 
 ```python
 """Schema for the platform-shaped Writer output.
@@ -809,7 +809,7 @@ Expected: 7 passed.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add auto_qml/schemas/ tests/test_paper_frontmatter.py
+git add reference_lab/schemas/ tests/test_paper_frontmatter.py
 git commit -m "feat(schemas): paper frontmatter pydantic model + body validator"
 ```
 
@@ -1529,7 +1529,7 @@ from agents.state import (
     init_lab,
     lab_paths,
 )
-from auto_qml.migrations.runner import apply_campaigns_migration
+from reference_lab.migrations.runner import apply_campaigns_migration
 
 
 @pytest.fixture
@@ -1701,7 +1701,7 @@ In `agents/researcher.py`, after the JSON parse (`parse_json_loose`) of the mode
 
 ```python
 # Phase A: handle new_campaign + ≤2 cap, gate via popper.
-from auto_qml import lab as _lab
+from reference_lab import lab as _lab
 from agents import popper_gate as _popper_gate
 from agents.state import (
     campaign_insert as _campaign_insert,
@@ -1814,7 +1814,7 @@ from agents.state import (
     init_lab,
     lab_paths,
 )
-from auto_qml.migrations.runner import apply_campaigns_migration
+from reference_lab.migrations.runner import apply_campaigns_migration
 
 
 @pytest.fixture
@@ -1888,7 +1888,7 @@ def close_stale_campaigns(db_path: Path, *, lab_id: str, hours: float = 48.0) ->
 Then hook into `Orchestrator.step()`. In the `if proposal is None:` branch, after `_maybe_digest()` and `_maybe_code()`, add:
 
 ```python
-from auto_qml import lab as _lab
+from reference_lab import lab as _lab
 closed = close_stale_campaigns(self.paths.runs_db, lab_id=_lab.LAB_ID)
 if closed:
     notebook_append(
@@ -1996,12 +1996,12 @@ git commit -m "feat(orchestrator,analyst): 48h force-close + flat-digest counter
 ## Task 10: Plumb campaign_id + researcher_mode into runs DB
 
 **Files:**
-- Modify: `auto_qml/run.py`, `agents/executor.py`, `agents/state.py`
+- Modify: `reference_lab/run.py`, `agents/executor.py`, `agents/state.py`
 - Create: `tests/test_run_columns.py`
 
-- [ ] **Step 1: Extend `RUNS_SCHEMA` in `auto_qml/run.py`**
+- [ ] **Step 1: Extend `RUNS_SCHEMA` in `reference_lab/run.py`**
 
-In `auto_qml/run.py`, modify the `RUNS_SCHEMA` constant. Add these two columns, just before the closing `);` of the `CREATE TABLE`:
+In `reference_lab/run.py`, modify the `RUNS_SCHEMA` constant. Add these two columns, just before the closing `);` of the `CREATE TABLE`:
 
 ```sql
     campaign_id         TEXT,
@@ -2012,7 +2012,7 @@ This way fresh DBs and migrated DBs have identical shape.
 
 - [ ] **Step 2: Write the values into the row**
 
-Find the INSERT INTO runs in `auto_qml/run.py` (the row-writing code path). Add `campaign_id` and `researcher_mode` to the column list and parameters list. Their values come from the YAML config under keys `run.campaign_id` and `run.researcher_mode`; both default to `None` when absent.
+Find the INSERT INTO runs in `reference_lab/run.py` (the row-writing code path). Add `campaign_id` and `researcher_mode` to the column list and parameters list. Their values come from the YAML config under keys `run.campaign_id` and `run.researcher_mode`; both default to `None` when absent.
 
 In `_open_db` or wherever the config dict is consumed for INSERTs, read `cfg.get("run", {}).get("campaign_id")` and `cfg.get("run", {}).get("researcher_mode")` and pass through as parameters.
 
@@ -2024,7 +2024,7 @@ Add `campaign_id, researcher_mode` to the SELECT column list. Order does not mat
 
 - [ ] **Step 4: Modify `agents/executor.py`** to flow proposal fields into config
 
-In `agents/executor.py`, locate where the proposal's `config_overrides` are merged into the YAML config sent to `auto_qml.run`. Add lines that inject:
+In `agents/executor.py`, locate where the proposal's `config_overrides` are merged into the YAML config sent to `reference_lab.run`. Add lines that inject:
 
 ```python
 config_overrides = dict(proposal.get("config_overrides", {}))
@@ -2055,7 +2055,7 @@ import yaml
 
 @pytest.mark.slow
 def test_columns_present_in_fresh_db(tmp_path):
-    """A fresh runs.sqlite created by auto_qml.run includes the new columns."""
+    """A fresh runs.sqlite created by reference_lab.run includes the new columns."""
     # Use the smallest possible config to keep test cost minimal.
     repo = Path(__file__).parent.parent
     cfg = yaml.safe_load((repo / "config/default.yaml").read_text())
@@ -2070,12 +2070,12 @@ def test_columns_present_in_fresh_db(tmp_path):
     lab = tmp_path / "lab"
     lab.mkdir()
     proc = subprocess.run(
-        [sys.executable, "-m", "auto_qml.run", "--config", str(cfg_path),
+        [sys.executable, "-m", "reference_lab.run", "--config", str(cfg_path),
          "--lab-dir", str(lab)],
         capture_output=True, text=True, timeout=600,
     )
     if proc.returncode != 0:
-        pytest.skip(f"auto_qml.run unavailable in CI environment: {proc.stderr[:500]}")
+        pytest.skip(f"reference_lab.run unavailable in CI environment: {proc.stderr[:500]}")
     db = lab / "runs.sqlite"
     conn = sqlite3.connect(db)
     cols = {row[1] for row in conn.execute("PRAGMA table_info(runs)")}
@@ -2092,7 +2092,7 @@ Note: this test runs the actual training pipeline at minimum config so it is slo
 
 `uv run pytest tests/test_run_columns.py -v -m slow` (skip with `-m "not slow"`).
 
-If `auto_qml.run` has no `--lab-dir` flag, the implementer should add one as part of this task (or set the env var the run module uses).
+If `reference_lab.run` has no `--lab-dir` flag, the implementer should add one as part of this task (or set the env var the run module uses).
 
 - [ ] **Step 6: Run the unit-level tests** (re-running full test suite)
 
@@ -2107,7 +2107,7 @@ Expected: passes; row contains the new column values.
 - [ ] **Step 8: Commit**
 
 ```bash
-git add auto_qml/run.py agents/executor.py agents/state.py tests/test_run_columns.py
+git add reference_lab/run.py agents/executor.py agents/state.py tests/test_run_columns.py
 git commit -m "feat(db): persist campaign_id + researcher_mode into runs.sqlite"
 ```
 
@@ -2374,7 +2374,7 @@ import yaml
 import pytest
 
 from agents.writer import compose_paper
-from auto_qml.schemas.paper_frontmatter import (
+from reference_lab.schemas.paper_frontmatter import (
     PaperFrontmatter,
     REQUIRED_SECTIONS_IN_ORDER,
     structural_check,
@@ -2405,7 +2405,7 @@ def test_compose_paper_returns_valid_artifact(fake_anthropic_factory):
         ],
         novelty_claim="first lap-pyr UNet on QFM",
         code_sha="abcdef1",
-        code_repo="https://github.com/mashathepotato/auto-qml",
+        code_repo="https://example.com/original-lab",
     )
     assert artifact.startswith("---")
     # split frontmatter / body
@@ -2482,8 +2482,8 @@ Add to `agents/writer.py`:
 import yaml as _yaml
 from datetime import date as _date
 
-from auto_qml import lab as _lab
-from auto_qml.schemas.paper_frontmatter import (
+from reference_lab import lab as _lab
+from reference_lab.schemas.paper_frontmatter import (
     PaperFrontmatter,
     REQUIRED_SECTIONS_IN_ORDER,
     structural_check,
@@ -2622,7 +2622,7 @@ git commit -m "feat(writer): platform-shaped artifact + novelty/gain gate"
 In `agents/__main__.py`, find the entry point that constructs the `Orchestrator` (or where `init_lab` is called). Immediately after `init_lab(paths)`, add:
 
 ```python
-from auto_qml.migrations.runner import apply_campaigns_migration
+from reference_lab.migrations.runner import apply_campaigns_migration
 apply_campaigns_migration(paths.runs_db)
 ```
 
@@ -2662,21 +2662,21 @@ Expected: all green. Slow test will run if not filtered.
 
 - [ ] **Step 2: Run linter**
 
-Run: `uv run ruff check agents/ auto_qml/ tests/`
+Run: `uv run ruff check agents/ reference_lab/ tests/`
 Expected: clean (or only warnings the implementer agrees to ignore).
 
 - [ ] **Step 3: Spot-check that the orchestrator still starts and produces a Researcher proposal**
 
 ```bash
 # In a separate terminal — DON'T point at the live lab/.
-uv run python -m agents --lab-dir /tmp/auto-qml-smoke --max-iterations 1 --dry-run
+uv run python -m agents --lab-dir /tmp/reference-lab-smoke --max-iterations 1 --dry-run
 ```
 
 Expected: notebook entry shows "Researcher mode: refine (flat_digests=0, override=None)"; no errors.
 
 - [ ] **Step 4: Live integration smoke (with real API, low budget)**
 
-Set a budget cap of ~$1 and let the orchestrator run for one full step against a `/tmp/auto-qml-smoke/` lab dir. Confirm:
+Set a budget cap of ~$1 and let the orchestrator run for one full step against a `/tmp/reference-lab-smoke/` lab dir. Confirm:
 
 - A campaign opens (or doesn't, depending on Researcher output)
 - If it opens: `popper-corpus/<slug>/hypothesis.md` exists, validates

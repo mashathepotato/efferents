@@ -45,7 +45,7 @@ def test_new_file_path_re_uses_source_dir(tmp_path):
     src_abs = str((tmp_path / "my_research").resolve())
     assert pattern.match(f"{src_abs}/foo.py")
     assert not pattern.match(f"{src_abs}/sub/foo.py")  # no nested dirs
-    assert not pattern.match("auto_qml/foo.py")  # legacy path no longer matches
+    assert not pattern.match("reference_lab/foo.py")  # legacy path no longer matches
 
 
 def test_smoke_command_renders_config_path(tmp_path):

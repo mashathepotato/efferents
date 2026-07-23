@@ -4,7 +4,7 @@
 
 **Goal:** Close the three v0.1 follow-ups so the smoke lab runs a full research cycle end-to-end via the deployed CLI.
 
-**Architecture:** Move the stdout-JSON persistence helpers from `orchestrator.py` into `efferents/exec.py` (their natural home) and add ALTER-on-OperationalError retry. Add `ensure_runs_table(db, cfg)` to provision a domain-agnostic runs schema from LabConfig metrics. Rewrite `executor.py` so its public signature is preserved but internals route through the new exec helpers, with generic notebook formatting that has zero QML-specific references.
+**Architecture:** Move the stdout-JSON persistence helpers from `orchestrator.py` into `efferents/exec.py` (their natural home) and add ALTER-on-OperationalError retry. Add `ensure_runs_table(db, cfg)` to provision a domain-agnostic runs schema from LabConfig metrics. Rewrite `executor.py` so its public signature is preserved but internals route through the new exec helpers, with generic notebook formatting that has zero reference-domain-specific references.
 
 **Tech Stack:** Python 3.10+, `uv`, pytest, sqlite3, pyyaml. No new dependencies.
 
@@ -747,11 +747,11 @@ def test_execute_happy_path_writes_row_and_notebook(tmp_path, monkeypatch):
     assert len(rows) == 1
     assert rows[0][1] == 0.42
 
-    # Notebook entry written with generic columns (no QML references)
+    # Notebook entry written with generic columns (no reference-domain references)
     nb_text = paths.notebook.read_text()
     assert "trial-1" in nb_text
     assert "synthetic_loss" in nb_text
-    assert "E_w1" not in nb_text  # legacy QML column must NOT appear
+    assert "E_w1" not in nb_text  # legacy reference-domain column must NOT appear
     assert "amp_ratio" not in nb_text
 
 
@@ -821,7 +821,7 @@ def test_execute_writes_rendered_config_yaml(tmp_path, monkeypatch):
 - [ ] **Step 2: Verify tests fail**
 
 Run: `uv run pytest tests/test_executor_rewrite.py -v`
-Expected: most tests fail or error — the current executor.py still calls `auto_qml.run_from_config` which lazy-raises.
+Expected: most tests fail or error — the current executor.py still calls `reference_lab.run_from_config` which lazy-raises.
 
 - [ ] **Step 3: Rewrite `efferents/agents/executor.py`**
 
@@ -834,7 +834,7 @@ The execute() signature and return shape are preserved for the
 orchestrator's downstream consumers. Internals route through
 efferents.exec._execute_run + _persist_run_result, and the notebook
 formatter renders dynamic columns from RunResult.metrics — no domain-
-specific (QML) references survive.
+specific (reference-domain) references survive.
 """
 from __future__ import annotations
 
@@ -990,7 +990,7 @@ grep -rn "load_default_config" efferents/ tests/
 
 If any caller passed nothing, fix that caller to pass `_lab.get_config().executor.config_template`.
 
-Also drop the `try: from auto_qml.run import run_from_config` block from the top of the file — the rewrite no longer needs `run_from_config` at all. (That import was added during v0.1's Task-0 prep.)
+Also drop the `try: from reference_lab.run import run_from_config` block from the top of the file — the rewrite no longer needs `run_from_config` at all. (That import was added during v0.1's Task-0 prep.)
 
 - [ ] **Step 4: Verify tests pass**
 
@@ -998,7 +998,7 @@ Run: `uv run pytest tests/test_executor_rewrite.py -v`
 Expected: 4 passed.
 
 Run: `uv run pytest tests/ --ignore=tests/lab_reference --ignore=tests/integration 2>&1 | tail -3`
-Expected: no regressions. If tests that depended on the old QML notebook format break, they're QML-coupled and should be `@pytest.mark.skip`-ed per the existing `tests/lab_reference/` convention.
+Expected: no regressions. If tests that depended on the old reference-domain notebook format break, they're reference-domain-coupled and should be `@pytest.mark.skip`-ed per the existing `tests/lab_reference/` convention.
 
 - [ ] **Step 5: Commit**
 
@@ -1042,7 +1042,7 @@ timeout 120 .venv/bin/efferents start --submission examples/smoke-lab/ 2>&1 | te
 
 Expected: the daemon registers, prints `lab_id=smoke-coefficient pid=... dashboard=...`, the orchestrator starts cleanly (no `context/` crash), and at least one cycle runs Researcher → Coder skip (smoke is single-campaign) → real run → analyst log. Output will probably stop at the 120s timeout.
 
-If the Researcher/Coder crash for prompt-related reasons (QML-flavored), that's the documented prompt-templating gap — Phase B — NOT a v0.1.1 issue. The success criterion is "at least one run row landed in state.db".
+If the Researcher/Coder crash for prompt-related reasons (reference-domain-flavored), that's the documented prompt-templating gap — Phase B — NOT a v0.1.1 issue. The success criterion is "at least one run row landed in state.db".
 
 - [ ] **Step 3: Inspect state.db**
 
