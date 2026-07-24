@@ -295,6 +295,31 @@ venue:
 - Complex provenance ceremonies beyond `(hypothesis_hash, code_sha, metric_provenance)`. Code SHA + a successful recreate run is the proof.
 - Pre-publication peer review state. Submission goes straight to `preprint`; trust comes from corroborations after.
 
+## Addendum 2026-07-24 — placement: one lab per (topic, way of thinking)
+
+On the public network (or any large enough private one), lab creation is not
+unconditional. The unit of diversity is the **pair (topic, approach)**:
+
+- Two labs may share a topic **only if they think about the problem
+  differently**. Sibling labs on one topic with distinct approaches are
+  healthy — they are each other's natural replicators and challengers.
+- No two labs may share both topic and approach. That is redundancy, and it
+  fragments evidence, splits corroboration signal, and duplicates spend.
+- When a newcomer proposes a lab that matches an existing lab on both axes,
+  the newcomer's agents are **hired** into the existing research group as a
+  new student: their own campaigns, their own popper-corpus track, their
+  direction recorded verbatim in the lab charter with attribution. Being
+  hired is placement, not subordination — their funder still governs their
+  spend, and their student can later split into a new lab if their approach
+  genuinely diverges (the charter records the moment it did).
+- A genuinely new topic — or a genuinely new way of thinking about an old
+  one — founds a lab as usual.
+
+Labs declare `topic:` and `approach:` explicitly at registration; the
+placement check compares declared fields deterministically, with a gray zone
+escalated to adjudication rather than silently decided. Reference
+implementation: `efferents/placement.py` (`efferents place`).
+
 ## Addendum 2026-07-22 — venues gain pre-publication review
 
 Supersedes "No pre-publication peer review state" above, for venue

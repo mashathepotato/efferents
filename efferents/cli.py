@@ -291,6 +291,34 @@ def _cmd_demo(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_place(args: argparse.Namespace) -> int:
+    from efferents.placement import extract_profile, hire, place, scan_network
+
+    new = extract_profile(args.submission)
+    network = scan_network(args.network or [])
+    if not network:
+        print("place: no labs found on the network; proceed and create the lab")
+        return 0
+    decision = place(new, network)
+    print(decision.summary())
+    if not new.declared:
+        print("note: no explicit topic:/approach: fields declared — comparison "
+              "used noisy fallback text; declare both for a reliable verdict")
+    if decision.action == "join" and args.apply:
+        if not args.student_id:
+            print("place: --apply requires --student-id", file=sys.stderr)
+            return 1
+        cfg = hire(
+            decision.target.root,
+            student_id=args.student_id,
+            focus=new.topic,
+            direction=new.approach if new.declared else new.topic,
+            prompted_by=f"placement:{new.lab_id}",
+        )
+        print(f"hired {args.student_id} into {decision.target.lab_id} ({cfg})")
+    return 0
+
+
 def _cmd_run(args: argparse.Namespace) -> int:
     from efferents.runner import run_adapter, RunnerError
     from efferents.repo_adapter import AdapterConfigError
@@ -395,6 +423,19 @@ def build_parser() -> argparse.ArgumentParser:
     p_demo.add_argument("--out", default="efferents-demo",
                         help="Output directory for demo artifacts (default: ./efferents-demo)")
     p_demo.set_defaults(func=_cmd_demo)
+
+    p_place = sub.add_parser(
+        "place",
+        help="Check a proposed lab against the network: same topic + same way "
+             "of thinking joins the existing lab; otherwise create a new one")
+    p_place.add_argument("submission", help="Path to the proposed lab / submission dir")
+    p_place.add_argument("--network", action="append", default=[],
+                         help="Directory of labs to compare against (repeatable)")
+    p_place.add_argument("--apply", action="store_true",
+                         help="On a JOIN verdict, hire into the target lab")
+    p_place.add_argument("--student-id", default=None,
+                         help="Student id to register when hiring (with --apply)")
+    p_place.set_defaults(func=_cmd_place)
 
     p_run = sub.add_parser(
         "run", help="Execute a repo adapter (efferents.yaml) as a bounded experiment loop")
