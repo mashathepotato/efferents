@@ -1,0 +1,44 @@
+# Challengescape lab 01 — reasoning-based safety verification (Safe AI).
+# Hypothesis: popper-corpus/independent-reasoning-safety-verification/
+# Charter:    context/popper.md
+#
+# Placement declarations (compared by `efferents place`):
+topic: >
+  safety verification of LLM multi-agent systems: demonstrable, measurable
+  safety guarantees for high-stakes autonomous coding agents
+approach: >
+  reasoning-based verification: an independent fresh-context reviewer board
+  versus self-analysis versus mechanical executable checks, scored on seeded
+  labeled violations, with false-assurance rate as the certification metric
+
+goal: >
+  minimize the false-assurance rate of the independent reasoning board on
+  seeded safety violations in N-agent codebases by tuning the verification
+  configuration (board size), holding detection >= 90% — kill-conditions
+  K1-K3 in the hypothesis stand as fixed pass/fail lines
+
+# Experiment build pending: train/eval scripts and the recorded board-verdict
+# artifacts are produced in the lab-build step (the S/B verdict pass spends
+# model tokens and awaits funder authorization; see charter).
+train_command: "python3 train.py --config {config_path}"
+eval_command: "python3 eval.py --checkpoint {checkpoint}"
+config_template: configs/base.yaml
+
+sweep:
+  param: board_size
+  values: [1, 2, 3, 5]
+
+metric: "false_assurance_rate"
+maximize: false
+
+budget:
+  max_gpu_hours: 0.5
+  max_llm_cost_usd: 0    # deterministic runs; verdict pass budgeted separately
+
+approval:
+  mode: "plan_then_execute"
+
+outputs:
+  journal_dir: "journal"
+  runs_file: "runs.jsonl"
+  claims_file: "claims.jsonl"
