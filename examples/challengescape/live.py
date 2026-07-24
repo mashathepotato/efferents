@@ -49,6 +49,9 @@ ARTIFACT_ROLES: list[tuple[str, str, str]] = [
     ("out/journal/004_reviewed_memo.md", "Writer", "Research memo"),
     ("out/journal/005_review.md", "Supervisor · Reviewer", "Intra-lab review"),
     ("out/journal/006_next_experiment_v2.md", "Student", "Revised plan (cross-lab adoption)"),
+    ("out/journal/006_next_experiment.md", "Student", "Next-experiment proposal"),
+    ("out/journal/007_hypothesis_jump.md", "Supervisor · Student", "Hypothesis jump (autonomous)"),
+    ("context/popper.md", "Charter", "Lab charter (design decisions)"),
 ]
 
 # Controlled vocabulary for the network map's theme edges: a lab is linked to a
@@ -128,9 +131,28 @@ def _lab_state(lab_dir: Path) -> dict:
     if scored:
         best = (max if maximize else min)(scored, key=lambda r: r["metric_value"])
 
+    hypotheses = []
+    for hyp in sorted((lab_dir / "popper-corpus").glob("*/hypothesis.md")):
+        text = hyp.read_text()
+        fm = {k: v for k, v in re.findall(r"^([\w_]+): (.+)$",
+                                          text.split("---")[1], re.M)} \
+            if text.startswith("---") else {}
+        hypotheses.append({
+            "slug": fm.get("slug", hyp.parent.name),
+            "status": fm.get("status", "?"),
+            "gate": fm.get("falsifiability_gate", "?"),
+            "supersedes": fm.get("supersedes"),
+            "supersedes_hash": fm.get("supersedes_hash"),
+            "falsified": fm.get("falsified"),
+            "file": f"popper-corpus/{hyp.parent.name}/hypothesis.md",
+        })
+    # Lineage order: follow supersedes links, roots first.
+    hypotheses.sort(key=lambda h: (h["supersedes"] is not None, h["slug"]))
+
     return {
         "name": lab_dir.name,
         "path": f"examples/challengescape/labs/{lab_dir.name}",
+        "hypotheses": hypotheses,
         "challenge": _challenge_title(lab_dir),
         "goal": goal,
         "metric": metric,
@@ -209,7 +231,9 @@ def read_artifact(lab: str, rel: str) -> str | None:
     lab_dir = LABS / lab
     if not lab_dir.is_dir() or lab_dir.parent != LABS:
         return None
-    if rel not in {entry[0] for entry in ARTIFACT_ROLES}:
+    allowed = rel in {entry[0] for entry in ARTIFACT_ROLES} or \
+        re.fullmatch(r"popper-corpus/[\w\-]+/hypothesis\.md", rel)
+    if not allowed:
         return None
     path = lab_dir / rel
     return path.read_text() if path.is_file() else None
@@ -571,6 +595,7 @@ function overview(state) {
           ${lab.status}</div><div class="k">status</div></div>
       </div>
       ${sparkline(lab, seriesFor(lab.name))}
+      ${hypLine(lab)}
       <div class="themes">${lab.themes.map(t => `<span class="chip">${t}</span>`).join("")}</div>
       <div class="verdict">Open the lab → agents, journal, full chart</div>
     </div>`).join("")}
@@ -579,6 +604,41 @@ function overview(state) {
   <div class="section card">
     <h2>Network map — how the labs connect</h2>
     ${networkMap(state)}
+  </div>`;
+}
+
+/* ---------- hypothesis lineage ------------------------------------------ */
+function hypLine(lab) {
+  const hs = lab.hypotheses || [];
+  if (!hs.length) return "";
+  const retired = hs.filter(h => h.status === "retired").length;
+  const active = hs.find(h => h.status === "active");
+  return `<div style="font-size:12px;color:var(--text-secondary);margin-top:8px">
+    hypothesis: ${active ? `<strong>${active.slug}</strong>` : "none active"}
+    ${retired ? `<span class="chip" style="color:var(--series-2)">${retired} falsified → jumped</span>` : ""}
+  </div>`;
+}
+
+function lineageSection(lab) {
+  const hs = lab.hypotheses || [];
+  if (!hs.length) return "";
+  const chips = hs.map(h => {
+    const color = h.status === "active" ? "var(--good)"
+                : h.status === "retired" ? "var(--series-2)" : "var(--warning)";
+    const label = h.status === "retired" ? "✗ falsified" : h.status;
+    return `<a href="#" onclick="showArtifact('${lab.name}','${h.file}');return false"
+      class="chip" style="border:1px solid ${color};color:var(--text-primary)">
+      ${h.slug} <span style="color:${color};font-weight:600">${label}</span></a>`;
+  }).join(` <span style="color:var(--text-muted)">→</span> `);
+  const jump = hs.find(h => h.supersedes);
+  return `<div class="card" style="margin-bottom:16px">
+    <h2>Hypothesis lineage</h2>
+    <p style="margin:8px 0 4px">${chips}</p>
+    ${jump ? `<p style="color:var(--text-muted);font-size:11.5px;margin:6px 0 0">
+      autonomous jump after kill-condition fired — successor cites its
+      predecessor by content hash
+      <code>${(jump.supersedes_hash || "").slice(0, 26)}…</code> ·
+      <a href="#" onclick="showArtifact('${lab.name}','out/journal/007_hypothesis_jump.md');return false">jump record</a></p>` : ""}
   </div>`;
 }
 
@@ -658,6 +718,7 @@ function labDetail(state, name) {
   <p style="color:var(--text-muted);font-size:12px">source of truth:
     <code>${lab.path}/</code> ·
     <a href="${REPO_URL}" target="_blank" rel="noopener">repo ↗</a></p>
+  ${lineageSection(lab)}
   <div class="tiles">
     <div class="tile"><div class="v">${lab.best ? fmt(lab.best.metric_value) : "—"}</div>
       <div class="k">best ${lab.metric}</div></div>

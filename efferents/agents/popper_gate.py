@@ -246,4 +246,6 @@ def run_gate(
             return result
         last_errors = errors
 
+    # A rejected draft must not linger on disk looking like a hypothesis.
+    out_path.unlink(missing_ok=True)
     return GateResult(ok=False, path=None, hash=None, reason=f"validate failed: {last_errors}")

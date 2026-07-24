@@ -60,3 +60,28 @@ decide which lines of work a student continues versus opens fresh.
 - **Design decisions at the gate**:
 
   Two blunting conditions acknowledged: ceiling-easy pool (all reasoning arms at detection 1.0) and simulated authorship for arm S. Proposed next cycle (out/journal/006_next_experiment.md): hard pool, real authorship, precision in the claim. Requirement per charter discipline: the revised claim returns to the popper probe with the funder before spend. Classification guidance: cycle-1 evidence weakens 'independence matters' at easy difficulty; students should not assume it settled either way.
+
+### 2026-07-24 — standing direction: autonomous hypothesis jump on falsification
+
+- **Prompted by**: funder (2026-07-24)
+- **Direction as prompted (verbatim)**:
+
+> Funder, verbatim: "ok so if it's falsified, it should jump to a new hypothesis that self generates based on the supervisor student loop and jumps to that. it should do so completely autonomously and show the jump in the cite."
+
+- **Design decisions at the gate**:
+
+  Standing rule adopted: on a fired kill-condition, the lab advances autonomously — student proposes grounded successors, supervisor selects, the winner must pass the real popper gate, the falsified hypothesis is retired in place, and the successor cites its predecessor by content hash (visible lineage on the live workspace). This supersedes the cycle-1 note that revisions wait for funder re-probe; funder re-probe remains available but is no longer blocking.
+
+### 2026-07-24 — campaign gate: hardened-pool-authorship-board-quorum
+
+- **Prompted by**: autonomous jump: student+supervisor loop after falsification
+- **Direction as prompted (verbatim)**:
+
+> Under a hardened mutant pool (specs state intent, not enumerated edge cases; longer, interacting modules; semantic mutants that evade simple executable properties) and with real authorship for S (S actually produced the seeded-buggy modules), an independent reasoning board B will, for pipeline sizes N ∈ {2,4,8,16,32} and reviewer quorums k tested in {1,2,3,5}: (1) at quorum k ≥ 3 attain end-to-end mutant detection ≥ 0.85 and false-assurance ≤ 5%; (2) limit clean-module false-alarm rate to ≤ 15% at k ≥ 3 while median clean-module false-alarm at k = 1 remains ≥ 30%, with a statistically significant reduction in false-alarm between k = 1 and k ≥ 3; and (3) self-analysis S will exhibit both false-assurance and clean-module false-alarm rates ≥ 1.5× those of B at the same operating point (k ≥ 3). Falsifier: the claim is falsified if, for any tested N or for quorum k ≥ 3, B detection < 0.85 or B false-assurance > 5% or B clean-module false-alarm > 15%, or if S/B ratios on false-assurance or clean-module false-alarm are < 1.5, or if median k = 1 clean-module false-alarm < 30% or the reduction from k = 1 to k ≥ 3 is not statistically significant.
+> 
+> (Reminder: the emitted hypothesis.md MUST contain every schema section for a passed gate, in order: ## Original framing (quote the claim above verbatim in a blockquote), ## Operational restatement, ## Falsifier(s), ## Test design, ## Auxiliary assumptions, ## Distinctiveness, ## References, ## Intake log.)
+
+- **Gated hypothesis**: `/Users/masha/Documents/efferents/examples/challengescape/labs/lab_01_reasoning_verification/popper-corpus/hardened-pool-authorship-board-quorum/hypothesis.md` (sha256:61a87c416cbffcc5bcafb38eee5abb492e89aa68042c9a4c3db6b3d8f88cb12c)
+- **Design decisions at the gate**:
+
+  Headless self-play gate (probes 1–3 internal); the sharpened claim and falsifier live in the gated hypothesis file. Interactive intakes should record the dialogue's sharpening decisions here instead.
