@@ -49,3 +49,14 @@ decide which lines of work a student continues versus opens fresh.
   two-class violation taxonomy; a student proposing a different verification mechanism
   (e.g. formal contracts, runtime shields) is a NEW approach - run placement before
   opening it here.
+
+### 2026-07-24 — cycle 1 result: K2 fired — claim refuted as stated
+
+- **Prompted by**: lab (cycle-1 evidence; see out/journal/005_review.md)
+- **Direction as prompted (verbatim)**:
+
+> Cycle 1 outcome recorded by the lab itself (no new funder direction yet): K2 fired — self-analysis indistinguishable from the independent board on false assurance (both 0.0, non-vacuous denominators); claim refuted as stated per the binding kill-conditions. K1 and K3 corroborated (board 1.0 detection / 0.0 FA; mechanical checks blind to the entire semantic class, gap 100 points). Unhypothesized finding: false alarms on clean code (0.19-0.47 by board composition) are the real operating cost.
+
+- **Design decisions at the gate**:
+
+  Two blunting conditions acknowledged: ceiling-easy pool (all reasoning arms at detection 1.0) and simulated authorship for arm S. Proposed next cycle (out/journal/006_next_experiment.md): hard pool, real authorship, precision in the claim. Requirement per charter discipline: the revised claim returns to the popper probe with the funder before spend. Classification guidance: cycle-1 evidence weakens 'independence matters' at easy difficulty; students should not assume it settled either way.

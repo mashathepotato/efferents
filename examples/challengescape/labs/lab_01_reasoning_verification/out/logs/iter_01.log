@@ -1,0 +1,6 @@
+$ python3 train.py --config /Users/masha/Documents/efferents/examples/challengescape/labs/lab_01_reasoning_verification/out/configs/iter_01.yaml
+{"checkpoint": "/Users/masha/Documents/efferents/examples/challengescape/labs/lab_01_reasoning_verification/out/ckpt/iter_01/config.json"}
+
+$ python3 eval.py --checkpoint /Users/masha/Documents/efferents/examples/challengescape/labs/lab_01_reasoning_verification/out/ckpt/iter_01/config.json
+{"metrics": {"false_assurance_rate": 0.0, "board_detection": 1.0, "board_det_mech": 1.0, "board_det_sem": 1.0, "board_f1": 0.8571, "board_false_alarm_clean": 0.1935, "self_false_assurance": 0.0, "self_detection": 1.0, "mech_detection": 0.5, "mech_det_sem": 0, "mech_det_mech": 1.0, "k1_pass": 1, "k2_fa_ratio_self_over_board": 1.0, "k3_semantic_gap_points": 100.0, "judged_items": 98, "parse_errors": 0, "mech_check_executions": 5869, "reasoning_tokens_total": 719468}}
+
