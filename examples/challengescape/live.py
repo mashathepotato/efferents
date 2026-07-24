@@ -339,9 +339,16 @@ Challengescape challenge:
 
   &lt;PASTE THE CHALLENGE CARD HERE — title, description, point of contact&gt;
 
-Follow the repo-adapter contract (train prints {"checkpoint": ...}, eval prints
-{"metrics": {...}}), keep the data synthetic or public so it runs offline, add
-a challenge.md and questions_for_poc.md from the templates, then run:
+FIRST run the popper-probe intake dialogue WITH ME on this challenge — do not
+skip it or self-play it: I choose the framing, you probe it until the gate
+passes. Save the gated hypothesis, and record the dialogue's design decisions
+plus my initial direction verbatim in the lab's context/popper.md charter
+(template: templates/popper.md; guidance, not rules).
+
+Then follow the repo-adapter contract (train prints {"checkpoint": ...}, eval
+prints {"metrics": {...}}), keep the data synthetic or public so it runs
+offline, add a challenge.md and questions_for_poc.md from the templates, and
+run:
 
   .venv/bin/efferents run examples/challengescape/labs/&lt;new lab&gt; --approve \
       --out examples/challengescape/labs/&lt;new lab&gt;/out

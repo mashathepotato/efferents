@@ -97,3 +97,86 @@ def test_retry_succeeds(popper_repo, tmp_path, fake_anthropic_factory):
     # model can correct course
     second_user_msgs = client.calls[1].get("messages", [])
     assert any("ERROR" in str(m) or "validator" in str(m).lower() for m in second_user_msgs)
+
+
+# ---------------------------------------------------------------- charter ----
+
+def test_write_charter_creates_then_appends(tmp_path):
+    from efferents.agents.popper_gate import CHARTER_FILENAME, write_charter
+
+    ctx = tmp_path / "context"
+    charter = write_charter(
+        ctx,
+        initial_direction="Detect tipping points earlier\nwith AC1 alarms.",
+        prompted_by="funder:masha",
+        hypothesis_path="popper-corpus/tipping/hypothesis.md",
+        hypothesis_hash="sha256:abc123",
+        design_notes="Rejected variance-only indicator; chose lag-1 AC.",
+        title="initial direction",
+    )
+    assert charter == ctx / CHARTER_FILENAME
+    text = charter.read_text()
+    # Framing: living document, guidance not rules, verbatim direction kept.
+    assert "guidance, not rules" in text
+    assert "never rewrite earlier entries" in text
+    assert "> Detect tipping points earlier" in text
+    assert "> with AC1 alarms." in text
+    assert "funder:masha" in text
+    assert "sha256:abc123" in text
+
+    write_charter(
+        ctx,
+        initial_direction="Second campaign: storm-trend features.",
+        prompted_by="student:s2",
+        title="campaign gate: storm-trend",
+    )
+    text2 = charter.read_text()
+    # Append-only: first entry intact, second added, header not duplicated.
+    assert "> Detect tipping points earlier" in text2
+    assert "campaign gate: storm-trend" in text2
+    assert text2.count("# Lab charter") == 1
+
+
+def test_gate_pass_appends_charter_when_charter_dir_given(
+    popper_repo, tmp_path, fake_anthropic_factory
+):
+    valid_text = (FIXTURES / "valid_hypothesis.md").read_text()
+    client = fake_anthropic_factory([valid_text])
+
+    result = run_gate(
+        draft_claim="my draft direction, verbatim",
+        slug="charter-case",
+        corpus_root=tmp_path / "popper-corpus",
+        client=client,
+        charter_dir=tmp_path / "context",
+        prompted_by="student:default",
+    )
+
+    assert result.ok
+    charter = (tmp_path / "context" / "popper.md").read_text()
+    assert "> my draft direction, verbatim" in charter
+    assert "student:default" in charter
+    assert result.hash in charter
+
+
+def test_read_context_includes_charter(tmp_path):
+    from efferents.agents.popper_gate import write_charter
+    from efferents.agents.state import read_context
+
+    write_charter(tmp_path, initial_direction="direction", prompted_by="funder")
+    ctx = read_context(tmp_path)
+    assert "popper.md" in ctx
+    assert "guidance, not rules" in ctx["popper.md"]
+
+
+def test_static_block_carries_charter_as_guidance(tmp_path, monkeypatch):
+    from efferents.agents.researcher import _shared_static_block
+
+    block = _shared_static_block(
+        vision="v", decisions="d", charter="### 2026-07-24 — initial direction"
+    )
+    assert "Lab charter (popper.md)" in block
+    assert "not binding rules" in block
+    assert "### 2026-07-24 — initial direction" in block
+    # Absent charter adds no empty section.
+    assert "Lab charter" not in _shared_static_block(vision="v", decisions="d")

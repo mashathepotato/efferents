@@ -187,7 +187,7 @@ def read_context(context_dir: str | Path = "context") -> dict[str, str]:
     """Load human-curated context files used by Researcher / Analyst prompts."""
     cd = Path(context_dir)
     out: dict[str, str] = {}
-    for name in ("vision.md", "decisions.md", "research_log.md"):
+    for name in ("vision.md", "decisions.md", "research_log.md", "popper.md"):
         p = cd / name
         if p.exists():
             out[name] = p.read_text()

@@ -102,6 +102,27 @@ Copy the approved file to `<submission>/hypothesis.md`. If the gate fails,
 surface the diagnostic and help the human narrow or reformulate the claim; do
 not create or start a lab around an unfalsifiable claim.
 
+### 3b. Record the lab charter (`context/popper.md`)
+
+After the gate passes, write `<submission>/context/popper.md` — the lab
+charter. It preserves what the probe dialogue decided, so future students and
+supervisors inherit the direction instead of rediscovering it. Record:
+
+- the human's initial direction **verbatim, as they first prompted it**
+  (`prompted_by:` the human), before any sharpening;
+- the design decisions made during the probe dialogue: which formulations
+  were rejected and why, which falsifier was chosen over which alternatives,
+  what scope was cut;
+- a pointer to the gated `hypothesis.md` and its hash.
+
+Use `efferents.agents.popper_gate.write_charter(...)`, or write the file by
+hand in the same shape (it creates the framing header automatically). The
+charter is a **living document — guidance, not rules**: agents read it to
+orient proposals and classify student work, and append amendments when the
+direction legitimately moves. Never rewrite earlier entries; the requirement
+may change, but the record of what was asked for, and when, must not.
+Later campaign gates append to the same file automatically.
+
 ## 4. Configure the lab around real execution
 
 Ask for these values one at a time:

@@ -394,10 +394,20 @@ def _simple_call(
 # -----------------------------------------------------------------------------
 
 
-def _shared_static_block(*, vision: str, decisions: str) -> str:
+def _shared_static_block(*, vision: str, decisions: str, charter: str = "") -> str:
+    charter_block = ""
+    if charter.strip():
+        charter_block = (
+            "\n\n## Lab charter (popper.md)\n\n"
+            "The lab's probed research directions, starting from the funder's "
+            "initial prompt. Guidance for orienting and classifying student "
+            "work — not binding rules; propose amendments when evidence says "
+            "the direction should move.\n\n" + charter
+        )
     return (
         "## Vision\n\n" + vision
         + "\n\n## Decisions\n\n" + decisions
+        + charter_block
         + "\n\n## Default config (config/default.yaml)\n\n"
         + "Use ONLY keys that appear in this YAML when emitting `config_overrides`. "
         + "Dotted paths must match this structure exactly (e.g., `eval.centering`, "
@@ -856,6 +866,7 @@ def propose(
     static_block = _shared_static_block(
         vision=ctx.get("vision.md", ""),
         decisions=ctx.get("decisions.md", ""),
+        charter=ctx.get("popper.md", ""),
     )
     dynamic_block = _shared_dynamic_block(
         research_log=ctx.get("research_log.md", ""),
@@ -959,6 +970,8 @@ def propose(
             corpus_root=corpus_root,
             client=client,
             budget=budget,
+            charter_dir=Path(context_dir),
+            prompted_by=f"student:{student_id}",
         )
         if gate_result.ok:
             campaign_id = "c-" + uuid.uuid4().hex[:10]

@@ -61,6 +61,80 @@ class GateResult:
     reason: str | None  # populated on failure
 
 
+CHARTER_FILENAME = "popper.md"
+
+_CHARTER_HEADER = """\
+---
+document: lab charter (popper.md)
+nature: living document — guidance, not rules
+---
+
+# Lab charter
+
+This file tracks the lab's research direction as it passes through the
+Popper Probe: the initial direction prompted by the lab's funder, and every
+subsequent probed hypothesis that opened a new line of work.
+
+**How students and supervisors should use it.** Read this before proposing
+or prioritizing work. It orients: it says where the lab started, what design
+decisions were made at each gate, and why. It does not bind: requirements
+change, and when the evidence says the direction should move, amend this
+file (append below — never rewrite earlier entries) rather than obey it.
+Proposals that depart from the charter are legitimate; silent departures are
+not. When classifying or onboarding new students, use the entries below to
+decide which lines of work a student continues versus opens fresh.
+
+## Entries
+"""
+
+
+def write_charter(
+    context_dir: str | Path,
+    *,
+    initial_direction: str,
+    prompted_by: str = "unrecorded",
+    hypothesis_path: str | Path | None = None,
+    hypothesis_hash: str | None = None,
+    design_notes: str = "",
+    title: str | None = None,
+) -> Path:
+    """Record a gate passage in the lab's charter (``context/popper.md``).
+
+    Creates the charter on first call; afterwards appends entries only —
+    earlier entries are history, not editable policy. ``initial_direction``
+    is preserved verbatim so the direction as actually prompted (by the
+    funder at intake, or by a student opening a campaign later) stays
+    distinguishable from what the probe sharpened it into.
+    """
+    cd = Path(context_dir)
+    cd.mkdir(parents=True, exist_ok=True)
+    charter = cd / CHARTER_FILENAME
+    if not charter.exists():
+        charter.write_text(_CHARTER_HEADER)
+
+    from datetime import date
+
+    lines = [
+        "",
+        f"### {date.today().isoformat()} — {title or 'probed direction'}",
+        "",
+        f"- **Prompted by**: {prompted_by}",
+        "- **Direction as prompted (verbatim)**:",
+        "",
+        "> " + "\n> ".join(initial_direction.strip().splitlines() or ["(empty)"]),
+        "",
+    ]
+    if hypothesis_path is not None:
+        lines.append(f"- **Gated hypothesis**: `{hypothesis_path}`"
+                     + (f" ({hypothesis_hash})" if hypothesis_hash else ""))
+    if design_notes.strip():
+        lines += ["- **Design decisions at the gate**:", ""]
+        lines += [f"  {ln}" if ln.strip() else "" for ln in design_notes.strip().splitlines()]
+    with charter.open("a") as fh:
+        fh.write("\n".join(lines) + "\n")
+    return charter
+
+
 def _hash_file(p: Path) -> str:
     return "sha256:" + hashlib.sha256(p.read_bytes()).hexdigest()
 
@@ -93,11 +167,16 @@ def run_gate(
     budget: BudgetTracker | None = None,
     model: str = "claude-sonnet-4-6",
     max_tokens: int = 4096,
+    charter_dir: str | Path | None = None,
+    prompted_by: str = "unrecorded",
 ) -> GateResult:
     """Run single-shot self-play intake. Writes hypothesis.md on success.
 
     Returns GateResult with ok=True/path/hash on accept, or ok=False/reason
-    on drop after one retry.
+    on drop after one retry. When ``charter_dir`` is given, a successful gate
+    also appends the probed direction to the lab charter
+    (``<charter_dir>/popper.md``) so the design decision is tracked for
+    future students and supervisors.
     """
     out_dir = corpus_root / slug
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -148,7 +227,23 @@ def run_gate(
         out_path.write_text(body)
         ok, errors = _validate(out_path)
         if ok:
-            return GateResult(ok=True, path=out_path, hash=_hash_file(out_path), reason=None)
+            result = GateResult(ok=True, path=out_path, hash=_hash_file(out_path), reason=None)
+            if charter_dir is not None:
+                write_charter(
+                    charter_dir,
+                    initial_direction=draft_claim,
+                    prompted_by=prompted_by,
+                    hypothesis_path=out_path,
+                    hypothesis_hash=result.hash,
+                    design_notes=(
+                        "Headless self-play gate (probes 1–3 internal); the "
+                        "sharpened claim and falsifier live in the gated "
+                        "hypothesis file. Interactive intakes should record "
+                        "the dialogue's sharpening decisions here instead."
+                    ),
+                    title=f"campaign gate: {slug}",
+                )
+            return result
         last_errors = errors
 
     return GateResult(ok=False, path=None, hash=None, reason=f"validate failed: {last_errors}")
