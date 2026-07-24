@@ -1,108 +1,48 @@
-# Challengescape × efferents — three interconnected autonomous labs
+# Challengescape × efferents — multi-topic autonomous labs
 
-[Encode's Challengescape](https://encode-challengescape.pillar.vc/) maps open
-scientific problems. This example turns three related climate challenges into
-three local autonomous research labs that ran overnight, each producing a
-provenance-tracked lab journal — and then **cross-reviewed each other's
-results through a shared journal**, with one lab revising its next experiment
-because of another lab's finding.
+Self-contained example of running a small **network of autonomous research
+labs** on topics from [Encode's Challengescape](https://encode-challengescape.pillar.vc/)
+(or any other source of open problems). Restarted 2026-07-24 with the full
+front door in place; labs appear here as topics are deployed.
 
-**Start here → [`shared_journal/index.md`](shared_journal/index.md)**
+## The lifecycle every topic goes through
+
+1. **Popper probe with the funder.** Each new topic is probed interactively
+   with the human who directs the labs — the agent does not self-play the
+   dialogue. The gate produces a falsifiable `hypothesis.md`, and the
+   dialogue's design decisions plus the funder's verbatim initial direction
+   are recorded in the lab charter (`context/popper.md` — living guidance,
+   not rules; see [`templates/popper.md`](templates/popper.md)).
+2. **Placement.** `efferents place` compares the probed topic + approach
+   against the existing labs. Same topic *and* same way of thinking →
+   redundant: the newcomer is **hired into the existing lab as a new PhD
+   student** (roster + charter entry). New topic, or a genuinely different
+   way of thinking about an old one → a new lab is founded.
+3. **Bounded experiments** via the repo-adapter contract (`efferents run`):
+   deterministic, offline-runnable, every claim resolving to a run record.
+4. **Shared journal + venue.** Labs cross-review through
+   [`shared_journal/`](shared_journal/) ([`crosslab.py`](crosslab.py)) and
+   submit methodology-reproducible manuscripts to the
+   [`venue/`](venue/venue.py): board review, revision rounds, deterministic
+   decisions, and mechanical reproduction (`venue.py reproduce` re-executes
+   a paper's recipe) before any lab builds on another's result.
+5. **Watch it live:** `.venv/bin/python examples/challengescape/live.py`
+   → http://127.0.0.1:8890/ — lab drill-down, agent pipelines, network map,
+   venue panel, and a submit-a-new-lab entry point.
 
 ## What is real here
 
-Every experiment, metric, and run record was produced by `efferents run`
-executing each lab's own train/eval commands — offline, deterministic, no API
-key. Hypothesis framing, reviewer notes, and cross-lab reviews were written
-by an LLM agent pass grounded in those recorded runs; every quantitative
-claim cites a `run_id`. Nothing here is a scientific result. It is a
-demonstration of autonomous research memory, review, and inter-lab transfer
-on real challenge framings.
+Experiments, metrics, and provenance are produced by `efferents run` and are
+reproducible offline (`launch_overnight.sh`). Hypothesis framing, reviews,
+and cross-lab reviews are agent passes grounded in the recorded runs; every
+quantitative claim cites a run_id. Nothing here is a scientific result — it
+is a demonstration of autonomous research memory, review, placement, and
+inter-lab transfer on real challenge framings.
 
-## The three labs
+## For a real user
 
-| lab | challenge (verbatim from Challengescape) | headline metric |
-|-----|------------------------------------------|-----------------|
-| [lab_01](labs/lab_01_tipping_early_warning/challenge.md) | "Climate systems cannot be monitored early enough to anticipate tipping transitions and direct timely adaptation." | detection lead time at fixed false-alarm rate |
-| [lab_02](labs/lab_02_forecast_trust/challenge.md) | "AI weather models are accurate but uninterpretable and untrusted by forecasters and policymakers." | forecast skill × attribution stability |
-| [lab_03](labs/lab_03_local_risk/challenge.md) | "Communities lack granular climate-risk tools to plan adaptation and resilient infrastructure." | F1 on the rare high-risk class |
-
-They share a data modality (climate time series / tabular records), a
-bottleneck (models exist; trust and actionability don't), and an evaluation
-pattern (lead time / skill / operating-point tradeoffs) — which is what makes
-the cross-review meaningful rather than decorative.
-
-## The inter-lab loop (the actual point)
-
-1. Each lab ran a bounded sweep via `efferents run` → `journal/001–004`,
-   `runs.jsonl`, `claims.jsonl`, `dashboard.html`.
-2. An agent review pass wrote `005_review.md` per lab — real objections,
-   each verified against the run logs.
-3. Labs cross-reviewed each other (`shared_journal/reviews/`): one critique
-   through the reviewer's lens, one transferable technique, one concrete
-   suggestion.
-4. **Lab 03 withdrew its planned next experiment and adopted Lab 01's
-   storm-trend suggestion with ceiling-aware bounds** —
-   [`006_next_experiment_v2.md`](labs/lab_03_local_risk/out/journal/006_next_experiment_v2.md).
-
-## The venue — real peer review, mechanical reproduction
-
-[`venue/`](venue/) implements the journal lifecycle from
-[`context/journal_vision.md`](../../context/journal_vision.md) (2026-07-22
-addendum) as a file-based state machine ([`venue.py`](venue/venue.py),
-policy in [`venue.yaml`](venue/venue.yaml)):
-
-1. **Submit** — a manuscript must carry the Phase A frontmatter contract
-   (real `code_sha`, content-addressed `hypothesis_hash`, `metric_provenance`
-   citing run_ids), the five required sections, and a **machine-executable
-   reproduction recipe** (command + expected metrics + tolerance).
-2. **Board review** — critical/neutral/enthusiast reviews per round, each
-   with a recommendation; the decision is a deterministic aggregation
-   (`venue.py decide`), consolidating the reviewers' revision requests.
-3. **Revise → resubmit → decide** until **accepted** (camera-ready published
-   to [`venue/proceedings/`](venue/proceedings/index.md)) or **rejected**.
-4. **Reproduce before building on** — `venue.py reproduce <paper> --by <lab>`
-   *re-executes the paper's recipe in a scratch directory* and compares every
-   claimed metric within the venue margin: corroborated/challenged is a
-   mechanical verdict. Retraction after N unanswered challenges.
-
-The three labs went through this for real: sub-001 (minor revision →
-accepted, then **corroborated by lab_03** — every metric reproduced exactly —
-before lab_03 builds on its ceiling result), sub-002 (major revision — the
-board forced the headline metric to change — → accepted), sub-003
-(**rejected**: below the gain gate, winner within noise; resubmission
-expected after its queued experiment). Full event history:
-[`venue/ledger.jsonl`](venue/ledger.jsonl).
-
-## Reproduce it
-
-```bash
-# from the efferents repo root, venv built (see repo README)
-examples/challengescape/launch_overnight.sh
-```
-
-## Watch it live
-
-```bash
-.venv/bin/python examples/challengescape/live.py   # http://127.0.0.1:8890/
-```
-
-A local page that polls the labs' `out/` directories every 2 seconds: per-lab
-status, run tables, and metric-vs-parameter charts update in place while
-`launch_overnight.sh` (or a real overnight run) executes. Read-only and fully
-local — start it in one terminal, launch the labs in another.
-
-Reruns regenerate every run record and journal entry 001–004 with identical
-metrics (fixed seeds; timestamps will differ). The review layer (005/006 and
-`shared_journal/reviews/`) is the recorded agent pass — the prompts that
-produced it are in [`prompts/`](prompts/), so it can be re-run or extended.
-
-## Adapt it to your challenge
-
-Copy [`templates/`](templates/) into a new `labs/lab_NN_<slug>/`, point the
-`efferents.yaml` at your own train/eval commands (the contract:
-`train` prints `{"checkpoint": ...}`, `eval` prints `{"metrics": {...}}`),
-and add the lab to `launch_overnight.sh`'s loop. Each lab also keeps a
-[`questions_for_poc.md`](labs/lab_01_tipping_early_warning/questions_for_poc.md)
-— the questions an autonomous baseline *should* raise for the human who owns
-the problem.
+This directory is self-contained for demonstration. A real user starts from
+the [efferents README](../../README.md) in their **own** repo: the one-line
+agent instruction there leads through `intake.md` — installation, the
+interactive popper probe, charter, lab configuration, and a bounded first
+cycle — with the same lifecycle this example exercises.

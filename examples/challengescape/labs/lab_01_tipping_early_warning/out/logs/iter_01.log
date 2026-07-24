@@ -1,6 +1,0 @@
-$ python3 train.py --config /Users/masha/Documents/efferents/examples/challengescape/labs/lab_01_tipping_early_warning/out/configs/iter_01.yaml
-{"checkpoint": "/Users/masha/Documents/efferents/examples/challengescape/labs/lab_01_tipping_early_warning/out/ckpt/iter_01/detector.json"}
-
-$ python3 eval.py --checkpoint /Users/masha/Documents/efferents/examples/challengescape/labs/lab_01_tipping_early_warning/out/ckpt/iter_01/detector.json
-{"metrics": {"mean_lead_time": 66.4, "detected_frac": 0.7, "control_false_alarm_rate": 0.0}}
-

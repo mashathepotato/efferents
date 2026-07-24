@@ -1,4 +1,0 @@
-# Base config for the local climate-risk classifier.
-pos_weight: 1       # positive (high-risk) class weight — the swept knob
-learning_rate: 0.5
-epochs: 400

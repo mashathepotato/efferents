@@ -1,3 +1,0 @@
-checkpoint_dir: /Users/masha/Documents/efferents/examples/challengescape/labs/lab_02_forecast_trust/out/ckpt/iter_04
-n_bootstrap: 20
-ridge_lambda: 1000

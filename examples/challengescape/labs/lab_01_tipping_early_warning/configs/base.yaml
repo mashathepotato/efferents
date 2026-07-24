@@ -1,2 +1,0 @@
-# Base config for the tipping-point early-warning detector.
-window: 50          # rolling-window length (timesteps) — the swept knob

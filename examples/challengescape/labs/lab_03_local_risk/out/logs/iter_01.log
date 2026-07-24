@@ -1,6 +1,0 @@
-$ python3 train.py --config /Users/masha/Documents/efferents/examples/challengescape/labs/lab_03_local_risk/out/configs/iter_01.yaml
-{"checkpoint": "/Users/masha/Documents/efferents/examples/challengescape/labs/lab_03_local_risk/out/ckpt/iter_01/model.json"}
-
-$ python3 eval.py --checkpoint /Users/masha/Documents/efferents/examples/challengescape/labs/lab_03_local_risk/out/ckpt/iter_01/model.json
-{"metrics": {"f1_high_risk": 0.7556, "precision_high_risk": 0.7727, "recall_high_risk": 0.7391, "n_flagged": 22, "n_high_risk_true": 23}}
-

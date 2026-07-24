@@ -1,4 +1,0 @@
-checkpoint_dir: /Users/masha/Documents/efferents/examples/challengescape/labs/lab_03_local_risk/out/ckpt/iter_03
-epochs: 400
-learning_rate: 0.5
-pos_weight: 4

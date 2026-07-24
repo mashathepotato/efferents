@@ -1,3 +1,0 @@
-# Base config for the forecast-trust lab.
-ridge_lambda: 10    # ridge penalty — the swept knob
-n_bootstrap: 20     # refits used to measure attribution stability

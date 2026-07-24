@@ -1,6 +1,0 @@
-$ python3 train.py --config /Users/masha/Documents/efferents/examples/challengescape/labs/lab_02_forecast_trust/out/configs/iter_02.yaml
-{"checkpoint": "/Users/masha/Documents/efferents/examples/challengescape/labs/lab_02_forecast_trust/out/ckpt/iter_02/model.json"}
-
-$ python3 eval.py --checkpoint /Users/masha/Documents/efferents/examples/challengescape/labs/lab_02_forecast_trust/out/ckpt/iter_02/model.json
-{"metrics": {"trust_adjusted_skill": 0.2103, "skill_vs_climatology": 0.2764, "attribution_stability": 0.7609, "rmse_model": 1.9452, "rmse_climatology": 2.6883}}
-

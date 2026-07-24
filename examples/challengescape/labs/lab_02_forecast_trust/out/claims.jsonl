@@ -1,4 +1,0 @@
-{"claim": "Best trust_adjusted_skill = 0.2386 at ridge_lambda=100", "evidence_type": "run_metric", "source_path": "logs/iter_03.log", "run_id": "run_03", "metric": "trust_adjusted_skill", "value": 0.2386}
-{"claim": "trust_adjusted_skill varied across the configured ridge_lambda sweep", "evidence_type": "metric_aggregate", "source_path": "runs.jsonl", "run_id": null, "metric": "trust_adjusted_skill", "value": "range=-0.0..0.2386"}
-{"claim": "Experiment plan recorded before execution", "evidence_type": "document", "source_path": "journal/002_experiment_plan.md", "run_id": null, "metric": null, "value": "approval=plan_then_execute; execution_authorized=true"}
-{"claim": "Execution stayed within the configured wall-clock compute proxy", "evidence_type": "budget", "source_path": "journal/004_research_memo.md", "run_id": null, "metric": null, "value": "<= 0.2 GPU-h, $0 LLM"}
