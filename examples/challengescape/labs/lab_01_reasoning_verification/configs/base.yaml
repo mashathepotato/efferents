@@ -1,0 +1,2 @@
+# Base config for the reasoning-verification lab.
+board_size: 3       # reviewers on the board — the swept knob
