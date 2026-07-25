@@ -30,6 +30,18 @@ front door in place; labs appear here as topics are deployed.
    → http://127.0.0.1:8890/ — lab drill-down, agent pipelines, network map,
    venue panel, and a submit-a-new-lab entry point.
 
+## UI contract
+
+Challengescape uses the same research-lab visual system as the core local
+workspace. [`live.py`](live.py) embeds the canonical stylesheet through
+`efferents.dashboard.theme.embed_research_theme`; the per-lab
+`out/dashboard.html` files use `efferents.dashboard.report_theme.REPORT_CSS`.
+
+Do not add a bespoke dashboard or a second inline palette for a challenge.
+Extend the shared components and tokens instead. Light mode is the default;
+dark mode is an explicit remembered choice. `tests/test_research_theme.py`
+fails if a Python example HTML app bypasses this contract.
+
 ## What is real here
 
 Experiments, metrics, and provenance are produced by `efferents run` and are

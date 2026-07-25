@@ -32,6 +32,26 @@ Read these first:
   lab-agnostic. Examples may be concrete, but framework defaults may not assume
   one research domain.
 
+## UI contract
+
+- The modern research-lab interface is the product default, including in
+  examples and challenge demos. Do not create a parallel "quick" dashboard
+  with its own visual language.
+- `efferents/dashboard/static/dashboard.css` is the canonical visual contract.
+  Python example apps that emit HTML must embed it through
+  `efferents.dashboard.theme.embed_research_theme`; generated offline reports
+  must use `efferents.dashboard.report_theme.REPORT_CSS`.
+- Light mode is the default. Dark mode may be offered only as an explicit,
+  persistent user choice. Do not default from the operating-system color
+  scheme.
+- Preserve the high-information research-console vocabulary: square panels,
+  restrained forest/cyan signals, compact monospace metadata, dense evidence
+  tables, visible provenance, and explicit runtime/budget state. Avoid rounded
+  card grids, decorative gradients, generic blue SaaS accents, and oversized
+  whitespace.
+- `tests/test_research_theme.py` enforces the example-app boundary. Extend that
+  contract when adding a new HTML generator instead of bypassing it.
+
 ## Human governance principle
 
 The human in the loop is the person or institution supplying the lab's scarce

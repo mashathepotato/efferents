@@ -590,7 +590,12 @@ run:
   .venv/bin/python examples/challengescape/crosslab.py
 
 Finally write an intra-lab review (005_review.md) and one cross-lab review,
-following examples/challengescape/prompts/.</pre>
+following examples/challengescape/prompts/.
+
+Do not create a bespoke dashboard for this lab. It appears in the existing
+Challengescape live workspace. Any extension to an example HTML app must use
+efferents.dashboard.theme.embed_research_theme so it inherits the canonical
+research-lab UI.</pre>
   <div class="modal-actions">
     <button class="btn ghost" onclick="closeModal()">Close</button>
     <button class="btn" onclick="copyEntry(this)">Copy to clipboard</button>
