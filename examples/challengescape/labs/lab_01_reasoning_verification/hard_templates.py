@@ -45,6 +45,11 @@ TEMPLATES: dict[str, dict] = {
             "out below absolute zero, do not drop the record — clamp "
             "'temp_c' to -273.15 so downstream stages keep the row."
         ),
+        "mech_clarification": (
+            "Requirements update from the spec owner: when a reading's unit "
+            "field is unrecognized, keep the record but set 'temp_c' to None "
+            "so downstream stages can spot it."
+        ),
         "invariants": {"temp_c": {"type": "number", "nonnull": True},
                        "cardinality": "lte_input"},
     },
@@ -73,6 +78,11 @@ TEMPLATES: dict[str, dict] = {
         "clarification": (
             "Requirements update from the spec owner: a gap of exactly 30 "
             "should also start a new session — treat 30 as already too long."
+        ),
+        "mech_clarification": (
+            "Requirements update from the spec owner: emit the session index "
+            "as a zero-padded string like '003' instead of an integer, for "
+            "log readability."
         ),
         "invariants": {"session": {"type": "number", "nonnull": True,
                                    "monotone_nondecreasing": True},
@@ -111,6 +121,11 @@ TEMPLATES: dict[str, dict] = {
             "WEIGHTS (not the largest fractional parts) — big stakeholders "
             "absorb rounding."
         ),
+        "mech_clarification": (
+            "Requirements update from the spec owner: to avoid over-spend "
+            "risk, keep one unit of the budget in reserve — distribute only "
+            "999 units."
+        ),
         "invariants": {"alloc": {"type": "number", "nonnull": True},
                        "sum_eq": {"field": "alloc", "value": 1000},
                        "cardinality": "eq_input"},
@@ -147,6 +162,10 @@ TEMPLATES: dict[str, dict] = {
             "standard deviation of the batch so extreme values still get "
             "flagged."
         ),
+        "mech_clarification": (
+            "Requirements update from the spec owner: for cleaner exports, "
+            "write 'outlier' as 'yes'/'no' strings rather than booleans."
+        ),
         "invariants": {"outlier": {"type": "bool", "nonnull": True},
                        "cardinality": "eq_input"},
     },
@@ -174,6 +193,10 @@ TEMPLATES: dict[str, dict] = {
             "touch at a point (one ends exactly where the next starts) are "
             "distinct measurements and must stay separate — merge only true "
             "overlaps."
+        ),
+        "mech_clarification": (
+            "Requirements update from the spec owner: also pass through the "
+            "original records after the merged intervals so no data is lost."
         ),
         "invariants": {"start": {"type": "number", "nonnull": True},
                        "end": {"type": "number", "nonnull": True},

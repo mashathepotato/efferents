@@ -85,8 +85,19 @@ def _call(client, system, messages, max_tokens=4000):
     global _spend
     if _stop.is_set():
         raise RuntimeError("spend cap hit")
-    resp = client.messages.create(model=MODEL, max_tokens=max_tokens,
-                                  system=system, messages=messages)
+    resp = None
+    for attempt, delay in ((1, 2), (2, 6), (3, 0)):
+        try:
+            resp = client.messages.create(model=MODEL, max_tokens=max_tokens,
+                                          system=system, messages=messages)
+            break
+        except Exception:
+            # Transient provider errors (5xx, rate limits) get backoff;
+            # the final attempt propagates so callers can classify.
+            if attempt == 3:
+                raise
+            import time
+            time.sleep(delay)
     text = resp.content[0].text if resp.content else ""
     cost = resp.usage.input_tokens * PRICE_IN + resp.usage.output_tokens * PRICE_OUT
     with _lock:

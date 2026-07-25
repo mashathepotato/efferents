@@ -99,3 +99,14 @@ decide which lines of work a student continues versus opens fresh.
 - **Design decisions at the gate**:
 
   Headless self-play gate (probes 1–3 internal); the sharpened claim and falsifier live in the gated hypothesis file. Interactive intakes should record the dialogue's sharpening decisions here instead.
+
+### 2026-07-25 — standing autonomy + cycle-3 scope amendment
+
+- **Prompted by**: funder (2026-07-25)
+- **Direction as prompted (verbatim)**:
+
+> Funder, verbatim: "ok run it and jump autonomously if falsified again. and stop stopping"
+
+- **Design decisions at the gate**:
+
+  Cycle 3 launched under full autonomy. Pre-data scope amendment recorded (popper-corpus/quorum-precision-mechanics-gap/regimen.md): the gated hypothesis's R=30x200-per-N regimen costs ~$150-300 in board verdicts, beyond the standing budget cap; executed regimen keeps every numeric bound and statistical requirement, shrinks n to ~30 clean + ~18 author-written buggy modules per N (~$7). Amendment made before any cycle-3 data existed; a power-only miss will be reported as falsified per the claim's letter with the caveat attached. Equal-information fix applied: reviewers now see the author's clarification history. Board verdicts only (the claim makes no self-analysis assertions). The lab continues cycling autonomously within the session budget envelope.

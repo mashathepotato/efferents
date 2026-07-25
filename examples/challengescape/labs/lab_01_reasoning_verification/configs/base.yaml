@@ -1,2 +1,2 @@
 # Base config for the reasoning-verification lab (cycle 2).
-quorum_k: 3       # quorum: reviewers who must flag to convict — the swept knob
+pool_n: 8       # pool size N under evaluation — the swept knob
