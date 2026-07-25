@@ -1,9 +1,9 @@
 """'Training' = selecting the verification configuration under test.
 
-The swept knob is board_size k: how many of the five recorded fresh-context
-reviewers sit on the board. All reasoning verdicts were recorded at build
-time (safety_lab.py verdicts); train just pins the configuration so eval can
-score it deterministically.
+The swept knob is quorum_k: how many of the five recorded fresh-context
+reviewers must flag a module for the board to convict. All reasoning
+verdicts were recorded at build time (cycle2.py verdicts); train just pins
+the configuration so eval can score it deterministically.
 
 Contract with efferents: last stdout line is {"checkpoint": "<path>"}.
 """
@@ -30,12 +30,12 @@ def main() -> None:
     ap.add_argument("--config", required=True)
     args = ap.parse_args()
     cfg = _load_flat_config(Path(args.config))
-    board_size = int(float(cfg.get("board_size", 3)))
+    quorum_k = int(float(cfg.get("quorum_k", 3)))
 
     ckpt_dir = Path(cfg.get("checkpoint_dir", "ckpt"))
     ckpt_dir.mkdir(parents=True, exist_ok=True)
     ckpt = ckpt_dir / "config.json"
-    ckpt.write_text(json.dumps({"board_size": board_size}))
+    ckpt.write_text(json.dumps({"quorum_k": quorum_k}))
     print(json.dumps({"checkpoint": str(ckpt)}))
 
 

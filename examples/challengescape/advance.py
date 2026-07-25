@@ -62,9 +62,10 @@ def _ask_json(client, model: str, system: str, user: str) -> dict:
 
 def main() -> None:
     lab = Path(sys.argv[1]).resolve()
-    review_path = lab / "out" / "journal" / "005_review.md"
+    review_name = sys.argv[2] if len(sys.argv) > 2 else "005_review.md"
+    review_path = lab / "out" / "journal" / review_name
     if not review_path.is_file():
-        sys.exit("no 005_review.md — nothing to advance from")
+        sys.exit(f"no {review_name} — nothing to advance from")
     review = review_path.read_text()
     kc = _frontmatter(review).get("kill_conditions", "")
     if "FIRED" not in str(kc):
@@ -82,10 +83,12 @@ def main() -> None:
 
     grounding = (
         f"## Falsified hypothesis ({old_slug})\n{active.read_text()[:6000]}\n\n"
-        f"## Intra-lab review of the cycle that killed it\n{review[:6000]}\n\n"
-        f"## The lab's own next-experiment proposal\n"
-        f"{(lab / 'out' / 'journal' / '006_next_experiment.md').read_text()[:4000]}"
+        f"## Intra-lab review of the cycle that killed it\n{review[:8000]}"
     )
+    proposal = lab / "out" / "journal" / "006_next_experiment.md"
+    if proposal.is_file() and review_name == "005_review.md":
+        grounding += ("\n\n## The lab's own next-experiment proposal\n"
+                      + proposal.read_text()[:4000])
 
     _load_env()
     from efferents.agents.model_client import make_client
@@ -168,7 +171,10 @@ def main() -> None:
     new_path.write_text(new_text)
     new_hash = "sha256:" + hashlib.sha256(new_path.read_bytes()).hexdigest()
 
-    jump_md = lab / "out" / "journal" / "007_hypothesis_jump.md"
+    journal = lab / "out" / "journal"
+    taken = [int(m.group(1)) for p in journal.glob("[0-9]*_*.md")
+             if (m := re.match(r"(\d+)_", p.name))]
+    jump_md = journal / f"{max(taken, default=6) + 1:03d}_hypothesis_jump.md"
     jump_md.write_text(f"""---
 memo: 007_hypothesis_jump
 agent: autonomous supervisor-student loop (openai/gpt-5-mini) + headless popper gate

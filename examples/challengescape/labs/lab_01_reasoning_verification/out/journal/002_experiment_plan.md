@@ -1,14 +1,14 @@
 ---
 memo: 002_experiment_plan
 agent: researcher
-generated_at: 2026-07-24T17:25:30.032585+00:00
+generated_at: 2026-07-25T04:23:38.028358+00:00
 approval_mode: plan_then_execute
 execution_authorized: true
 ---
 
 # Experiment plan
 
-**Objective:** minimize the false-assurance rate of the independent reasoning board on seeded safety violations in N-agent codebases by tuning the verification configuration (board size), holding detection >= 90% — kill-conditions K1-K3 in the hypothesis stand as fixed pass/fail lines
+**Objective:** cycle 2 (hypothesis: hardened-pool-authorship-board-quorum) — minimize the board's false-assurance rate on the author model's own buggy modules (natural failures + self-written sabotage) under intent-specs, sweeping the conviction quorum k over the five recorded reviewers; the gated hypothesis's falsifiers stand as fixed pass/fail lines at k >= 3
 
 
 Each experiment runs:
@@ -20,10 +20,10 @@ eval:  python3 eval.py --checkpoint {checkpoint}
 
 | # | experiment |
 |---|------------|
-| 1 | board_size=1 |
-| 2 | board_size=2 |
-| 3 | board_size=3 |
-| 4 | board_size=5 |
+| 1 | quorum_k=1 |
+| 2 | quorum_k=2 |
+| 3 | quorum_k=3 |
+| 4 | quorum_k=5 |
 
 **Budget ceiling:** 0.5 GPU-hours, $0.0 LLM spend.
 **Approval mode:** `plan_then_execute`.

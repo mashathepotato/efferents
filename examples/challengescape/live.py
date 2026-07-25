@@ -126,6 +126,21 @@ def _lab_state(lab_dir: Path) -> dict:
         age = time.time() - runs_file.stat().st_mtime
         status = "running" if age < RUNNING_WINDOW_S else "complete"
 
+    # Build-phase activity (authorship, recorded verdict passes, …) lives in
+    # artifacts/, not in the sweep output — a lab writing artifacts is
+    # "running" even when no sweep is executing.
+    activity, phase = [], None
+    art = lab_dir / "artifacts"
+    if art.is_dir():
+        now = time.time()
+        for f in sorted(art.glob("*.jsonl")):
+            lines = sum(1 for l in f.read_text().splitlines() if l.strip())
+            recent = (now - f.stat().st_mtime) < 60
+            activity.append({"name": f.name, "lines": lines, "live": recent})
+            if recent:
+                status = "running"
+                phase = f"building: {f.name} ({lines} records)"
+
     best = None
     scored = [r for r in runs if isinstance(r["metric_value"], (int, float))]
     if scored:
@@ -153,6 +168,8 @@ def _lab_state(lab_dir: Path) -> dict:
         "name": lab_dir.name,
         "path": f"examples/challengescape/labs/{lab_dir.name}",
         "hypotheses": hypotheses,
+        "activity": activity,
+        "phase": phase,
         "challenge": _challenge_title(lab_dir),
         "goal": goal,
         "metric": metric,
@@ -594,6 +611,7 @@ function overview(state) {
         <div class="tile"><div class="status ${lab.status}"><span class="dot"></span>
           ${lab.status}</div><div class="k">status</div></div>
       </div>
+      ${lab.phase ? `<div style="font-size:12px;color:var(--warning);margin-bottom:6px">⚙ ${lab.phase}</div>` : ""}
       ${sparkline(lab, seriesFor(lab.name))}
       ${hypLine(lab)}
       <div class="themes">${lab.themes.map(t => `<span class="chip">${t}</span>`).join("")}</div>
@@ -729,6 +747,9 @@ function labDetail(state, name) {
     <div class="tile"><div class="status ${lab.status}"><span class="dot"></span>${lab.status}</div>
       <div class="k">status</div></div>
   </div>
+  ${lab.phase ? `<div style="font-size:13px;color:var(--warning);margin-bottom:8px">⚙ ${lab.phase}</div>` : ""}
+  ${(lab.activity || []).length ? `<p style="color:var(--text-muted);font-size:12px">
+    artifacts: ${lab.activity.map(a => `${a.name} <strong>${a.lines}</strong>${a.live ? " ●" : ""}`).join(" · ")}</p>` : ""}
   <div class="grid" style="grid-template-columns: minmax(340px, 1.1fr) minmax(360px, 1.6fr)">
     <div>
       <div class="card">${chart(lab, color, 430, 210)}

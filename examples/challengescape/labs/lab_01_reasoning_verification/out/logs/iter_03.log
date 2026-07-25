@@ -2,5 +2,5 @@ $ python3 train.py --config /Users/masha/Documents/efferents/examples/challenges
 {"checkpoint": "/Users/masha/Documents/efferents/examples/challengescape/labs/lab_01_reasoning_verification/out/ckpt/iter_03/config.json"}
 
 $ python3 eval.py --checkpoint /Users/masha/Documents/efferents/examples/challengescape/labs/lab_01_reasoning_verification/out/ckpt/iter_03/config.json
-{"metrics": {"false_assurance_rate": 0.0, "board_detection": 1.0, "board_det_mech": 1.0, "board_det_sem": 1.0, "board_f1": 0.7912, "board_false_alarm_clean": 0.3065, "self_false_assurance": 0.0, "self_detection": 1.0, "mech_detection": 0.5, "mech_det_sem": 0, "mech_det_mech": 1.0, "k1_pass": 1, "k2_fa_ratio_self_over_board": 1.0, "k3_semantic_gap_points": 100.0, "judged_items": 98, "parse_errors": 0, "mech_check_executions": 5869, "reasoning_tokens_total": 719468}}
+{"metrics": {"false_assurance_rate": 0.0678, "board_detection": 0.75, "board_det_sem": 0.6923, "board_clean_false_alarm": 0.1129, "self_false_assurance": 0.0556, "self_detection": 0.8125, "self_clean_false_alarm": 0.1774, "mech_detection": 0.1875, "mech_det_sem": 0, "ratio_fa_self_over_board": 0.819, "ratio_cfa_self_over_board": 1.571, "k1_clean_false_alarm": 0.5, "k1_median_clean_false_alarm_per_n": 0.5, "sig_p_k1_vs_this_k": 0.0, "n_mutants": 16, "n_clean": 62, "mech_check_executions": 5984}}
 

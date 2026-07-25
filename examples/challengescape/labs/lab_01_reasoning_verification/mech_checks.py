@@ -54,9 +54,38 @@ def run_checks(invariants: dict, input_records: list, output_records: list):
                     fired.append("field_set")
                     break
 
+    if invariants.get("intervals_sorted_nonoverlap"):
+        execs += 1
+        seq = [(r.get("start"), r.get("end")) for r in output_records]
+        ok = all(isinstance(s, (int, float)) and isinstance(e, (int, float))
+                 and s <= e for s, e in seq)
+        if ok:
+            for (s1, e1), (s2, e2) in zip(seq, seq[1:]):
+                if s2 < s1 or s2 <= e1:
+                    ok = False
+                    break
+        if not ok:
+            fired.append("intervals_sorted_nonoverlap")
+
+    sum_eq = invariants.get("sum_eq")
+    if isinstance(sum_eq, dict) and output_records:
+        execs += 1
+        try:
+            total = sum(r.get(sum_eq["field"], 0) for r in output_records)
+            if total != sum_eq["value"]:
+                fired.append(f"sum_eq_{sum_eq['field']}")
+        except TypeError:
+            fired.append(f"sum_eq_{sum_eq['field']}")
+
     for field, spec in invariants.items():
-        if not isinstance(spec, dict):
+        if not isinstance(spec, dict) or field == "sum_eq":
             continue
+        if spec.get("monotone_nondecreasing"):
+            execs += 1
+            vals = [r.get(field) for r in output_records if field in r]
+            if any(not isinstance(v, (int, float)) for v in vals) or \
+                    any(b < a for a, b in zip(vals, vals[1:])):
+                fired.append(f"{field}_monotone")
         for r in output_records:
             if field not in r:
                 continue
@@ -68,7 +97,13 @@ def run_checks(invariants: dict, input_records: list, output_records: list):
                     break
             if spec.get("type") == "number":
                 execs += 1
-                if v is not None and not isinstance(v, (int, float)):
+                if v is not None and (not isinstance(v, (int, float))
+                                      or isinstance(v, bool)):
+                    fired.append(f"{field}_type")
+                    break
+            if spec.get("type") == "bool":
+                execs += 1
+                if v is not None and not isinstance(v, bool):
                     fired.append(f"{field}_type")
                     break
             if v is not None and isinstance(v, (int, float)):

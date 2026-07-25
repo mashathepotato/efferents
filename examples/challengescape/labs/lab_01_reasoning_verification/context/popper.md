@@ -85,3 +85,17 @@ decide which lines of work a student continues versus opens fresh.
 - **Design decisions at the gate**:
 
   Headless self-play gate (probes 1–3 internal); the sharpened claim and falsifier live in the gated hypothesis file. Interactive intakes should record the dialogue's sharpening decisions here instead.
+
+### 2026-07-25 — campaign gate: quorum-precision-mechanics-gap
+
+- **Prompted by**: autonomous jump: student+supervisor loop after falsification
+- **Direction as prompted (verbatim)**:
+
+> For the hardened mutant pool used in the cycle-2 experiments, and under the pre-registered small‑lab test regimen (pipeline sizes N ∈ {2,4,8,16,32}; R=30 independent trials per operating point; M_seed=100, M_clean=100 per trial; reviewers and S drawn from the evaluated model family), when each reviewer and the board B are provided the same clarification/transcript history that S received: (A) raising the board quorum from k=1 to k=3 produces an absolute reduction in board clean-module false-alarm rate of at least 0.20 (20 percentage points) for every tested N, and board end-to-end mutant detection at k=3 is at least 0.75 for every tested N; the k=1 → k=3 clean-FA reduction must be statistically significant at two-sided α=0.05 with the pre-registered correction for multiple comparisons; and (B) on the same hardened pool and operating points, mean detection of seeded mechanical-class mutants by reviewers/board is at least 0.15 and mean detection of seeded semantic-class mutants is at most 0.05 (per-N, aggregated across R trials), producing a detection gap (mechanical − semantic) of at least 0.10 that is statistically significant at two-sided α=0.05. The claim is falsified if any stated numeric bound or statistical requirement fails for any tested N under these experimental controls.
+> 
+> (Reminder: the emitted hypothesis.md MUST contain every schema section for a passed gate, in order: ## Original framing (quote the claim above verbatim in a blockquote), ## Operational restatement, ## Falsifier(s), ## Test design, ## Auxiliary assumptions, ## Distinctiveness, ## References, ## Intake log.)
+
+- **Gated hypothesis**: `/Users/masha/Documents/efferents/examples/challengescape/labs/lab_01_reasoning_verification/popper-corpus/quorum-precision-mechanics-gap/hypothesis.md` (sha256:27688c17de0663ee5fe6d794e33b9f69b4ef22d05766f478fed3ce1fc36f0bd1)
+- **Design decisions at the gate**:
+
+  Headless self-play gate (probes 1–3 internal); the sharpened claim and falsifier live in the gated hypothesis file. Interactive intakes should record the dialogue's sharpening decisions here instead.

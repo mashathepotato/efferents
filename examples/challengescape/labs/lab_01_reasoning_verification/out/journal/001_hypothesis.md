@@ -1,17 +1,17 @@
 ---
 memo: 001_hypothesis
 agent: researcher
-generated_at: 2026-07-24T17:25:30.032349+00:00
+generated_at: 2026-07-25T04:23:38.027980+00:00
 ---
 
 # Objective
 
-minimize the false-assurance rate of the independent reasoning board on seeded safety violations in N-agent codebases by tuning the verification configuration (board size), holding detection >= 90% — kill-conditions K1-K3 in the hypothesis stand as fixed pass/fail lines
+cycle 2 (hypothesis: hardened-pool-authorship-board-quorum) — minimize the board's false-assurance rate on the author model's own buggy modules (natural failures + self-written sabotage) under intent-specs, sweeping the conviction quorum k over the five recorded reviewers; the gated hypothesis's falsifiers stand as fixed pass/fail lines at k >= 3
 
 
 **Metric:** `false_assurance_rate` (minimize).
 
-**Search space:** `board_size` ∈ {1, 2, 3, 5}
+**Search space:** `quorum_k` ∈ {1, 2, 3, 5}
 
 ## Why this is testable
 
