@@ -140,6 +140,9 @@ def cmd_build(_args) -> None:
 
 
 def cmd_verdicts(_args) -> None:
+    if not ITEMS.is_file():
+        print("verdicts: no items built yet — skipping")
+        return
     client = _client()
     items = [json.loads(l) for l in ITEMS.read_text().splitlines()]
     done = set()
@@ -216,9 +219,14 @@ def cmd_status(_args) -> None:
 
 
 def cmd_all(args) -> None:
-    cmd_build(args)
-    cmd_verdicts(args)
-    cmd_status(args)
+    sentinel = ART / "BUILD_ACTIVE"
+    sentinel.write_text("cycle 3: authorship + sabotage + board verdicts\n")
+    try:
+        cmd_build(args)
+        cmd_verdicts(args)
+        cmd_status(args)
+    finally:
+        sentinel.unlink(missing_ok=True)
 
 
 def main() -> None:

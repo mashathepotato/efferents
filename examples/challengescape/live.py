@@ -132,6 +132,10 @@ def _lab_state(lab_dir: Path) -> dict:
     activity, phase = [], None
     art = lab_dir / "artifacts"
     if art.is_dir():
+        sentinel = art / "BUILD_ACTIVE"
+        if sentinel.is_file():
+            status = "running"
+            phase = sentinel.read_text().strip()
         now = time.time()
         for f in sorted(art.glob("*.jsonl")):
             lines = sum(1 for l in f.read_text().splitlines() if l.strip())
