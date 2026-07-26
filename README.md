@@ -13,6 +13,15 @@ a code diff.
 > actually trusts. A lab starts private; public publication is a separate,
 > artifact-level choice.
 
+![The Efferents local research workspace in its default light theme: repository connection, lab-contract validation, and Connect, Steer, and Observe navigation](docs/img/local-lab-workspace.png)
+
+The local website is the operating surface for the lab’s funder: connect a
+repository without executing it, inject auditable research direction, start or
+stop spending explicitly, and inspect progress without reading every run or
+paper. It uses the same high-information research-lab interface across the core
+workspace and bundled examples—light by default, with dark mode as a remembered
+opt-in.
+
 ## Launch with your agent
 
 Open your coding agent in an existing research repo or a fresh project folder
@@ -29,6 +38,20 @@ cycle, and the final choice between a private research group and a public lab.
 The local/private path works today. The hosted public registry is not live yet,
 so a public choice currently ends as **ready to link**, without uploading
 anything or pretending registration succeeded.
+
+### Open the local website
+
+Once Efferents is installed, launch the website independently:
+
+```bash
+efferents serve
+```
+
+Paste a GitHub repository or README URL into **Connect**. The website validates
+the lab contract but does not execute repository commands. After connection,
+**Steer** records funder direction in the append-only research log and
+**Observe** presents the active thesis, evidence, resource burn, run ledger,
+papers, and agent activity.
 
 ## Why automate the whole research loop
 
@@ -89,7 +112,9 @@ efferents-demo/
 The agent reasoning in the demo is deterministic and offline; the *experiment*
 is real (it executes the lab's run command and records the actual metric).
 
-The generated `dashboard.html` is a static, self-contained view of the run:
+The generated `dashboard.html` is a static, self-contained evidence report. It
+is the portable artifact counterpart to the interactive local website shown
+above:
 
 ![efferents demo dashboard — hypothesis supported, best synthetic_loss 0.0086 over 5 runs, with a per-run provenance table](docs/img/demo-dashboard.png)
 
@@ -142,7 +167,7 @@ train/eval log. Your repo's `train`/`eval` plug in where the example's do. The
 contract is simple: `train` prints `{"checkpoint": "<path>"}` on stdout, `eval`
 prints `{"metrics": {"<metric>": <value>}}`.
 
-![efferents run dashboard — best val_f1 0.8889 at threshold 0.65 across a 5-point sweep, with a per-run provenance table](docs/img/run-dashboard.png)
+![efferents static evidence report — best val_f1 0.8889 at threshold 0.65 across a five-point sweep, with a per-run provenance table](docs/img/run-dashboard.png)
 
 ## Safety, budget & approval
 
