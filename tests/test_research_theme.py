@@ -31,6 +31,7 @@ def test_theme_contract_is_light_first_and_high_information():
     assert "--line: #003b80;" in RESEARCH_THEME_CSS
     assert "--on-signal: #ffffff;" in RESEARCH_THEME_CSS
     assert "--accent: #03befc;" in RESEARCH_THEME_CSS
+    assert RESEARCH_THEME_CSS.count("#03befc") == 2
     assert "#0057ff" not in RESEARCH_THEME_CSS
     assert "--display:" in RESEARCH_THEME_CSS
     assert "--sans: var(--display);" in RESEARCH_THEME_CSS

@@ -50,6 +50,7 @@ def test_shared_visual_contract_is_minimal_blue_and_white_research_console():
     assert "color-scheme: light;" in REPORT_CSS
     assert "--signal: #003b80;" in REPORT_CSS
     assert "--accent: #03befc;" in REPORT_CSS
+    assert REPORT_CSS.count("#03befc") == 1
     assert "--sans: var(--display);" in REPORT_CSS
     assert 'content: "efferents / research record";' in REPORT_CSS
     assert 'content: "EF / RESEARCH RECORD";' not in REPORT_CSS
