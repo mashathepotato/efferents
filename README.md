@@ -18,10 +18,10 @@ a code diff.
 The local website is the operating surface for the lab’s funder: connect a
 repository without executing it, inject auditable research direction, start or
 stop spending explicitly, and inspect progress without reading every run or
-paper. It uses the same minimal blue-and-white research console across the core
-workspace and bundled examples, pairing quiet slab-serif reading text with
-monospaced evidence metadata—light by default, with dark mode as a remembered
-opt-in.
+paper. It uses the same minimal electric-cyan (`#03befc`) and white research
+console across the core workspace and bundled examples, pairing blocky
+Petra/typewriter headings with monospaced evidence metadata—light by default,
+with dark mode as a remembered opt-in.
 
 ## Launch with your agent
 
@@ -56,7 +56,7 @@ papers, and agent activity. A persistent lab rail switches among every lab in
 the local portfolio, while **Network** maps their operational relationships and
 keeps the future public-journal boundary visible without publishing anything.
 
-![The Efferents lab-network view: local labs in a persistent left rail, a crisp blue-and-white topology, node-level research intelligence, and an explicit publication boundary](docs/img/lab-network-workspace.png)
+![The Efferents lab-network view: local labs in a persistent left rail, a crisp electric-cyan-and-white topology, unsquished node statistics, and an explicit publication boundary](docs/img/lab-network-workspace.png)
 
 ## Why automate the whole research loop
 
@@ -233,7 +233,7 @@ its file-backed state, and exposes three local views:
 - **Observe** shows the current hypothesis, headline metric, run ledger, paper
   register, budget, and agent activity.
 
-The workspace defaults to a clinical light theme; dark mode is an opt-in
+The workspace defaults to a white and `#03befc` light theme; dark mode is an opt-in
 preference remembered by the browser. To open a known lab directly, use
 `efferents serve --lab-root examples/smoke-lab/lab`.
 
