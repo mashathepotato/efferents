@@ -2,17 +2,17 @@
 
 REPORT_CSS = r"""
 :root {
-  color-scheme: dark;
-  --bg: #080b0a;
-  --panel: #0d1210;
-  --raised: #111815;
-  --line: #26322d;
-  --line-soft: #18211d;
-  --fg: #e7ede9;
-  --muted: #849089;
-  --dim: #58635d;
-  --signal: #b9f36a;
-  --cyan: #69ddd0;
+  color-scheme: light;
+  --bg: #f7fbff;
+  --panel: #ffffff;
+  --raised: #eef7fd;
+  --line: #bed8e8;
+  --line-soft: #dcebf4;
+  --fg: #102b3c;
+  --muted: #587186;
+  --dim: #8298aa;
+  --signal: #258fd2;
+  --cyan: #57c5f5;
   --mono: "SFMono-Regular", "Roboto Mono", "Cascadia Code", monospace;
   --sans: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
@@ -22,8 +22,8 @@ body {
   min-width: 320px;
   margin: 0;
   background:
-    linear-gradient(rgba(105,221,208,.018) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(105,221,208,.014) 1px, transparent 1px),
+    linear-gradient(rgba(37,143,210,.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(37,143,210,.032) 1px, transparent 1px),
     var(--bg);
   background-size: 48px 48px;
   color: var(--fg);
@@ -33,7 +33,7 @@ body {
 header {
   padding: 30px clamp(20px,4vw,56px);
   border-bottom: 1px solid var(--line);
-  background: rgba(8,11,10,.92);
+  background: rgba(247,251,255,.94);
 }
 header::before {
   display: block;
@@ -55,8 +55,8 @@ h1 {
 .small { font: 10px/1.5 var(--mono); letter-spacing: .035em; text-transform: uppercase; }
 code {
   padding: 1px 4px;
-  background: #050706;
-  color: #bec8c2;
+  background: #e8f4fb;
+  color: #31546a;
   font: 11px/1.4 var(--mono);
 }
 main {
@@ -143,7 +143,7 @@ main {
 .section > p {
   max-width: 920px;
   margin: 20px 14px;
-  color: #b9c3bd;
+  color: #49687d;
   font-size: clamp(16px,1.7vw,21px);
   line-height: 1.55;
 }
@@ -194,9 +194,9 @@ th {
   letter-spacing: .08em;
   text-transform: uppercase;
 }
-td { color: #aeb8b2; }
+td { color: #49687d; }
 tr.best {
-  background: rgba(185,243,106,.075);
+  background: rgba(37,143,210,.08);
   box-shadow: inset 2px 0 0 var(--signal);
 }
 tr.best td { background: transparent; }

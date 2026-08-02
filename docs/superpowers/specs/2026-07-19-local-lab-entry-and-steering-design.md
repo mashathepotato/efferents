@@ -14,7 +14,7 @@ The hosted registration, venue, and cross-lab journal remain out of scope.
 
 ## User flow
 
-The workspace has three routes:
+The workspace has four routes:
 
 1. **Connect** — paste a GitHub repository or README URL. For development, an
    absolute local README/submission path is also accepted.
@@ -22,6 +22,10 @@ The workspace has three routes:
    mode to the lab's auditable research log.
 3. **Observe** — inspect the current hypothesis, metrics, run ledger, papers,
    budget, and agent activity.
+4. **Network** — switch among local labs through a persistent portfolio rail,
+   inspect node-level evidence, and view an operational topology. The public
+   scope stays empty until an external registry is connected and a human has
+   explicitly authorized publication.
 
 The root route is the Connect page. Steer and Observe remain unavailable until
 a lab has validated successfully.
@@ -68,6 +72,7 @@ Read endpoints:
 - `GET /api/runs`
 - `GET /api/papers`
 - `GET /api/activity`
+- `GET /api/labs`
 
 Mutation endpoints:
 
@@ -75,6 +80,7 @@ Mutation endpoints:
 - `POST /api/steer`
 - `POST /api/lab/start`
 - `POST /api/lab/stop`
+- `POST /api/labs/select`
 
 The server binds to `127.0.0.1`. Every mutation requires the per-process token
 returned by `/api/control` in `X-Efferents-CSRF`. Request bodies must be JSON and
@@ -85,8 +91,8 @@ content-type, and referrer protections. API-key values are never returned.
 
 The workspace uses a high-information research-console vocabulary: compact
 monospace metadata, dense ledgers, explicit status fields, and restrained
-forest/cyan signals. A clinical off-white light palette is the default. Dark
-mode is opt-in and persisted in browser local storage.
+sky-blue signals on white surfaces. The light palette is the default. Dark mode
+is opt-in and persisted in browser local storage.
 
 There is no frontend build step and no third-party browser dependency.
 
@@ -94,7 +100,6 @@ There is no frontend build step and no third-party browser dependency.
 
 Tests cover GitHub URL parsing, submission validation/initialization, steering
 records, start authorization, CSRF rejection, security headers, disconnected
-API shapes, CLI entry behavior, and the presence of the three UI routes.
-Browser QA covers disconnected intake, a real connected smoke lab, the
-execution confirmation gate, theme switching, and the 390 px responsive
-breakpoint.
+API shapes, portfolio selection, CLI entry behavior, and the four UI routes.
+Browser QA covers disconnected intake, a real connected smoke lab, topology
+scope switching, evidence tracking, theme switching, and responsive layouts.

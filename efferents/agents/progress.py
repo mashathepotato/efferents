@@ -231,12 +231,12 @@ def _campaign_status(c: dict) -> tuple[str, str]:
 
 
 _STATUS_COLORS = {
-    "open": "#69ddd0",
-    "resolved": "#b9f36a",
-    "stale": "#748079",
+    "open": "#57c5f5",
+    "resolved": "#258fd2",
+    "stale": "#8298aa",
     "no-novel": "#f07c82",
     "closed": "#efbd6b",
-    "uncampaigned": "#849089",
+    "uncampaigned": "#587186",
 }
 
 
@@ -271,13 +271,13 @@ def _trend_png_b64(snap: dict, db_path=None) -> str | None:
         return None
 
     fig, axes = plt.subplots(2, 2, figsize=(13, 7), dpi=110)
-    fig.patch.set_facecolor("#0d1210")
+    fig.patch.set_facecolor("#ffffff")
     axes = axes.flatten()
     for ax in axes:
-        ax.set_facecolor("#0d1210")
-        ax.tick_params(colors="#748079", labelsize=7)
+        ax.set_facecolor("#ffffff")
+        ax.tick_params(colors="#8298aa", labelsize=7)
         for spine in ax.spines.values():
-            spine.set_color("#26322d")
+            spine.set_color("#bed8e8")
 
     n_panels_with_data = 0
     for ax, (col, label, target) in zip(axes, _panel_metrics(db_path)):
@@ -288,28 +288,28 @@ def _trend_png_b64(snap: dict, db_path=None) -> str | None:
                 continue
             xs.append(i)
             ys.append(val)
-            cs.append(_STATUS_COLORS.get(css, "#333333"))
+            cs.append(_STATUS_COLORS.get(css, "#587186"))
         if not xs:
             ax.text(0.5, 0.5, f"no data for {col}", ha="center", va="center",
-                    transform=ax.transAxes, color="#748079", fontsize=9)
+                    transform=ax.transAxes, color="#8298aa", fontsize=9)
             ax.set_xticks([])
             ax.set_yticks([])
-            ax.set_title(label, fontsize=10, color="#e7ede9", loc="left")
+            ax.set_title(label, fontsize=10, color="#102b3c", loc="left")
             continue
         n_panels_with_data += 1
-        ax.plot(xs, ys, color="#69ddd0", linewidth=1, zorder=1, alpha=0.72)
+        ax.plot(xs, ys, color="#57c5f5", linewidth=1, zorder=1, alpha=0.82)
         ax.scatter(xs, ys, c=cs, s=38, zorder=2,
-                   edgecolor="#0d1210", linewidth=0.9)
+                   edgecolor="#ffffff", linewidth=0.9)
         if target is not None:
             ax.axhline(target, color="#efbd6b", linestyle="--", linewidth=1,
                        alpha=0.6, zorder=0)
-        ax.set_title(label, fontsize=10, color="#e7ede9", loc="left")
+        ax.set_title(label, fontsize=10, color="#102b3c", loc="left")
         # Tick labels on the bottom-row panels only (so labels don't fight each other)
         ax.set_xticks(list(range(len(positions))))
         ax.set_xticklabels(
             [p[0] for p in positions], rotation=45, ha="right", fontsize=7
         )
-        ax.grid(True, color="#26322d", alpha=0.75, linewidth=0.55)
+        ax.grid(True, color="#dcebf4", alpha=0.9, linewidth=0.55)
 
     if n_panels_with_data == 0:
         plt.close(fig)
@@ -318,7 +318,7 @@ def _trend_png_b64(snap: dict, db_path=None) -> str | None:
     fig.suptitle(
         f"Trend per metric — {'best per campaign' if campaigns else 'recent runs (no campaigns yet)'}",
         fontsize=12,
-        color="#e7ede9",
+        color="#102b3c",
         x=0.04,
         ha="left",
     )
@@ -469,11 +469,11 @@ h1 { margin-bottom: 4px; }
 
 /* Research-console theme */
 :root {
-  color-scheme: dark;
-  --bg: #080b0a; --panel: #0d1210; --raised: #111815;
-  --line: #26322d; --line-soft: #18211d; --fg: #e7ede9;
-  --muted: #849089; --dim: #58635d; --signal: #b9f36a;
-  --cyan: #69ddd0; --danger: #f07c82; --warning: #efbd6b;
+  color-scheme: light;
+  --bg: #f7fbff; --panel: #ffffff; --raised: #eef7fd;
+  --line: #bed8e8; --line-soft: #dcebf4; --fg: #102b3c;
+  --muted: #587186; --dim: #8298aa; --signal: #258fd2;
+  --cyan: #57c5f5; --danger: #f07c82; --warning: #efbd6b;
   --mono: "SFMono-Regular", "Roboto Mono", "Cascadia Code", monospace;
   --sans: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
@@ -482,16 +482,16 @@ html { background: var(--bg); }
 body {
   max-width: 1440px; margin: 0 auto; padding: 34px 24px 64px;
   background:
-    linear-gradient(rgba(105,221,208,.018) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(105,221,208,.014) 1px, transparent 1px),
+    linear-gradient(rgba(37,143,210,.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(37,143,210,.032) 1px, transparent 1px),
     var(--bg);
   background-size: 48px 48px;
   color: var(--fg); font: 14px/1.5 var(--sans);
   font-variant-numeric: tabular-nums;
 }
-a { color: var(--cyan); text-decoration-color: rgba(105,221,208,.35); }
+a { color: var(--signal); text-decoration-color: rgba(37,143,210,.35); }
 a:hover { color: var(--signal); }
-code { padding: 1px 4px; background: #050706; color: #b9c3bd; font-family: var(--mono); }
+code { padding: 1px 4px; background: #e8f4fb; color: #31546a; font-family: var(--mono); }
 h1 { margin: 0 0 7px; font-size: clamp(28px, 4vw, 54px);
      font-weight: 520; letter-spacing: -.045em; line-height: 1.04; }
 .meta { margin-bottom: 22px; color: var(--muted); font: 10px/1.5 var(--mono);
@@ -505,11 +505,11 @@ h1 { margin: 0 0 7px; font-size: clamp(28px, 4vw, 54px);
 .card { display: grid; grid-template-columns: minmax(0,1fr) 300px; gap: 0;
         align-items: stretch; margin: 12px 0; padding: 0;
         border: 1px solid var(--line); border-radius: 0;
-        background: rgba(13,18,16,.94); }
+        background: rgba(255,255,255,.96); }
 .card-text { padding: 18px 20px; }
 .card-text h3 { margin: 0 0 12px; font: 650 12px/1.4 var(--mono);
                 letter-spacing: .04em; }
-.card-text .q { margin: 0 0 15px; color: #c7d0cb; font-size: 17px; line-height: 1.45; }
+.card-text .q { margin: 0 0 15px; color: #49687d; font-size: 17px; line-height: 1.45; }
 .card-text .meta-row { margin-top: 5px; color: var(--muted);
                        font: 10px/1.55 var(--mono); }
 .card-image { display: grid; min-height: 180px; place-items: center;
@@ -529,14 +529,14 @@ h1 { margin: 0 0 7px; font-size: clamp(28px, 4vw, 54px);
 .arch summary { grid-template-columns: 58px 86px minmax(0,1fr) 130px 130px 16px;
                 min-height: 68px; padding: 7px 13px; }
 .arch summary .marker { color: var(--dim); font-size: 11px; }
-.arch summary:hover { background: rgba(105,221,208,.035); }
+.arch summary:hover { background: rgba(37,143,210,.05); }
 .arch[open] summary { border-bottom: 1px solid var(--line); }
 .arch .arch-thumb { width: 52px; height: 52px; border: 1px solid var(--line);
                     border-radius: 0; }
 .arch .arch-thumb-empty { width: 52px; height: 52px; border: 1px dashed var(--line);
                           border-radius: 0; color: var(--dim); font: 8px/1.3 var(--mono); }
 .arch .arch-sha { color: var(--signal); font: 650 10px/1.3 var(--mono); }
-.arch .arch-subject { color: #cbd4cf; font-size: 13px; }
+.arch .arch-subject { color: #31546a; font-size: 13px; }
 .arch .arch-date { color: var(--dim); font: 9px/1.5 var(--mono); }
 .arch .arch-stats { color: var(--muted); font: 9px/1.5 var(--mono); }
 .arch-body { padding: 14px; }
@@ -555,16 +555,16 @@ h1 { margin: 0 0 7px; font-size: clamp(28px, 4vw, 54px);
                  color: var(--muted); font: 9px/1.4 var(--mono); }
 .run-tile[open] > summary .cap { color: var(--signal); }
 .run-detail { padding: 10px 12px 12px; border-color: var(--line);
-              background: var(--raised); color: #aab5af; font: 9px/1.55 var(--mono); }
+              background: var(--raised); color: #587186; font: 9px/1.55 var(--mono); }
 .run-detail .kv .k { color: var(--dim); }
 .run-detail .commit-msg { border-color: var(--line); color: var(--cyan); }
 .empty { padding: 28px; border-color: var(--line); border-radius: 0;
          color: var(--dim); font: 9px/1.5 var(--mono);
          letter-spacing: .05em; text-transform: uppercase; }
 
-.lightbox:target { background: rgba(4,6,5,.96); }
+.lightbox:target { background: rgba(7,19,28,.96); }
 .lightbox-img { border: 1px solid var(--line); border-radius: 0; box-shadow: none; }
-.lightbox-caption { border-radius: 0; background: #080b0a;
+.lightbox-caption { border-radius: 0; background: #07131c;
                     color: var(--fg); font: 10px/1.4 var(--mono); }
 .lightbox-close { border-radius: 0; background: transparent; color: var(--fg); }
 .lightbox-close:hover { background: transparent; color: var(--signal); }
@@ -813,7 +813,6 @@ def _render_architectures(
 
         # Inner tiles: cap at _MAX_RUNS_PER_ARCH (best first by headline metric).
         # Sort by headline value direction-aware.
-        chooser = min if h.direction == "min" else max
         inner_runs = sorted(
             sample_runs,
             key=lambda r: mv.finite(r.get(h.column)) or (float("inf") if h.direction == "min" else float("-inf")),
@@ -980,7 +979,6 @@ def _render_html(snap: dict, *, paths: LabPaths, context_dir: Path) -> str:
     )
 
     # Best samples: direction-aware sort on headline column.
-    chooser = min if h.direction == "min" else max
     top_best = sorted(
         with_samples,
         key=lambda r: mv.finite(r.get(h.column)) or (float("inf") if h.direction == "min" else float("-inf")),

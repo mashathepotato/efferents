@@ -140,7 +140,7 @@ def _lab_state(lab_dir: Path) -> dict:
             phase = sentinel.read_text().strip()
         now = time.time()
         for f in sorted(art.glob("*.jsonl")):
-            lines = sum(1 for l in f.read_text().splitlines() if l.strip())
+            lines = sum(1 for line in f.read_text().splitlines() if line.strip())
             recent = (now - f.stat().st_mtime) < 60
             activity.append({"name": f.name, "lines": lines, "live": recent})
             if recent:
@@ -508,7 +508,7 @@ PAGE = embed_research_theme(r"""<!doctype html>
     display: none;
     align-items: center;
     justify-content: center;
-    background: rgba(20, 30, 24, .48);
+    background: rgba(9, 34, 50, .48);
     backdrop-filter: blur(3px);
   }
   #modal .box {

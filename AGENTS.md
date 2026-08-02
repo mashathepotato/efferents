@@ -45,7 +45,7 @@ Read these first:
   persistent user choice. Do not default from the operating-system color
   scheme.
 - Preserve the high-information research-console vocabulary: square panels,
-  restrained forest/cyan signals, compact monospace metadata, dense evidence
+  white surfaces with restrained sky-blue signals, compact monospace metadata, dense evidence
   tables, visible provenance, and explicit runtime/budget state. Avoid rounded
   card grids, decorative gradients, generic blue SaaS accents, and oversized
   whitespace.

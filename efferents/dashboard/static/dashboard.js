@@ -1,7 +1,11 @@
 let csrfToken = "";
-let controlState = { connected: false };
+let controlState = { connected: false, hydrated: false };
+let portfolioState = { labs: [], edges: [], public_network: {} };
 let isConnecting = false;
 let runtimeAction = "start";
+let networkScope = "internal";
+let networkFocusLabId = "";
+let renderedRoute = "";
 
 async function getJSON(path) {
   const response = await fetch(path);
@@ -79,6 +83,19 @@ function formatTimestamp(value, compact = false) {
     (compact ? "" : `:${get("second")}`);
 }
 
+function formatRelativeTime(value) {
+  if (!value) return "no activity";
+  const timestamp = new Date(value).getTime();
+  if (!Number.isFinite(timestamp)) return formatTimestamp(value, true);
+  const elapsed = Math.max(0, Date.now() - timestamp);
+  const minutes = Math.floor(elapsed / 60000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 48) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+}
+
 function setTheme(theme) {
   const dark = theme === "dark";
   document.documentElement.dataset.theme = dark ? "dark" : "light";
@@ -99,12 +116,12 @@ function initTheme() {
 
 function currentRoute() {
   const route = window.location.hash.replace(/^#/, "");
-  return ["connect", "steer", "observe"].includes(route) ? route : "connect";
+  return ["connect", "steer", "observe", "network"].includes(route) ? route : "connect";
 }
 
 function renderRoute() {
   let route = currentRoute();
-  if (!controlState.connected && route !== "connect") {
+  if (controlState.hydrated && !controlState.connected && !["connect", "network"].includes(route)) {
     route = "connect";
     if (window.location.hash !== "#connect") {
       history.replaceState(null, "", "#connect");
@@ -120,6 +137,12 @@ function renderRoute() {
       link.removeAttribute("aria-current");
     }
   });
+  const labRail = document.getElementById("lab-rail");
+  const showRail = route !== "connect" && portfolioState.labs.length > 0;
+  labRail.hidden = !showRail;
+  document.getElementById("workspace-frame").classList.toggle("with-lab-rail", showRail);
+  if (renderedRoute && renderedRoute !== route) window.scrollTo(0, 0);
+  renderedRoute = route;
   document.title = `efferents — ${route}`;
 }
 
@@ -187,6 +210,7 @@ function renderControl(info) {
   controlState = { ...controlState, ...info };
   const connected = Boolean(info.connected);
   controlState.connected = connected;
+  controlState.hydrated = true;
 
   document.querySelectorAll('[data-route-link="steer"], [data-route-link="observe"]').forEach((link) => {
     link.setAttribute("aria-disabled", connected ? "false" : "true");
@@ -211,6 +235,8 @@ function renderControl(info) {
 
   text("lab-id", info.lab_id || "unnamed-lab");
   text("domain", info.domain || "unclassified");
+  text("observe-lab-title", info.lab_id || "unnamed-lab");
+  text("observe-lab-meta", `${info.domain || "unclassified"} / ${info.status || "stopped"}`);
   text("connection-source", info.source || info.submission_dir || "local submission");
   text("connected-summary-name", info.lab_id || "unnamed-lab");
   text("connected-summary-domain", info.domain || "unclassified");
@@ -225,6 +251,182 @@ function renderControl(info) {
   document.getElementById("start-lab").hidden = info.status === "running";
   document.getElementById("stop-lab").hidden = info.status !== "running";
   renderRoute();
+}
+
+function selectedPortfolioLab() {
+  return portfolioState.labs.find((lab) => lab.selected) || null;
+}
+
+function renderLabRail() {
+  const labs = Array.isArray(portfolioState.labs) ? portfolioState.labs : [];
+  text("lab-portfolio-count", String(labs.length).padStart(2, "0"));
+  const list = document.getElementById("lab-list");
+  if (!labs.length) {
+    list.innerHTML = '<div class="empty-state">No local labs registered</div>';
+    renderRoute();
+    return;
+  }
+  list.innerHTML = labs.map((lab, index) => {
+    const headline = lab.headline || {};
+    const metric = headline.best == null
+      ? `${headline.observations || 0} observations`
+      : `${esc(headline.column || "metric")} ${esc(formatMetric(headline.best))}`;
+    return `<button class="lab-list-item${lab.selected ? " selected" : ""}" ` +
+      `type="button" data-lab-select="${esc(lab.lab_id)}" role="listitem" ` +
+      `aria-current="${lab.selected ? "true" : "false"}">` +
+      `<span class="lab-seq">${String(index + 1).padStart(2, "0")}</span>` +
+      `<span class="lab-list-copy"><strong>${esc(lab.lab_id)}</strong>` +
+      `<small>${esc(lab.domain || "unclassified")}</small>` +
+      `<span>${metric}</span></span>` +
+      `<span class="lab-list-state ${esc(lab.status || "stopped")}">` +
+      `<i aria-hidden="true"></i>${esc(formatRelativeTime(lab.last_activity))}</span>` +
+      `</button>`;
+  }).join("");
+  list.querySelectorAll("[data-lab-select]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      await selectPortfolioLab(button.dataset.labSelect, false);
+    });
+  });
+  renderRoute();
+}
+
+function portfolioNodePosition(index, count) {
+  const angle = (-Math.PI / 2) + ((Math.PI * 2 * index) / Math.max(count, 1));
+  return {
+    x: 50 + Math.cos(angle) * (count < 3 ? 29 : 35),
+    y: 50 + Math.sin(angle) * (count < 3 ? 27 : 34),
+  };
+}
+
+function renderNetworkDetail(lab) {
+  const detail = document.getElementById("network-detail");
+  if (!lab) {
+    text("network-detail-status", networkScope === "public" ? "not connected" : "private");
+    detail.innerHTML = `<span class="route-kicker">${networkScope === "public" ? "Public registry" : "Select a lab node"}</span>` +
+      `<h3>${networkScope === "public" ? "No public labs are linked." : "Evidence lives at the node."}</h3>` +
+      `<p>${networkScope === "public" ? esc(portfolioState.public_network?.message || "Public network unavailable.") : "Choose a lab to inspect its hypothesis, last signal, budget, and artifacts."}</p>`;
+    return;
+  }
+  const headline = lab.headline || {};
+  const budget = lab.budget || {};
+  const hypothesis = lab.hypothesis || {};
+  text("network-detail-status", lab.visibility || "private");
+  detail.innerHTML = `<span class="route-kicker">${esc(lab.domain || "unclassified")} / ${esc(lab.status || "stopped")}</span>` +
+    `<h3>${esc(lab.lab_id)}</h3>` +
+    `<p>${esc(hypothesis.question || "No open campaign is recorded for this lab.")}</p>` +
+    `<dl class="node-facts">` +
+      `<div><dt>Best signal</dt><dd>${esc(headline.column || "metric")} / ${esc(formatMetric(headline.best))}</dd></div>` +
+      `<div><dt>Evidence</dt><dd>${headline.observations || 0} runs / ${lab.papers || 0} papers</dd></div>` +
+      `<div><dt>Budget</dt><dd>$${Number(budget.spent || 0).toFixed(2)} / $${Number(budget.cap || 0).toFixed(2)}</dd></div>` +
+      `<div><dt>Last signal</dt><dd>${esc(formatRelativeTime(lab.last_activity))}</dd></div>` +
+    `</dl>` +
+    `<button class="primary-button node-inspect-button" type="button" data-network-inspect="${esc(lab.lab_id)}">Inspect tracking points</button>`;
+  const inspect = detail.querySelector("[data-network-inspect]");
+  inspect.addEventListener("click", async () => {
+    await selectPortfolioLab(inspect.dataset.networkInspect, true);
+  });
+}
+
+function renderNetwork() {
+  const labs = (portfolioState.labs || []).filter((lab) =>
+    networkScope === "internal" || lab.visibility === "public"
+  );
+  const lines = document.getElementById("network-lines");
+  const nodes = document.getElementById("network-nodes");
+  const empty = document.getElementById("network-empty");
+  const hub = document.querySelector(".network-hub");
+  const positions = new Map();
+  lines.innerHTML = "";
+  nodes.innerHTML = "";
+  text("network-node-count", `${labs.length} ${labs.length === 1 ? "node" : "nodes"}`);
+  text("network-scope-note", networkScope === "internal" ? "file-backed local registry" : "authorized publication layer");
+  text("network-hub-label", networkScope === "internal" ? "local control plane" : "public journal");
+  document.querySelectorAll("[data-network-scope]").forEach((button) => {
+    button.setAttribute("aria-pressed", String(button.dataset.networkScope === networkScope));
+  });
+
+  if (!labs.length) {
+    empty.hidden = false;
+    empty.textContent = networkScope === "public"
+      ? "No lab has crossed the explicit publication boundary."
+      : "Connect a lab to establish the local topology.";
+    hub.hidden = networkScope === "public";
+    renderNetworkDetail(null);
+    return;
+  }
+  empty.hidden = true;
+  hub.hidden = false;
+
+  labs.forEach((lab, index) => {
+    const position = portfolioNodePosition(index, labs.length);
+    positions.set(lab.lab_id, position);
+    lines.appendChild(svgElement("line", {
+      x1: 500,
+      y1: 280,
+      x2: position.x * 10,
+      y2: position.y * 5.6,
+      class: "hub-edge",
+    }));
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `map-node ${lab.status || "stopped"}${lab.selected ? " selected" : ""}`;
+    button.dataset.mapLab = lab.lab_id;
+    button.style.left = `${position.x}%`;
+    button.style.top = `${position.y}%`;
+    button.innerHTML = `<span class="map-node-state"><i aria-hidden="true"></i>${esc(lab.status || "stopped")}</span>` +
+      `<strong>${esc(lab.lab_id)}</strong><small>${esc(lab.domain || "unclassified")}</small>`;
+    button.addEventListener("click", () => {
+      networkFocusLabId = lab.lab_id;
+      renderNetwork();
+    });
+    nodes.appendChild(button);
+  });
+
+  (portfolioState.edges || []).forEach((edge) => {
+    const source = positions.get(edge.source);
+    const target = positions.get(edge.target);
+    if (!source || !target) return;
+    lines.appendChild(svgElement("line", {
+      x1: source.x * 10,
+      y1: source.y * 5.6,
+      x2: target.x * 10,
+      y2: target.y * 5.6,
+      class: "domain-edge",
+    }));
+  });
+
+  const focused = labs.find((lab) => lab.lab_id === networkFocusLabId) ||
+    labs.find((lab) => lab.selected) || labs[0];
+  networkFocusLabId = focused.lab_id;
+  nodes.querySelectorAll("[data-map-lab]").forEach((button) => {
+    button.classList.toggle("focused", button.dataset.mapLab === networkFocusLabId);
+  });
+  renderNetworkDetail(focused);
+}
+
+function renderPortfolio(payload) {
+  portfolioState = {
+    labs: Array.isArray(payload?.labs) ? payload.labs : [],
+    edges: Array.isArray(payload?.edges) ? payload.edges : [],
+    public_network: payload?.public_network || {},
+  };
+  const selected = selectedPortfolioLab();
+  if (!networkFocusLabId && selected) networkFocusLabId = selected.lab_id;
+  text("public-network-message", portfolioState.public_network.message || "Public registry is not connected.");
+  renderLabRail();
+  renderNetwork();
+}
+
+async function refreshPortfolio() {
+  renderPortfolio(await getJSON("/api/labs"));
+}
+
+async function selectPortfolioLab(labId, openObserver) {
+  const info = await postJSON("/api/labs/select", { lab_id: labId });
+  renderControl(info);
+  networkFocusLabId = labId;
+  await Promise.all([refreshPortfolio(), refreshObserver()]);
+  if (openObserver) window.location.hash = "observe";
 }
 
 function renderState(state) {
@@ -456,7 +658,7 @@ async function refresh() {
   try {
     const info = await getJSON("/api/control");
     renderControl(info);
-    await refreshObserver();
+    await Promise.all([refreshPortfolio(), refreshObserver()]);
     text("last-sync", `${new Date().toISOString().slice(0, 19).replace("T", " ")} UTC`);
   } catch (error) {
     console.error(error);
@@ -483,7 +685,7 @@ function initConnectForm() {
         "success",
       );
       window.location.hash = "steer";
-      await refreshObserver();
+      await Promise.all([refreshPortfolio(), refreshObserver()]);
     } catch (error) {
       setContractState({});
       showMessage("connect-message", error.message, "error");
@@ -579,8 +781,18 @@ function initRuntimeControls() {
   });
 }
 
+function initNetworkScope() {
+  document.querySelectorAll("[data-network-scope]").forEach((button) => {
+    button.addEventListener("click", () => {
+      networkScope = button.dataset.networkScope;
+      renderNetwork();
+    });
+  });
+}
+
 initTheme();
 initRouting();
+initNetworkScope();
 initConnectForm();
 initSteeringForm();
 initRuntimeControls();
