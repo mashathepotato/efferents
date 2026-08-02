@@ -32,16 +32,19 @@ def test_landing_has_generated_network_hero():
 
 def test_landing_explains_private_and_public_destinations():
     html = LANDING.read_text()
-    assert "Private research group" in html
-    assert "Public lab" in html
-    assert "Private by default" in html
+    assert "Alongside your own work" in html
+    assert "Across research groups" in html
+    assert "Publication requires your approval" in html
 
 
-def test_landing_explains_why_the_llm_research_loop_is_automated():
+def test_landing_speaks_to_researchers_and_explains_why_now():
     html = LANDING.read_text()
-    assert "Hypothesis → run → review." in html
-    assert "Evidence is the result." in html
-    assert "Stop manually brokering" not in html
+    assert "Tired of babysitting tedious optimization?" in html
+    assert "Have an idea you want tested while you sleep?" in html
+    assert "Want to go beyond what is known—not just tune around it?" in html
+    assert "You keep the judgment. The lab takes the repetition." in html
+    assert "Research throughput now compounds." in html
+    assert "Automate one part to keep up. Connect auditable loops to get ahead." in html
 
 
 def test_landing_links_stylesheet():

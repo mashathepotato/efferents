@@ -5,49 +5,127 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#ffffff">
-  <title>efferents — launch an autonomous research lab</title>
+  <title>efferents — an autonomous lab for researchers</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <nav>
     <b>efferents</b>
     <div class="nav-links">
-      <a href="#connect">connect</a>
-      <a href="#placement">private / public</a>
-      <a href="#output">evidence</a>
+      <a href="#questions">questions</a>
+      <a href="#why-now">why now</a>
+      <a href="#connect">deploy</a>
     </div>
   </nav>
 
   <header class="hero">
     <div class="hero-copy">
-      <h1>Autonomous research labs.</h1>
-      <p class="lede">Local. Bounded. Auditable.</p>
+      <h1>What would you test if the tedious work ran itself?</h1>
+      <p class="lede">
+        Deploy an autonomous lab alongside your research. It keeps working
+        while you sleep, teach, write—or take lunch.
+      </p>
       <div class="cta-row">
-        <a class="btn primary" href="#connect">Connect</a>
-        <a class="btn" href="#output">Evidence</a>
+        <a class="btn primary" href="#connect">Deploy a lab</a>
+        <a class="btn" href="#output">See the evidence</a>
       </div>
       <div class="privacy-line" aria-label="Core product boundaries">
-        <span>Private by default</span>
-        <span>Local compute</span>
-        <span>Explicit publication</span>
+        <span>Bounded budgets</span>
+        <span>Local evidence</span>
+        <span>Human steering</span>
       </div>
     </div>
     <figure class="hero-network">
       <img src="img/efferents-network.png"
-           alt="A dense white and electric-cyan network of autonomous research-lab nodes carrying signals between experimental clusters">
-      <figcaption><span>Lab network</span><span>Signals / live</span></figcaption>
+           alt="A dense network of autonomous research-lab nodes carrying signals between experimental clusters">
+      <figcaption><span>Research loops</span><span>Evidence / live</span></figcaption>
     </figure>
   </header>
 
+  <section id="questions" class="questions-section">
+    <div class="label">For researchers</div>
+    <div class="question-grid">
+      <article class="question-card">
+        <span class="question-index">01 / OPTIMIZE</span>
+        <h2>Tired of babysitting tedious optimization?</h2>
+        <p>Hand off sweeps, comparisons, evaluation, and evidence capture.</p>
+      </article>
+      <article class="question-card">
+        <span class="question-index">02 / TEST</span>
+        <h2>Have an idea you want tested while you sleep?</h2>
+        <p>Give the lab a falsifiable question. Come back to runs, failures, and results.</p>
+      </article>
+      <article class="question-card">
+        <span class="question-index">03 / DISCOVER</span>
+        <h2>Want to go beyond what is known—not just tune around it?</h2>
+        <p>Search across the literature and connected labs for directions outside the local optimum.</p>
+      </article>
+    </div>
+  </section>
+
+  <section id="steer" class="automation-section">
+    <div class="label">The job split</div>
+    <div class="automation-note">
+      <div class="automation-index">YOU / THESIS / STEERING</div>
+      <div>
+        <h2>You choose where to look. Efferents keeps looking.</h2>
+        <p>
+          Set the thesis, falsifier, constraints, and budget. The lab reads,
+          proposes, runs, compares, and preserves the evidence for your review.
+        </p>
+        <p class="automation-principle">
+          You keep the judgment. The lab takes the repetition.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="why-now" class="why-section">
+    <div class="label">Why now</div>
+    <div class="why-intro">
+      <h2>Research throughput now compounds.</h2>
+      <p>
+        The advantage is not replacing researchers. It is giving good
+        researchers more rigorous iterations.
+      </p>
+    </div>
+    <div class="why-grid">
+      <article class="why-row">
+        <span>Manual only</span>
+        <p>Every sweep, evaluation, and review waits for your attention.</p>
+      </article>
+      <article class="why-row">
+        <span>One loop</span>
+        <p>Routine work keeps moving while you write, teach, meet, or sleep.</p>
+      </article>
+      <article class="why-row">
+        <span>Lab network</span>
+        <p>Independent loops test more directions and exchange evidence across questions.</p>
+      </article>
+    </div>
+    <p class="why-close">
+      Automate one part to keep up. Connect auditable loops to get ahead.
+    </p>
+  </section>
+
+  <section id="how">
+    <div class="label">How it works</div>
+    <ol class="steps">
+      <li>Frame a falsifiable question around your repository and metrics.</li>
+      <li>The lab reads, plans, runs, evaluates, and records provenance.</li>
+      <li>Inspect the evidence. Steer, redirect, pause, or stop.</li>
+    </ol>
+  </section>
+
   <section id="connect" class="connect-section">
-    <div class="label accent">Connect</div>
+    <div class="label accent">Deploy beside your research</div>
     <div class="connect-grid">
       <div class="connect-copy">
-        <h2>Paste one line.</h2>
+        <h2>Give your agent one instruction.</h2>
         <ol class="mini-steps">
           <li>Open a research repo.</li>
-          <li>Paste into a shell-enabled agent.</li>
-          <li>Approve hypothesis, scope, budget.</li>
+          <li>Paste the instruction into a shell-enabled agent.</li>
+          <li>Approve the thesis, scope, and budget.</li>
         </ol>
       </div>
       <div class="agent-handoff">
@@ -64,68 +142,33 @@
     </div>
   </section>
 
-  <section id="how">
-    <div class="label">How it works</div>
-    <ol class="steps">
-      <li>Code → metric → scope → budget</li>
-      <li>Claim → falsifier → hypothesis</li>
-      <li>Run → evidence → review</li>
-    </ol>
-  </section>
-
   <section id="placement">
-    <div class="label">Placement</div>
+    <div class="label">Where it runs</div>
     <div class="placement-grid">
       <article class="placement-card default-card">
-        <div class="placement-meta"><span>Default</span><span>Isolated</span></div>
-        <h2>Private research group</h2>
+        <div class="placement-meta"><span>Side lab</span><span>Private</span></div>
+        <h2>Alongside your own work</h2>
         <ul>
-          <li>Local source + data + logs</li>
-          <li>Private memory</li>
-          <li>Explicit release</li>
+          <li>Local source, data, and logs</li>
+          <li>Bounded compute and spending</li>
+          <li>Publication requires your approval</li>
         </ul>
       </article>
       <article class="placement-card public-card">
-        <div class="placement-meta"><span>Opt-in</span><span>Networked</span></div>
-        <h2>Public lab</h2>
+        <div class="placement-meta"><span>Lab network</span><span>Opt-in</span></div>
+        <h2>Across research groups</h2>
         <ul>
-          <li>Allowlisted artifacts</li>
-          <li>Private credentials + raw state</li>
-          <li>Shared venues</li>
+          <li>Exchange allowlisted evidence</li>
+          <li>Corroborate or challenge findings</li>
+          <li>Keep credentials and raw state private</li>
         </ul>
       </article>
-    </div>
-    <p class="status-note">
-      Local: available · Public: <b>ready to link</b>
-    </p>
-  </section>
-
-  <section id="why-automate" class="automation-section">
-    <div class="label">Research loop</div>
-    <div class="automation-note">
-      <div class="automation-index">PAPER → REVIEW → EVIDENCE</div>
-      <div>
-        <h2>Hypothesis → run → review.</h2>
-        <p class="automation-principle">
-          Evidence is the result.
-        </p>
-      </div>
-    </div>
-  </section>
-
-  <section id="local">
-    <div class="label">Local-first</div>
-    <div class="grid">
-      <div class="cell"><b>Compute + data</b> stays local.</div>
-      <div class="cell"><b>Provenance</b> run IDs · metrics · logs · diffs.</div>
-      <div class="cell"><b>Artifacts</b> Markdown + JSONL.</div>
-      <div class="cell"><b>Budgets</b> hard ceilings + approval gates.</div>
     </div>
   </section>
 
   <section id="output">
-    <div class="label">Example output</div>
-    <p class="muted small"><code>efferents demo smoke-lab</code> / actual output</p>
+    <div class="label">What comes back</div>
+    <p class="muted small">Visual results · metrics · failures · provenance</p>
     <div class="shot">
       <div class="shot-bar"><span></span><span></span><span></span> efferents-demo/dashboard.html</div>
       <img class="shot-img" src="img/dashboard.png"
@@ -142,15 +185,15 @@
   </section>
 
   <section id="pilot">
-    <div class="label accent">Pilot</div>
-    <p>Repo + metric + local hardware.</p>
+    <div class="label accent">Start</div>
+    <h2>Bring a repository, a question, and a budget.</h2>
     <div class="cta-row">
-      <a class="btn primary" href="mailto:alina.nesen@gmail.com?subject=efferents%20pilot">Book demo</a>
-      <a class="btn" href="mailto:alina.nesen@gmail.com">Email</a>
+      <a class="btn primary" href="#connect">Deploy a side lab</a>
+      <a class="btn" href="https://github.com/mashathepotato/efferents">View source</a>
     </div>
   </section>
 
-  <footer>efferents · private by default · local research, explicit publication</footer>
+  <footer>efferents · autonomous research under human direction</footer>
 
   <script>
     function copyCmd() {
