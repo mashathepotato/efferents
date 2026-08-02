@@ -18,9 +18,10 @@ a code diff.
 The local website is the operating surface for the lab’s funder: connect a
 repository without executing it, inject auditable research direction, start or
 stop spending explicitly, and inspect progress without reading every run or
-paper. It uses the same flat blue-and-white code-console interface across the
-core workspace and bundled examples—light by default, with dark mode as a
-remembered opt-in.
+paper. It uses the same minimal blue-and-white research console across the core
+workspace and bundled examples, pairing quiet slab-serif reading text with
+monospaced evidence metadata—light by default, with dark mode as a remembered
+opt-in.
 
 ## Launch with your agent
 

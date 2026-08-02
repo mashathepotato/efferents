@@ -475,7 +475,8 @@ h1 { margin-bottom: 4px; }
   --muted: #0751a6; --dim: #0057ff; --signal: #0057ff;
   --cyan: #0057ff; --danger: #f07c82; --warning: #0057ff;
   --mono: "SFMono-Regular", Menlo, Monaco, "Cascadia Mono", "Liberation Mono", monospace;
-  --sans: var(--mono);
+  --display: "Rockwell Nova", Rockwell, "American Typewriter", "Roboto Slab", serif;
+  --sans: var(--display);
 }
 * { box-sizing: border-box; }
 html { background: var(--bg); }
@@ -490,7 +491,7 @@ a:hover { color: var(--signal); }
 code { padding: 1px 4px; border: 1px solid var(--line); background: var(--panel);
        color: var(--signal); font-family: var(--mono); }
 h1 { margin: 0 0 7px; font-size: clamp(26px, 3.5vw, 44px);
-     font-weight: 700; letter-spacing: -.045em; line-height: 1.04; }
+     font-weight: 500; letter-spacing: -.045em; line-height: 1.04; }
 .meta { margin-bottom: 22px; color: var(--muted); font: 10px/1.5 var(--mono);
         letter-spacing: .035em; text-transform: uppercase; }
 .trend { margin: 22px 0 30px; border: 1px solid var(--line); background: var(--panel); }

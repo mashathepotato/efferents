@@ -14,7 +14,8 @@ REPORT_CSS = r"""
   --signal: #0057ff;
   --cyan: #0057ff;
   --mono: "SFMono-Regular", Menlo, Monaco, "Cascadia Mono", "Liberation Mono", monospace;
-  --sans: var(--mono);
+  --display: "Rockwell Nova", Rockwell, "American Typewriter", "Roboto Slab", serif;
+  --sans: var(--display);
 }
 * { box-sizing: border-box; }
 html { background: var(--bg); }
@@ -35,7 +36,7 @@ header::before {
   display: block;
   margin-bottom: 8px;
   color: var(--signal);
-  content: "EF / RESEARCH RECORD";
+  content: "efferents / research record";
   font: 9px/1 var(--mono);
   letter-spacing: .12em;
 }
@@ -43,7 +44,7 @@ h1 {
   max-width: 1060px;
   margin: 0 0 7px;
   font-size: clamp(24px,3vw,40px);
-  font-weight: 700;
+  font-weight: 500;
   letter-spacing: -.04em;
   line-height: 1.08;
 }

@@ -43,6 +43,9 @@ def test_landing_defaults_to_light_lab_theme():
     assert "color-scheme: light;" in css
     assert "--bg: #ffffff;" in css
     assert "--signal: #0057ff;" in css
-    assert "--sans: var(--mono);" in css
+    assert "--display:" in css
+    assert "--sans: var(--display);" in css
+    assert 'content: "ℯ";' in css
+    assert 'content: "EF";' not in css
     assert "linear-gradient" not in css
     assert "backdrop-filter" not in css

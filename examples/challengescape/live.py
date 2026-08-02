@@ -303,17 +303,16 @@ PAGE = embed_research_theme(r"""<!doctype html>
     width: 36px;
     height: 36px;
     place-items: center;
-    border: 1px solid var(--signal);
     color: var(--signal);
-    content: "EF";
-    font: 700 10px/1 var(--mono);
-    letter-spacing: .08em;
+    content: "ℯ";
+    font: 500 29px/1 var(--display);
+    font-style: italic;
+    letter-spacing: 0;
   }
   h1 {
     margin: 0;
-    font: 680 13px/1.25 var(--mono);
-    letter-spacing: .035em;
-    text-transform: uppercase;
+    font: 500 16px/1.25 var(--display);
+    letter-spacing: -.02em;
   }
   .sub {
     min-width: 0;
@@ -358,7 +357,7 @@ PAGE = embed_research_theme(r"""<!doctype html>
     padding: 18px;
     border: 1px solid var(--line);
     border-radius: 0;
-    background: color-mix(in srgb, var(--panel) 96%, transparent);
+    background: var(--panel);
     box-shadow: none;
   }
   .grid > .card { border: 0; }

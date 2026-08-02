@@ -22,8 +22,9 @@ def test_dashboard_has_portfolio_rail_and_network_map():
     assert "renderNetwork();" in javascript
 
 
-def test_shared_visual_contract_is_flat_blue_and_white_code_console():
+def test_shared_visual_contract_is_minimal_blue_and_white_research_console():
     css = (STATIC / "dashboard.css").read_text()
+    html = (STATIC / "dashboard.html").read_text()
     progress = PROGRESS.read_text()
 
     assert "--bg: #ffffff;" in css
@@ -31,7 +32,10 @@ def test_shared_visual_contract_is_flat_blue_and_white_code_console():
     assert "--panel-raised: #ffffff;" in css
     assert "--signal: #0057ff;" in css
     assert "--shadow: none;" in css
-    assert "--sans: var(--mono);" in css
+    assert "--display:" in css
+    assert "--sans: var(--display);" in css
+    assert html.count(">ℯ</span>") == 2
+    assert ">EF</span>" not in html
     assert "color-mix" not in css
     assert "backdrop-filter" not in css
     assert "#f7fbff" not in css
@@ -41,10 +45,13 @@ def test_shared_visual_contract_is_flat_blue_and_white_code_console():
     assert ".lab-map" in css
     assert "color-scheme: light;" in REPORT_CSS
     assert "--signal: #0057ff;" in REPORT_CSS
-    assert "--sans: var(--mono);" in REPORT_CSS
+    assert "--sans: var(--display);" in REPORT_CSS
+    assert 'content: "efferents / research record";' in REPORT_CSS
+    assert 'content: "EF / RESEARCH RECORD";' not in REPORT_CSS
     assert "linear-gradient" not in REPORT_CSS
     assert "color-scheme: light;" in progress
     assert "#69ddd0" not in progress
     assert "#b9f36a" not in progress
     assert "--bg: #ffffff;" in progress
+    assert "--sans: var(--display);" in progress
     assert "#f7fbff" not in progress

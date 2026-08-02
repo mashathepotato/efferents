@@ -12,6 +12,15 @@ from efferents.dashboard.theme import (
 
 ROOT = Path(__file__).resolve().parents[1]
 LIVE = ROOT / "examples" / "challengescape" / "live.py"
+CHALLENGE_REPORT = (
+    ROOT
+    / "examples"
+    / "challengescape"
+    / "labs"
+    / "lab_01_reasoning_verification"
+    / "out"
+    / "dashboard.html"
+)
 
 
 def test_theme_contract_is_light_first_and_high_information():
@@ -19,7 +28,8 @@ def test_theme_contract_is_light_first_and_high_information():
     assert ':root[data-theme="dark"]' in RESEARCH_THEME_CSS
     assert "--bg: #ffffff;" in RESEARCH_THEME_CSS
     assert "--signal: #0057ff;" in RESEARCH_THEME_CSS
-    assert "--sans: var(--mono);" in RESEARCH_THEME_CSS
+    assert "--display:" in RESEARCH_THEME_CSS
+    assert "--sans: var(--display);" in RESEARCH_THEME_CSS
     assert "color-mix" not in RESEARCH_THEME_CSS
     assert "backdrop-filter" not in RESEARCH_THEME_CSS
     assert "#356f50" not in RESEARCH_THEME_CSS
@@ -39,8 +49,11 @@ def test_challengescape_embeds_canonical_theme_without_legacy_skin():
     assert "/*__EFFERENTS_RESEARCH_THEME_CSS__*/" not in page
     assert ":root {\n  color-scheme: light;" in page
     assert "prefers-color-scheme" not in page
+    assert "color-mix" not in page
     assert "#2a78d6" not in page
     assert "border-radius: 12px" not in page
+    assert 'content: "ℯ";' in page
+    assert 'content: "EF";' not in page
     assert 'id="theme-button"' in page
 
 
@@ -52,3 +65,12 @@ def test_every_example_html_app_uses_the_theme_contract():
             offenders.append(str(path.relative_to(ROOT)))
 
     assert offenders == []
+
+
+def test_checked_in_challenge_report_uses_current_report_theme():
+    report = CHALLENGE_REPORT.read_text()
+
+    assert 'content: "efferents / research record";' in report
+    assert "--sans: var(--display);" in report
+    assert "#b9f36a" not in report
+    assert 'content: "EF / RESEARCH RECORD";' not in report

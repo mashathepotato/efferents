@@ -89,11 +89,13 @@ content-type, and referrer protections. API-key values are never returned.
 
 ## Visual system
 
-The workspace uses a high-information research-console vocabulary: compact
-monospace type, dense ledgers, explicit status fields, flat white surfaces, and
-saturated blue rules and selections. Pale-blue fills, blur, and ambient shadows
-are excluded. The light palette is the default. Dark mode is opt-in and
-persisted in browser local storage.
+The workspace uses a high-information research-console vocabulary: quiet
+slab-serif prose and headings, compact monospace metadata, dense ledgers,
+explicit status fields, flat white surfaces, and saturated blue rules and
+selections. Its mark is a single lowercase `ℯ`; the product name is never
+abbreviated to `EF`. Pale-blue fills, blur, and ambient shadows are excluded.
+The light palette is the default. Dark mode is opt-in and persisted in browser
+local storage.
 
 There is no frontend build step and no third-party browser dependency.
 
