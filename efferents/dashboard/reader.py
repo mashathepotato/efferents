@@ -308,6 +308,11 @@ def _evidence_payload(
     return ({
         "panels": panels,
         "constraints": constraints,
+        "comparison": {
+            "axis": cfg.evidence.comparison_axis,
+            "labels": dict(cfg.evidence.comparison_labels),
+            "order": list(cfg.evidence.comparison_order),
+        },
         "records": records,
         "artifact_count": sum(len(record["artifacts"]) for record in records),
     }, catalog)

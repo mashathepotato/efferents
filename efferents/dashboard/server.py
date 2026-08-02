@@ -223,7 +223,13 @@ def _empty_runs() -> dict:
 
 
 def _empty_evidence() -> dict:
-    return {"panels": [], "constraints": [], "records": [], "artifact_count": 0}
+    return {
+        "panels": [],
+        "constraints": [],
+        "comparison": {"axis": None, "labels": {}, "order": []},
+        "records": [],
+        "artifact_count": 0,
+    }
 
 
 def make_server(

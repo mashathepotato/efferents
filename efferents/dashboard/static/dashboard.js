@@ -684,16 +684,131 @@ function renderTrend(series, direction, summary = {}) {
   text("metric-range", `range ${formatMetric(rawMin)} — ${formatMetric(rawMax)}`);
 }
 
+function evidenceComparisonKey(record, axis) {
+  const shared = Object.entries(record.dimensions || {})
+    .filter(([key]) => key !== axis)
+    .sort(([left], [right]) => left.localeCompare(right));
+  return JSON.stringify([record.started_at || "", shared]);
+}
+
+function groupEvidenceRecords(records, comparison) {
+  const axis = comparison?.axis;
+  if (!axis) return records.map((record) => ({ kind: "single", records: [record] }));
+
+  const candidates = new Map();
+  records.forEach((record) => {
+    const value = record.dimensions?.[axis];
+    if (value == null) return;
+    const key = evidenceComparisonKey(record, axis);
+    if (!candidates.has(key)) candidates.set(key, []);
+    candidates.get(key).push(record);
+  });
+
+  const pairedKeys = new Set(
+    [...candidates.entries()]
+      .filter(([, group]) => new Set(group.map((record) => record.dimensions[axis])).size > 1)
+      .map(([key]) => key),
+  );
+  const emitted = new Set();
+  const groups = [];
+  records.forEach((record) => {
+    const value = record.dimensions?.[axis];
+    const key = value == null ? null : evidenceComparisonKey(record, axis);
+    if (key && pairedKeys.has(key)) {
+      if (!emitted.has(key)) {
+        groups.push({ kind: "comparison", records: candidates.get(key) });
+        emitted.add(key);
+      }
+      return;
+    }
+    groups.push({ kind: "single", records: [record] });
+  });
+  return groups;
+}
+
+function evidenceVariantLabel(value, comparison) {
+  return comparison?.labels?.[value] || String(value).replace(/[_-]+/g, " ");
+}
+
+function renderEvidenceRecord(record, metricPanels, hiddenDimensions = new Set()) {
+  const dimensions = Object.entries(record.dimensions || {})
+    .filter(([key]) => !hiddenDimensions.has(key));
+  const failures = Array.isArray(record.constraint_failures)
+    ? record.constraint_failures
+    : [];
+  const artifact = (record.artifacts || [])[0];
+  const metricRows = metricPanels
+    .filter((metric) => record.metrics?.[metric.column] != null)
+    .map((metric) =>
+      `<div><dt title="${esc(metric.label)}">${esc(metric.label)}</dt>` +
+      `<dd>${esc(formatMetric(record.metrics[metric.column]))}</dd></div>`
+    ).join("");
+  return `<article class="evidence-record ${record.eligible ? "is-eligible" : "is-excluded"}">` +
+    (artifact
+      ? `<a class="evidence-artifact" href="${esc(artifact.url)}" target="_blank" rel="noopener" ` +
+        `aria-label="Open ${esc(record.name)} image at full resolution">` +
+        `<img src="${esc(artifact.url)}" loading="lazy" alt="${esc(record.name)} visual result"></a>`
+      : "") +
+    `<div class="evidence-record-body"><div class="evidence-record-head">` +
+    `<strong title="${esc(record.run_id)}">${esc(record.name || compactRunId(record.run_id))}</strong>` +
+    `<span class="evidence-validity">${record.eligible ? "eligible" : "excluded"}</span></div>` +
+    (dimensions.length
+      ? `<div class="evidence-dimensions">` + dimensions.map(([key, value]) =>
+        `<span>${esc(key)}=<strong>${esc(value)}</strong></span>`).join("") + `</div>`
+      : "") +
+    `<dl class="evidence-metrics">${metricRows}</dl>` +
+    (failures.length
+      ? `<p class="evidence-failure">${failures.map(esc).join(" · ")}</p>`
+      : "") +
+    `</div></article>`;
+}
+
+function renderEvidenceComparison(group, metricPanels, comparison) {
+  const axis = comparison.axis;
+  const order = Array.isArray(comparison.order) ? comparison.order : [];
+  const records = [...group.records].sort((left, right) => {
+    const leftIndex = order.indexOf(String(left.dimensions?.[axis]));
+    const rightIndex = order.indexOf(String(right.dimensions?.[axis]));
+    if (leftIndex < 0 && rightIndex < 0) return 0;
+    if (leftIndex < 0) return 1;
+    if (rightIndex < 0) return -1;
+    return leftIndex - rightIndex;
+  });
+  const shared = Object.entries(records[0].dimensions || {})
+    .filter(([key]) => key !== axis);
+  const hidden = new Set([axis, ...shared.map(([key]) => key)]);
+  const labels = records.map((record) =>
+    evidenceVariantLabel(record.dimensions?.[axis], comparison));
+  const sharedLabel = shared.map(([key, value]) =>
+    `${key}=${value}`).join(" · ");
+  return `<section class="evidence-comparison" aria-label="Matched comparison: ${esc(labels.join(" versus "))}">` +
+    `<header class="evidence-comparison-head"><div>` +
+    `<span>Matched comparison</span><strong>${esc(sharedLabel || "shared run context")}</strong></div>` +
+    `<small>same ${esc(shared.map(([key]) => key).join(" / ") || "context")} · only ${esc(axis)} changes</small>` +
+    `</header><div class="evidence-comparison-grid">` +
+    records.map((record, index) => {
+      const value = record.dimensions?.[axis];
+      const label = evidenceVariantLabel(value, comparison);
+      return `<div class="evidence-variant"><header class="evidence-variant-head">` +
+        `<span>${String(index + 1).padStart(2, "0")}</span><strong>${esc(label)}</strong>` +
+        `<small>${esc(axis)}=${esc(value)}</small></header>` +
+        renderEvidenceRecord(record, metricPanels, hidden) + `</div>`;
+    }).join("") + `</div></section>`;
+}
+
 function renderEvidence(data) {
   const panel = document.getElementById("evidence-panel");
   const records = Array.isArray(data?.records) ? data.records : [];
   const metricPanels = Array.isArray(data?.panels) ? data.panels : [];
   const constraints = Array.isArray(data?.constraints) ? data.constraints : [];
+  const comparison = data?.comparison || {};
+  const groups = groupEvidenceRecords(records, comparison);
+  const matched = groups.filter((group) => group.kind === "comparison").length;
+  const standalone = groups.length - matched;
   panel.hidden = records.length === 0;
   text(
     "evidence-count",
-    `${records.length} visual ${records.length === 1 ? "record" : "records"} / ` +
-      `${Number(data?.artifact_count || 0)} images`,
+    `${matched} matched / ${standalone} standalone / ${Number(data?.artifact_count || 0)} images`,
   );
   if (!records.length) return;
 
@@ -710,35 +825,10 @@ function renderEvidence(data) {
   );
 
   const gallery = document.getElementById("evidence-gallery");
-  gallery.innerHTML = records.map((record) => {
-    const dimensions = Object.entries(record.dimensions || {});
-    const failures = Array.isArray(record.constraint_failures)
-      ? record.constraint_failures
-      : [];
-    const artifact = (record.artifacts || [])[0];
-    const metricRows = metricPanels
-      .filter((metric) => record.metrics?.[metric.column] != null)
-      .map((metric) =>
-        `<div><dt title="${esc(metric.label)}">${esc(metric.label)}</dt>` +
-        `<dd>${esc(formatMetric(record.metrics[metric.column]))}</dd></div>`
-      ).join("");
-    return `<article class="evidence-record ${record.eligible ? "is-eligible" : "is-excluded"}">` +
-      (artifact
-        ? `<a class="evidence-artifact" href="${esc(artifact.url)}" target="_blank" rel="noopener" ` +
-          `aria-label="Open ${esc(record.name)} image at full resolution">` +
-          `<img src="${esc(artifact.url)}" loading="lazy" alt="${esc(record.name)} visual result"></a>`
-        : "") +
-      `<div class="evidence-record-body"><div class="evidence-record-head">` +
-      `<strong title="${esc(record.run_id)}">${esc(record.name || compactRunId(record.run_id))}</strong>` +
-      `<span class="evidence-validity">${record.eligible ? "eligible" : "excluded"}</span></div>` +
-      `<div class="evidence-dimensions">` +
-      dimensions.map(([key, value]) => `<span>${esc(key)}=<strong>${esc(value)}</strong></span>`).join("") +
-      `</div><dl class="evidence-metrics">${metricRows}</dl>` +
-      (failures.length
-        ? `<p class="evidence-failure">${failures.map(esc).join(" · ")}</p>`
-        : "") +
-      `</div></article>`;
-  }).join("");
+  gallery.innerHTML = groups.map((group) => group.kind === "comparison"
+    ? renderEvidenceComparison(group, metricPanels, comparison)
+    : renderEvidenceRecord(group.records[0], metricPanels)
+  ).join("");
 }
 
 function renderPapers(papers) {

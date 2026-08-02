@@ -1,7 +1,9 @@
 import json
 import sqlite3
+from dataclasses import replace
 
 from efferents.dashboard import reader
+from efferents.lab import Evidence
 
 
 def test_visual_evidence_uses_observation_contract_and_opaque_artifact_tokens(
@@ -69,8 +71,30 @@ def test_visual_evidence_is_empty_without_declared_artifacts(
             "target": None,
         }],
         "constraints": [],
+        "comparison": {"axis": None, "labels": {}, "order": []},
         "records": [],
         "artifact_count": 0,
+    }
+
+
+def test_visual_evidence_exposes_lab_owned_comparison_metadata(
+    tmp_path, smoke_lab_config
+):
+    cfg = replace(
+        smoke_lab_config,
+        evidence=Evidence(
+            comparison_axis="variant",
+            comparison_labels=(("qfm", "QFM"), ("px", "Pixel baseline")),
+            comparison_order=("qfm", "px"),
+        ),
+    )
+
+    payload = reader.read_evidence(tmp_path, cfg=cfg)
+
+    assert payload["comparison"] == {
+        "axis": "variant",
+        "labels": {"qfm": "QFM", "px": "Pixel baseline"},
+        "order": ["qfm", "px"],
     }
 
 

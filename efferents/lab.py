@@ -175,6 +175,19 @@ class Autonomy:
     coder_enabled: bool = False
 
 
+@dataclass(frozen=True)
+class Evidence:
+    """Lab-owned presentation metadata for visual evidence comparisons.
+
+    The framework only understands a dimension name and display labels. The
+    scientific meaning of each variant remains in the lab configuration.
+    """
+
+    comparison_axis: str | None = None
+    comparison_labels: tuple[tuple[str, str], ...] = ()
+    comparison_order: tuple[str, ...] = ()
+
+
 class SubmissionError(ValueError):
     """Raised when a submission directory is invalid."""
 
@@ -341,6 +354,40 @@ def _build_labconfig(
             )
     bucket_axes = tuple(bucket_axes_raw)
 
+    # --- evidence ---
+    evidence_raw = raw.get("evidence") or {}
+    comparison_raw = evidence_raw.get("comparison") or {}
+    comparison_axis = comparison_raw.get("axis")
+    if comparison_axis is not None and (
+        not isinstance(comparison_axis, str)
+        or not _COL_NAME_RE.match(comparison_axis)
+    ):
+        raise SubmissionError(
+            "evidence.comparison.axis must match "
+            "[A-Za-z_][A-Za-z0-9_]*"
+        )
+    labels_raw = comparison_raw.get("labels") or {}
+    if not isinstance(labels_raw, dict):
+        raise SubmissionError("evidence.comparison.labels must be a mapping")
+    comparison_labels: list[tuple[str, str]] = []
+    for value, label in labels_raw.items():
+        if not isinstance(value, str) or not value.strip():
+            raise SubmissionError(
+                "evidence.comparison.labels keys must be non-empty strings"
+            )
+        if not isinstance(label, str) or not label.strip():
+            raise SubmissionError(
+                "evidence.comparison.labels values must be non-empty strings"
+            )
+        comparison_labels.append((value, label.strip()))
+    order_raw = comparison_raw.get("order") or ()
+    if not isinstance(order_raw, (list, tuple)) or not all(
+        isinstance(value, str) and value.strip() for value in order_raw
+    ):
+        raise SubmissionError(
+            "evidence.comparison.order must be a list of non-empty strings"
+        )
+
     # --- budget / autonomy / peer review / students ---
     budget_raw = raw.get("budget") or {}
     autonomy_raw = raw.get("autonomy") or {}
@@ -481,6 +528,11 @@ def _build_labconfig(
         autonomy=Autonomy(
             coder_enabled=bool(autonomy_raw.get("coder_enabled", False)),
         ),
+        evidence=Evidence(
+            comparison_axis=comparison_axis,
+            comparison_labels=tuple(comparison_labels),
+            comparison_order=tuple(order_raw),
+        ),
         default_student_id=default_student_id,
         max_open_campaigns_per_student=max_open_campaigns,
         students=students,
@@ -504,6 +556,7 @@ class LabConfig:
     subdomain: str | None = None
     code_repo: str | None = None
     autonomy: Autonomy = field(default_factory=Autonomy)
+    evidence: Evidence = field(default_factory=Evidence)
     default_student_id: str = "primary"
     max_open_campaigns_per_student: int = 2
     students: tuple[dict, ...] = field(default_factory=lambda: (

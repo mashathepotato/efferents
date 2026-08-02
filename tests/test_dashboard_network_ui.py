@@ -82,6 +82,9 @@ def test_observer_is_compact_validity_aware_and_supports_visual_evidence():
     assert 'preserveAspectRatio="xMidYMid meet"' in html
     assert "font: 550 clamp(27px, 3vw, 42px)/1 var(--mono);" in css
     assert ".evidence-gallery" in css
+    assert ".evidence-comparison-grid" in css
     assert "run.eligible !== false" in javascript
     assert '"/api/evidence"' in javascript
+    assert "groupEvidenceRecords" in javascript
+    assert "Matched comparison" in javascript
     assert "Eligible-run summary statistics" in html

@@ -1262,6 +1262,95 @@ textarea::placeholder {
   background: var(--line);
 }
 
+.evidence-comparison {
+  min-width: 0;
+  grid-column: 1 / -1;
+  background: var(--panel);
+}
+
+.evidence-comparison-head {
+  display: flex;
+  min-height: 52px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 9px 13px;
+  border-bottom: 1px solid var(--line);
+}
+
+.evidence-comparison-head > div {
+  min-width: 0;
+}
+
+.evidence-comparison-head span,
+.evidence-comparison-head small {
+  color: var(--dim);
+  font: 8px/1.3 var(--mono);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.evidence-comparison-head strong {
+  display: block;
+  overflow: hidden;
+  margin-top: 4px;
+  color: var(--fg);
+  font: 750 10px/1.3 var(--mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.evidence-comparison-head small {
+  flex: 0 0 auto;
+  text-align: right;
+}
+
+.evidence-comparison-grid {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--line);
+}
+
+.evidence-variant {
+  min-width: 0;
+  background: var(--panel);
+}
+
+.evidence-variant-head {
+  display: grid;
+  min-height: 42px;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+}
+
+.evidence-variant-head > span {
+  align-self: stretch;
+  display: grid;
+  place-items: center;
+  border-right: 1px solid var(--line);
+  color: var(--signal);
+  font: 800 8px/1 var(--mono);
+}
+
+.evidence-variant-head > strong {
+  overflow: hidden;
+  padding: 0 11px;
+  color: var(--fg);
+  font: 800 11px/1.2 var(--mono);
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.evidence-variant-head > small {
+  padding-right: 11px;
+  color: var(--dim);
+  font: 8px/1 var(--mono);
+}
+
 .evidence-record {
   min-width: 0;
   background: var(--panel);
@@ -2136,6 +2225,20 @@ footer {
 
   .evidence-gallery {
     grid-template-columns: 1fr;
+  }
+
+  .evidence-comparison-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .evidence-comparison-head {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 7px;
+  }
+
+  .evidence-comparison-head small {
+    text-align: left;
   }
 
   .steer-layout {
