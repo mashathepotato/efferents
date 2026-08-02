@@ -88,8 +88,12 @@ nav b::before {
 }
 
 .hero {
-  max-width: 1180px;
+  display: grid;
+  max-width: 1440px;
   margin: 0 auto;
+  grid-template-columns: minmax(360px, 0.78fr) minmax(520px, 1.22fr);
+  align-items: center;
+  gap: clamp(34px, 5vw, 76px);
   padding: clamp(44px, 6vw, 72px) clamp(20px, 4vw, 56px) 44px;
   border-bottom: 0;
   text-align: left;
@@ -97,6 +101,7 @@ nav b::before {
 
 .hero::before {
   display: block;
+  grid-column: 1 / -1;
   margin-bottom: 17px;
   color: var(--signal);
   content: "LOCAL RESEARCH INFRASTRUCTURE / 01";
@@ -104,14 +109,44 @@ nav b::before {
   letter-spacing: 0.12em;
 }
 
+.hero-copy {
+  min-width: 0;
+}
+
 .hero h1 {
-  max-width: 960px;
+  max-width: 640px;
   margin: 0 0 22px;
   font-size: clamp(34px, 4.6vw, 60px);
   font-weight: 700;
   line-height: 1.02;
   letter-spacing: -0.055em;
   text-wrap: balance;
+}
+
+.hero-network {
+  min-width: 0;
+  margin: 0;
+  border: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.hero-network img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 2;
+  object-fit: cover;
+}
+
+.hero-network figcaption {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 9px 11px;
+  border-top: 1px solid var(--line);
+  color: var(--dim);
+  font: 8px/1.2 var(--mono);
+  letter-spacing: .09em;
+  text-transform: uppercase;
 }
 
 h2 {
@@ -663,6 +698,16 @@ footer {
   text-transform: uppercase;
 }
 
+@media (max-width: 980px) {
+  .hero {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-network {
+    width: 100%;
+  }
+}
+
 @media (max-width: 720px) {
   nav {
     position: static;
@@ -674,6 +719,7 @@ footer {
   }
 
   .hero {
+    grid-template-columns: 1fr;
     padding-top: 58px;
   }
 

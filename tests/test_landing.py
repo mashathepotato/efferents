@@ -1,4 +1,5 @@
 from pathlib import Path
+import struct
 
 LANDING = Path(__file__).resolve().parents[1] / "web" / "landing" / "index.html"
 STYLES = LANDING.with_name("style.css")
@@ -15,6 +16,18 @@ def test_landing_has_agent_instruction():
         "Read https://raw.githubusercontent.com/mashathepotato/efferents/"
         "main/intake.md and follow it"
     ) in html
+
+
+def test_landing_has_generated_network_hero():
+    html = LANDING.read_text()
+    image = LANDING.parent / "img" / "efferents-network.png"
+
+    assert 'src="img/efferents-network.png"' in html
+    assert "autonomous research-lab nodes" in html
+    assert image.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+    width, height = struct.unpack(">II", image.read_bytes()[16:24])
+    assert width >= 1400
+    assert width / height >= 1.4
 
 
 def test_landing_explains_private_and_public_destinations():
