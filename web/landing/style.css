@@ -3,18 +3,19 @@
   --bg: #ffffff;
   --panel: #ffffff;
   --raised: #ffffff;
-  --line: #0057ff;
-  --line-soft: #0057ff;
+  --line: #03befc;
+  --line-soft: #03befc;
   --fg: #003b80;
-  --muted: #0751a6;
-  --dim: #0057ff;
-  --signal: #0057ff;
+  --muted: #003b80;
+  --dim: #03befc;
+  --signal: #03befc;
   --signal-strong: #003b80;
+  --on-signal: #003b80;
   --signal-soft: #ffffff;
-  --cyan: #0057ff;
+  --cyan: #03befc;
   --shadow: none;
   --mono: "SFMono-Regular", Menlo, Monaco, "Cascadia Mono", "Liberation Mono", monospace;
-  --display: "Rockwell Nova", Rockwell, "American Typewriter", "Roboto Slab", serif;
+  --display: "American Typewriter", "Rockwell Nova", Rockwell, "Courier New", monospace;
   --sans: var(--display);
 }
 
@@ -89,7 +90,7 @@ nav b::before {
 .hero {
   max-width: 1180px;
   margin: 0 auto;
-  padding: clamp(54px, 7vw, 92px) clamp(20px, 4vw, 56px) 60px;
+  padding: clamp(44px, 6vw, 72px) clamp(20px, 4vw, 56px) 44px;
   border-bottom: 0;
   text-align: left;
 }
@@ -107,7 +108,7 @@ nav b::before {
   max-width: 960px;
   margin: 0 0 22px;
   font-size: clamp(34px, 4.6vw, 60px);
-  font-weight: 500;
+  font-weight: 700;
   line-height: 1.02;
   letter-spacing: -0.055em;
   text-wrap: balance;
@@ -116,7 +117,7 @@ nav b::before {
 h2 {
   margin: 0;
   font-size: clamp(20px, 2.4vw, 31px);
-  font-weight: 500;
+  font-weight: 700;
   line-height: 1.08;
   letter-spacing: -0.04em;
 }
@@ -156,7 +157,7 @@ h2 {
 .btn.primary {
   border-color: var(--signal);
   background: var(--signal);
-  color: #ffffff;
+  color: var(--on-signal);
   font-weight: 700;
 }
 
@@ -192,7 +193,7 @@ h2 {
   flex-wrap: wrap;
   gap: 1px;
   width: fit-content;
-  margin-top: 50px;
+  margin-top: 30px;
   padding: 1px;
   background: var(--line);
 }
@@ -209,7 +210,7 @@ h2 {
 section {
   max-width: 1100px;
   margin: 0 auto;
-  padding: 50px 20px;
+  padding: 36px 20px;
 }
 
 .connect-section {
@@ -387,7 +388,7 @@ section {
 
 .placement-card {
   position: relative;
-  min-height: 410px;
+  min-height: 250px;
   padding: clamp(25px, 4vw, 40px);
   background: var(--panel);
 }
@@ -404,7 +405,7 @@ section {
   display: flex;
   justify-content: space-between;
   gap: 20px;
-  margin-bottom: 52px;
+  margin-bottom: 28px;
   color: var(--dim);
   font: 8px/1 var(--mono);
   letter-spacing: 0.1em;
@@ -518,7 +519,7 @@ section {
 }
 
 .cell {
-  min-height: 150px;
+  min-height: 110px;
   padding: 21px 22px;
   border: 0;
   border-radius: 0;
@@ -634,7 +635,7 @@ button {
 
 button:hover {
   background: var(--signal);
-  color: #ffffff;
+  color: var(--on-signal);
 }
 
 .muted {

@@ -26,9 +26,9 @@ def test_landing_explains_private_and_public_destinations():
 
 def test_landing_explains_why_the_llm_research_loop_is_automated():
     html = LANDING.read_text()
-    assert "LLM-written paper drafts" in html
-    assert "LLM-written reviews" in html
-    assert "The reproducible experiment" in html
+    assert "Hypothesis → run → review." in html
+    assert "Evidence is the result." in html
+    assert "Stop manually brokering" not in html
 
 
 def test_landing_links_stylesheet():
@@ -42,7 +42,8 @@ def test_landing_defaults_to_light_lab_theme():
     assert '<meta name="theme-color" content="#ffffff">' in html
     assert "color-scheme: light;" in css
     assert "--bg: #ffffff;" in css
-    assert "--signal: #0057ff;" in css
+    assert "--signal: #03befc;" in css
+    assert "#0057ff" not in css
     assert "--display:" in css
     assert "--sans: var(--display);" in css
     assert 'content: "ℯ";' in css

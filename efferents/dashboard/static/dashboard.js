@@ -190,7 +190,7 @@ function renderSteering(records) {
   text("steering-count", `${steering.length} ${steering.length === 1 ? "record" : "records"}`);
   const element = document.getElementById("steering-history");
   if (!steering.length) {
-    element.innerHTML = '<div class="empty-state">No human directions recorded yet</div>';
+    element.innerHTML = '<div class="empty-state">No directions</div>';
     return;
   }
   element.innerHTML = steering.map((record) => {
@@ -262,7 +262,7 @@ function renderLabRail() {
   text("lab-portfolio-count", String(labs.length).padStart(2, "0"));
   const list = document.getElementById("lab-list");
   if (!labs.length) {
-    list.innerHTML = '<div class="empty-state">No local labs registered</div>';
+    list.innerHTML = '<div class="empty-state">No local labs</div>';
     renderRoute();
     return;
   }
@@ -302,9 +302,9 @@ function renderNetworkDetail(lab) {
   const detail = document.getElementById("network-detail");
   if (!lab) {
     text("network-detail-status", networkScope === "public" ? "not connected" : "private");
-    detail.innerHTML = `<span class="route-kicker">${networkScope === "public" ? "Public registry" : "Select a lab node"}</span>` +
-      `<h3>${networkScope === "public" ? "No public labs are linked." : "Evidence lives at the node."}</h3>` +
-      `<p>${networkScope === "public" ? esc(portfolioState.public_network?.message || "Public network unavailable.") : "Choose a lab to inspect its hypothesis, last signal, budget, and artifacts."}</p>`;
+    detail.innerHTML = `<span class="route-kicker">${networkScope === "public" ? "Public registry" : "Lab node"}</span>` +
+      `<h3>${networkScope === "public" ? "No linked labs." : "Select a node."}</h3>` +
+      `<p>${networkScope === "public" ? "Private until authorized." : "Hypothesis · signal · budget · artifacts"}</p>`;
     return;
   }
   const headline = lab.headline || {};
@@ -313,14 +313,14 @@ function renderNetworkDetail(lab) {
   text("network-detail-status", lab.visibility || "private");
   detail.innerHTML = `<span class="route-kicker">${esc(lab.domain || "unclassified")} / ${esc(lab.status || "stopped")}</span>` +
     `<h3>${esc(lab.lab_id)}</h3>` +
-    `<p>${esc(hypothesis.question || "No open campaign is recorded for this lab.")}</p>` +
+    `<p>${esc(hypothesis.question || "No open campaign.")}</p>` +
     `<dl class="node-facts">` +
       `<div><dt>Best signal</dt><dd>${esc(headline.column || "metric")} / ${esc(formatMetric(headline.best))}</dd></div>` +
       `<div><dt>Evidence</dt><dd>${headline.observations || 0} runs / ${lab.papers || 0} papers</dd></div>` +
       `<div><dt>Budget</dt><dd>$${Number(budget.spent || 0).toFixed(2)} / $${Number(budget.cap || 0).toFixed(2)}</dd></div>` +
       `<div><dt>Last signal</dt><dd>${esc(formatRelativeTime(lab.last_activity))}</dd></div>` +
     `</dl>` +
-    `<button class="primary-button node-inspect-button" type="button" data-network-inspect="${esc(lab.lab_id)}">Inspect tracking points</button>`;
+    `<button class="primary-button node-inspect-button" type="button" data-network-inspect="${esc(lab.lab_id)}">Inspect node</button>`;
   const inspect = detail.querySelector("[data-network-inspect]");
   inspect.addEventListener("click", async () => {
     await selectPortfolioLab(inspect.dataset.networkInspect, true);
@@ -347,9 +347,7 @@ function renderNetwork() {
 
   if (!labs.length) {
     empty.hidden = false;
-    empty.textContent = networkScope === "public"
-      ? "No lab has crossed the explicit publication boundary."
-      : "Connect a lab to establish the local topology.";
+    empty.textContent = networkScope === "public" ? "No public nodes" : "Connect a lab";
     hub.hidden = networkScope === "public";
     renderNetworkDetail(null);
     return;
@@ -412,7 +410,9 @@ function renderPortfolio(payload) {
   };
   const selected = selectedPortfolioLab();
   if (!networkFocusLabId && selected) networkFocusLabId = selected.lab_id;
-  text("public-network-message", portfolioState.public_network.message || "Public registry is not connected.");
+  text("public-network-message", portfolioState.public_network.connected
+    ? "Public registry connected."
+    : "Private until authorized.");
   renderLabRail();
   renderNetwork();
 }
@@ -441,9 +441,9 @@ function renderState(state) {
 
   const hypothesis = state.hypothesis || {};
   text("student", hypothesis.student ? `student / ${hypothesis.student}` : "student / —");
-  text("question", hypothesis.question || "No open campaign. The lab is waiting for its next falsifiable question.");
-  text("claim", hypothesis.claim || "No claim has been recorded.");
-  text("falsifier", hypothesis.falsifier || "No falsification condition has been recorded.");
+  text("question", hypothesis.question || "No open campaign.");
+  text("claim", hypothesis.claim || "No claim.");
+  text("falsifier", hypothesis.falsifier || "No falsifier.");
 }
 
 function renderRuns(data) {
@@ -499,7 +499,7 @@ function renderRuns(data) {
 
   if (!runs.length) {
     const row = document.createElement("tr");
-    row.innerHTML = '<td colspan="5"><div class="empty-state">No run records available</div></td>';
+    row.innerHTML = '<td colspan="5"><div class="empty-state">No runs</div></td>';
     tbody.appendChild(row);
   }
 
@@ -605,7 +605,7 @@ function renderPapers(papers) {
   text("paper-count", `${records.length} ${records.length === 1 ? "record" : "records"}`);
 
   if (!records.length) {
-    element.innerHTML = '<div class="empty-state">No publishable artifact has cleared the gate</div>';
+    element.innerHTML = '<div class="empty-state">No cleared papers</div>';
     return;
   }
 
@@ -624,7 +624,7 @@ function renderActivity(activities) {
   const element = document.getElementById("activity");
 
   if (!records.length) {
-    element.innerHTML = '<div class="empty-state">No agent events in the notebook</div>';
+    element.innerHTML = '<div class="empty-state">No agent events</div>';
     return;
   }
 
@@ -681,7 +681,7 @@ function initConnectForm() {
       renderControl(info);
       showMessage(
         "connect-message",
-        `${info.lab_id} is connected. Repository code has not been executed.`,
+        `${info.lab_id} connected · not executed`,
         "success",
       );
       window.location.hash = "steer";
@@ -717,8 +717,8 @@ function initSteeringForm() {
       showMessage(
         "steer-message-state",
         result.status === "running"
-          ? "Direction recorded. The running agent will read it on its next research pass."
-          : "Direction recorded locally. It will be read when the lab starts.",
+          ? "Direction recorded · next agent pass"
+          : "Direction recorded · read on start",
         "success",
       );
     } catch (error) {
@@ -733,18 +733,18 @@ function openRuntimeDialog(action) {
   runtimeAction = action;
   const starting = action === "start";
   text("runtime-dialog-kicker", starting ? "Local execution" : "Stop local execution");
-  text("runtime-dialog-title", starting ? "Start this lab?" : "Stop this lab?");
+  text("runtime-dialog-title", starting ? "Start lab?" : "Stop lab?");
   text(
     "runtime-dialog-copy",
     starting
-      ? "Starting executes repository-defined commands and can incur local compute and LLM cost under the configured budget."
-      : "Stopping interrupts the local agent loop after its current process receives the shutdown signal.",
+      ? "Repository commands · local compute · configured LLM budget"
+      : "Stop after current process · preserve written evidence",
   );
   text(
     "runtime-confirm-label",
     starting
-      ? "I understand and authorize this local run."
-      : "I understand and want to stop this local run.",
+      ? "Authorize this local run."
+      : "Authorize this stop request.",
   );
   text("runtime-confirm-button", starting ? "Confirm start" : "Confirm stop");
   const checkbox = document.getElementById("runtime-confirm-check");

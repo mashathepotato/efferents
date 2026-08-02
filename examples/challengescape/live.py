@@ -311,7 +311,7 @@ PAGE = embed_research_theme(r"""<!doctype html>
   }
   h1 {
     margin: 0;
-    font: 500 16px/1.25 var(--display);
+    font: 700 17px/1.2 var(--display);
     letter-spacing: -.02em;
   }
   .sub {
@@ -329,7 +329,7 @@ PAGE = embed_research_theme(r"""<!doctype html>
     border: 1px solid var(--signal);
     border-radius: 0;
     background: var(--signal);
-    color: #fff;
+    color: var(--on-signal);
     cursor: pointer;
     font: 650 9px/1 var(--mono);
     letter-spacing: .07em;
@@ -379,26 +379,29 @@ PAGE = embed_research_theme(r"""<!doctype html>
   .challenge {
     max-width: 1050px;
     margin: 13px 0 16px;
+    display: -webkit-box;
+    overflow: hidden;
     color: var(--muted);
     font-size: 13px;
     line-height: 1.55;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
   }
+  .challenge.detail-challenge { display: block; overflow: visible; }
   .tiles {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(165px, 1fr));
+    gap: 1px;
     margin: 14px 0;
-    border: solid var(--line);
-    border-width: 1px 0;
+    padding: 1px;
+    background: var(--line);
   }
-  .tile { min-width: 0; padding: 12px; border-left: 1px solid var(--line-soft); }
-  .tile:first-child { border-left: 0; }
+  .tile { min-width: 0; padding: 14px; background: var(--panel); }
   .tile .v {
-    overflow: hidden;
     color: var(--fg);
-    font: 520 clamp(20px, 2.4vw, 32px)/1 var(--mono);
+    font: 800 clamp(20px, 2.4vw, 32px)/1 var(--mono);
     letter-spacing: -.045em;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    overflow-wrap: anywhere;
   }
   .tile .k {
     margin-top: 7px;
@@ -415,7 +418,7 @@ PAGE = embed_research_theme(r"""<!doctype html>
     font: 9px/1 var(--mono);
     text-transform: uppercase;
   }
-  .dot { width: 6px; height: 6px; border: 1px solid currentColor; border-radius: 50%; }
+  .dot { width: 6px; height: 6px; border: 1px solid currentColor; border-radius: 0; }
   .running .dot { background: var(--warning); animation: pulse 1.2s infinite; }
   .complete .dot { background: var(--good); }
   @keyframes pulse { 50% { opacity: .3; } }
@@ -508,7 +511,6 @@ PAGE = embed_research_theme(r"""<!doctype html>
     align-items: center;
     justify-content: center;
     background: rgba(9, 34, 50, .48);
-    backdrop-filter: blur(3px);
   }
   #modal .box {
     width: min(760px, calc(100% - 28px));
@@ -550,12 +552,14 @@ PAGE = embed_research_theme(r"""<!doctype html>
     header { grid-template-columns: auto minmax(0, 1fr) auto; }
     header .sub { grid-column: 1 / -1; grid-row: 2; }
     .grid { grid-template-columns: 1fr; }
-    .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .tile:nth-child(odd) { border-left: 0; }
+    .tiles { grid-template-columns: repeat(2, minmax(150px, 1fr)); }
     .pipeline li { grid-template-columns: 112px minmax(0, 1fr); }
     .pipeline .t { display: none; }
     table { min-width: 620px; }
     .card { overflow-x: auto; }
+  }
+  @media (max-width: 420px) {
+    .tiles { grid-template-columns: 1fr; }
   }
 </style></head>
 <body>
@@ -805,14 +809,14 @@ function networkMap(state) {
 function overview(state) {
   return `
   <header>
-    <h1>Challengescape labs — live</h1>
-    <span class="sub">real runs, provenance-tracked · <span id="stamp"></span> ·
-      sources: <a href="${REPO_URL}" target="_blank" rel="noopener">efferents repo ↗</a> ·
+    <h1>Challengescape / labs</h1>
+    <span class="sub"><span id="stamp"></span> ·
+      <a href="${REPO_URL}" target="_blank" rel="noopener">repo ↗</a> ·
       <a href="${CHALLENGESCAPE_URL}" target="_blank" rel="noopener">Challengescape ↗</a> ·
-      <a href="#" onclick="showSharedIndex();return false">shared journal</a></span>
+      <a href="#" onclick="showSharedIndex();return false">journal</a></span>
     <button id="theme-button" class="btn ghost" onclick="toggleTheme()"
       aria-label="Switch to dark theme">Dark</button>
-    <button class="btn" onclick="openModal()">＋ Submit a new lab</button>
+    <button class="btn" onclick="openModal()">＋ Lab</button>
   </header>
   <div class="viewer" id="viewer" style="display:none;margin-bottom:16px"></div>
   <div class="grid">
@@ -830,20 +834,19 @@ function overview(state) {
         <div class="tile"><div class="v">${lab.runs.length}/${lab.runs_planned}</div>
           <div class="k">runs</div></div>
         <div class="tile"><div class="v">${lab.pipeline.length}</div>
-          <div class="k">agent artifacts</div></div>
+          <div class="k">artifacts</div></div>
         <div class="tile"><div class="status ${lab.status}"><span class="dot"></span>
-          ${lab.status}</div><div class="k">status</div></div>
+          ${lab.status}</div><div class="k">state</div></div>
       </div>
       ${lab.phase ? `<div style="font-size:12px;color:var(--warning);margin-bottom:6px">⚙ ${lab.phase}</div>` : ""}
       ${sparkline(lab, seriesFor(lab.name))}
       ${hypLine(lab)}
       <div class="themes">${lab.themes.map(t => `<span class="chip">${t}</span>`).join("")}</div>
-      <div class="verdict">Open the lab → agents, journal, full chart</div>
     </div>`).join("")}
   </div>
   ${venueSection(state)}
   <div class="section card">
-    <h2>Network map — how the labs connect</h2>
+    <h2>Lab network</h2>
     ${networkMap(state)}
   </div>`;
 }
@@ -876,8 +879,7 @@ function lineageSection(lab) {
     <h2>Hypothesis lineage</h2>
     <p style="margin:8px 0 4px">${chips}</p>
     ${jump ? `<p style="color:var(--text-muted);font-size:11.5px;margin:6px 0 0">
-      autonomous jump after kill-condition fired — successor cites its
-      predecessor by content hash
+      kill condition → content-hashed successor
       <code>${(jump.supersedes_hash || "").slice(0, 26)}…</code> ·
       <a href="#" onclick="showArtifact('${lab.name}','out/journal/007_hypothesis_jump.md');return false">jump record</a></p>` : ""}
   </div>`;
@@ -923,11 +925,7 @@ function venueSection(state) {
   <div class="section card">
     <h2>${v.name}</h2>
     <p style="color:var(--text-muted);font-size:12.5px;margin:6px 0 10px">
-      Real journal lifecycle: submit (methodology + machine-executable
-      reproduction recipe) → board review (${v.board.join(" / ")}) → revision
-      rounds → deterministic accept/reject → proceedings. Labs that build on a
-      paper reproduce it first — <code>venue.py reproduce</code> re-executes
-      the paper's recipe and compares every metric.
+      submit → review (${v.board.join(" / ")}) → reproduce → decide ·
       <a href="#" onclick="showArtifact('venue','proceedings/index.md');return false">proceedings index</a> ·
       <a href="#" onclick="showArtifact('venue','venue.yaml');return false">venue policy</a> ·
       <a href="#" onclick="showArtifact('venue','ledger.jsonl');return false">event ledger</a></p>
@@ -952,13 +950,13 @@ function labDetail(state, name) {
     <button id="theme-button" class="btn ghost" onclick="toggleTheme()"
       aria-label="Switch to dark theme">Dark</button>
   </header>
-  <p class="challenge" style="font-size:14px">
+  <p class="challenge detail-challenge" style="font-size:14px">
     <a href="${CHALLENGESCAPE_URL}" target="_blank" rel="noopener"
       title="Verbatim from the Encode Challengescape Climate section — open the source"
       >&ldquo;${lab.challenge}&rdquo; ↗</a>
     · <a href="#" onclick="showArtifact('${lab.name}','challenge.md');return false">challenge card</a></p>
   <p style="color:var(--text-secondary);max-width:900px">${lab.goal}</p>
-  <p style="color:var(--text-muted);font-size:12px">source of truth:
+  <p style="color:var(--text-muted);font-size:12px">source /
     <code>${lab.path}/</code> ·
     <a href="${REPO_URL}" target="_blank" rel="noopener">repo ↗</a></p>
   ${lineageSection(lab)}
@@ -970,7 +968,7 @@ function labDetail(state, name) {
     <div class="tile"><div class="v">${lab.runs.length}/${lab.runs_planned}</div>
       <div class="k">runs</div></div>
     <div class="tile"><div class="status ${lab.status}"><span class="dot"></span>${lab.status}</div>
-      <div class="k">status</div></div>
+      <div class="k">state</div></div>
   </div>
   ${lab.phase ? `<div style="font-size:13px;color:var(--warning);margin-bottom:8px">⚙ ${lab.phase}</div>` : ""}
   ${(lab.activity || []).length ? `<p style="color:var(--text-muted);font-size:12px">
@@ -985,7 +983,7 @@ function labDetail(state, name) {
         <div class="verdict"><strong>Review verdict:</strong> ${lab.verdict}</div>
       </div>
       <div class="card" style="margin-top:16px">
-        <h2>Cross-lab reviews involving this lab</h2>
+        <h2>Cross-lab reviews</h2>
         <ul class="pipeline">${related.map(r => `
           <li><span class="role">${r.reviewer === name ? "outgoing" : "incoming"}</span>
             <a onclick="showArtifact('shared','${r.file}');return false" href="#">
@@ -997,9 +995,6 @@ function labDetail(state, name) {
     </div>
     <div class="card">
       <h2>Agent pipeline</h2>
-      <p style="color:var(--text-muted);font-size:12px">Supervisor–student roles
-        derived from the recorded journal artifacts; a live lab
-        (<code>efferents start</code>) runs these as real agents. Click to read.</p>
       <ul class="pipeline">
         ${lab.pipeline.map(p => `
         <li><span class="role">${p.role}</span>

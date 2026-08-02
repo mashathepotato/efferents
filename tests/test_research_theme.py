@@ -27,7 +27,8 @@ def test_theme_contract_is_light_first_and_high_information():
     assert RESEARCH_THEME_CSS.startswith(":root {\n  color-scheme: light;")
     assert ':root[data-theme="dark"]' in RESEARCH_THEME_CSS
     assert "--bg: #ffffff;" in RESEARCH_THEME_CSS
-    assert "--signal: #0057ff;" in RESEARCH_THEME_CSS
+    assert "--signal: #03befc;" in RESEARCH_THEME_CSS
+    assert "#0057ff" not in RESEARCH_THEME_CSS
     assert "--display:" in RESEARCH_THEME_CSS
     assert "--sans: var(--display);" in RESEARCH_THEME_CSS
     assert "color-mix" not in RESEARCH_THEME_CSS
@@ -55,6 +56,7 @@ def test_challengescape_embeds_canonical_theme_without_legacy_skin():
     assert 'content: "ℯ";' in page
     assert 'content: "EF";' not in page
     assert 'id="theme-button"' in page
+    assert "grid-template-columns: repeat(auto-fit, minmax(165px, 1fr));" in page
 
 
 def test_every_example_html_app_uses_the_theme_contract():
@@ -72,5 +74,6 @@ def test_checked_in_challenge_report_uses_current_report_theme():
 
     assert 'content: "efferents / research record";' in report
     assert "--sans: var(--display);" in report
+    assert "--signal: #03befc;" in report
     assert "#b9f36a" not in report
     assert 'content: "EF / RESEARCH RECORD";' not in report

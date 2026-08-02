@@ -45,10 +45,11 @@ Read these first:
   persistent user choice. Do not default from the operating-system color
   scheme.
 - Preserve the high-information research-console vocabulary: square panels,
-  white surfaces, saturated blue rules and selections, quiet slab-serif prose
-  and headings, compact monospace metadata, dense evidence tables, visible
-  provenance, and explicit runtime/budget state. Use the lowercase `ℯ` mark;
-  never abbreviate the product name to `EF`. Avoid pale-blue fills, blur,
+  white surfaces, `#03befc` rules and selections, blocky Petra/typewriter
+  headings, compact monospace metadata, dense evidence tables, visible
+  provenance, and explicit runtime/budget state. Keep interface copy to short
+  labels and operational facts; never squeeze or truncate lab statistics. Use
+  the lowercase `ℯ` mark; never abbreviate the product name to `EF`. Avoid pale-blue fills, blur,
   ambient shadows, rounded card grids, decorative gradients, generic SaaS
   styling, and oversized whitespace.
 - `tests/test_research_theme.py` enforces the example-app boundary. Extend that

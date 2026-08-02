@@ -7,15 +7,17 @@
   --bg: #ffffff;
   --panel: #ffffff;
   --raised: #ffffff;
-  --line: #0057ff;
-  --line-soft: #0057ff;
+  --line: #03befc;
+  --line-soft: #03befc;
   --fg: #003b80;
-  --muted: #0751a6;
-  --dim: #0057ff;
-  --signal: #0057ff;
-  --cyan: #0057ff;
+  --muted: #003b80;
+  --dim: #03befc;
+  --signal: #03befc;
+  --signal-strong: #003b80;
+  --on-signal: #003b80;
+  --cyan: #03befc;
   --mono: "SFMono-Regular", Menlo, Monaco, "Cascadia Mono", "Liberation Mono", monospace;
-  --display: "Rockwell Nova", Rockwell, "American Typewriter", "Roboto Slab", serif;
+  --display: "American Typewriter", "Rockwell Nova", Rockwell, "Courier New", monospace;
   --sans: var(--display);
 }
 * { box-sizing: border-box; }
@@ -45,7 +47,7 @@ h1 {
   max-width: 1060px;
   margin: 0 0 7px;
   font-size: clamp(24px,3vw,40px);
-  font-weight: 500;
+  font-weight: 700;
   letter-spacing: -.04em;
   line-height: 1.08;
 }
@@ -89,7 +91,7 @@ main {
 }
 .cards {
   display: grid;
-  grid-template-columns: repeat(auto-fit,minmax(170px,1fr));
+  grid-template-columns: repeat(auto-fit,minmax(200px,1fr));
   gap: 1px;
   margin: 14px 0 34px !important;
   padding: 1px;
@@ -112,8 +114,9 @@ main {
 .card .v {
   margin-top: 0;
   color: var(--fg);
-  font: 500 clamp(28px,3vw,44px)/1 var(--mono);
+  font: 700 clamp(24px,3vw,42px)/1 var(--mono);
   letter-spacing: -.055em;
+  overflow-wrap: anywhere;
 }
 .card .v.ok,
 .v.ok { color: var(--signal); }
@@ -185,10 +188,10 @@ td {
   white-space: nowrap;
 }
 th {
-  color: #ffffff;
+  color: var(--on-signal);
   background: var(--signal);
   font-size: 8px;
-  font-weight: 500;
+  font-weight: 800;
   letter-spacing: .08em;
   text-transform: uppercase;
 }
@@ -219,7 +222,7 @@ tr.best td { background: transparent; }
 }
 .memos a:hover {
   background: var(--signal);
-  color: #ffffff;
+  color: var(--on-signal);
 }
 @media (max-width: 660px) {
   .banner { padding: 48px 13px 13px; }

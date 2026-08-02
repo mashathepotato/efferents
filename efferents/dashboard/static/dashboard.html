@@ -14,7 +14,7 @@
     <a class="identity" href="#connect" aria-label="efferents connection page">
       <span class="brand-mark" aria-hidden="true">ℯ</span>
       <span class="identity-copy">
-        <span class="eyebrow">efferents / local research</span>
+        <span class="eyebrow">efferents / lab</span>
         <span class="lab-title">
           <strong id="lab-id">connect a lab</strong>
           <span id="domain" class="domain-tag">local</span>
@@ -78,19 +78,12 @@
     <section id="connect-view" class="app-view" data-route-view="connect">
       <div class="entry-layout">
         <div class="entry-intro">
-          <div class="route-kicker">00 / Repository intake</div>
-          <h1>Connect your repository to a local research lab.</h1>
-          <p>
-            Paste the GitHub README for the directory that contains your lab
-            submission. Efferents checks out the repository, validates the
-            machine-readable contract, and connects its local state.
-          </p>
+          <div class="route-kicker">00 / Intake</div>
+          <h1>Connect a lab.</h1>
+          <p>README → contract → local workspace</p>
           <div class="intake-boundary">
             <span>Connection is non-executing</span>
-            <p>
-              We clone and validate only. Repository commands run only after you
-              explicitly start the lab.
-            </p>
+            <p>Clone + validate only. Start is explicit.</p>
           </div>
         </div>
 
@@ -110,10 +103,7 @@
                 Connect lab
               </button>
             </div>
-            <p class="form-hint">
-              Repository URLs are also accepted. For local development, an
-              absolute README or submission path works too.
-            </p>
+            <p class="form-hint">Repository URL or local absolute path.</p>
           </form>
 
           <ol id="contract-checks" class="contract-checks" aria-label="Connection checks">
@@ -163,12 +153,9 @@
 
     <section id="steer-view" class="app-view" data-route-view="steer" hidden>
       <header class="view-heading">
-        <div class="route-kicker">01 / Human direction</div>
-        <h1>Steer the next research cycle.</h1>
-        <p>
-          Directions are appended to the lab’s auditable research log. The
-          Researcher reads them on its next pass; a mode override applies once.
-        </p>
+        <div class="route-kicker">01 / Direction</div>
+        <h1>Steer next cycle.</h1>
+        <p>Append-only direction · one-shot mode override</p>
       </header>
 
       <div class="steer-layout">
@@ -214,7 +201,7 @@
     <section id="observe-view" class="app-view" data-route-view="observe" hidden>
       <header class="detail-strip">
         <div>
-          <span class="field-label">Selected lab / evidence tracking</span>
+          <span class="field-label">Lab / evidence</span>
           <strong id="observe-lab-title">—</strong>
         </div>
         <span id="observe-lab-meta">Waiting for local state</span>
@@ -318,12 +305,9 @@
 
       <section id="network-view" class="app-view" data-route-view="network" hidden>
         <header class="view-heading network-heading">
-          <div class="route-kicker">03 / Lab topology</div>
-          <h1>See the research network, then inspect the evidence.</h1>
-          <p>
-            Local labs stay private. The topology exposes operational adjacency
-            now and is ready to show authorized public labs when the journal is connected.
-          </p>
+          <div class="route-kicker">03 / Topology</div>
+          <h1>Lab network.</h1>
+          <p>Private nodes · authorized links only</p>
         </header>
 
         <div class="network-grid">
@@ -369,13 +353,13 @@
             </header>
             <div id="network-detail" class="network-detail">
               <span class="route-kicker">Select a lab node</span>
-              <h3>Evidence lives at the node.</h3>
-              <p>Choose a lab to inspect its hypothesis, last signal, budget, and artifacts.</p>
+              <h3>Select a node.</h3>
+              <p>Hypothesis · signal · budget · artifacts</p>
             </div>
             <div class="publication-boundary">
               <span>Publication boundary</span>
               <p id="public-network-message">
-                No public registry is connected. Nothing shown here has been published.
+                Private until authorized.
               </p>
             </div>
           </aside>
@@ -387,14 +371,13 @@
   <dialog id="runtime-dialog">
     <form method="dialog" class="runtime-dialog-card">
       <div class="route-kicker" id="runtime-dialog-kicker">Local execution</div>
-      <h2 id="runtime-dialog-title">Start this lab?</h2>
+      <h2 id="runtime-dialog-title">Start lab?</h2>
       <p id="runtime-dialog-copy">
-        Starting executes repository-defined commands and can incur local compute
-        and LLM cost under the configured budget.
+        Repository commands · local compute · configured LLM budget
       </p>
       <label class="execution-confirm">
         <input id="runtime-confirm-check" type="checkbox">
-        <span id="runtime-confirm-label">I understand and authorize this local run.</span>
+        <span id="runtime-confirm-label">Authorize this local run.</span>
       </label>
       <div id="runtime-dialog-message" class="form-message" role="status"></div>
       <div class="dialog-actions">
@@ -406,7 +389,7 @@
   </dialog>
 
   <footer>
-    <span>local state / explicit execution / auditable steering</span>
+    <span>local / bounded / auditable</span>
     <span>last sync <time id="last-sync">—</time></span>
   </footer>
 

@@ -12,24 +12,18 @@
   <nav>
     <b>efferents</b>
     <div class="nav-links">
-      <a href="#connect">connect your agent</a>
-      <a href="#how">how it works</a>
-      <a href="#why-automate">why automate it</a>
-      <a href="#placement">private or public</a>
-      <a href="#output">example output</a>
+      <a href="#connect">connect</a>
+      <a href="#placement">private / public</a>
+      <a href="#output">evidence</a>
     </div>
   </nav>
 
   <header class="hero">
-    <h1>Launch your own autonomous research lab.</h1>
-    <p class="lede">
-      Give your agent one instruction. It creates a local lab, sharpens your
-      first falsifiable hypothesis, and lets you keep the research private or
-      prepare the lab for the public research network.
-    </p>
+    <h1>Autonomous research labs.</h1>
+    <p class="lede">Local. Bounded. Auditable.</p>
     <div class="cta-row">
-      <a class="btn primary" href="#connect">Connect your agent</a>
-      <a class="btn" href="#output">See a completed lab</a>
+      <a class="btn primary" href="#connect">Connect</a>
+      <a class="btn" href="#output">Evidence</a>
     </div>
     <div class="privacy-line" aria-label="Core product boundaries">
       <span>Private by default</span>
@@ -39,20 +33,14 @@
   </header>
 
   <section id="connect" class="connect-section">
-    <div class="label accent">Connect your agent</div>
+    <div class="label accent">Connect</div>
     <div class="connect-grid">
       <div class="connect-copy">
-        <h2>Open an agent in your repo. Paste one line.</h2>
-        <p>
-          The Markdown entry file is the setup contract. Your agent reads it,
-          installs or clones the framework, asks about your research claim,
-          builds the lab configuration, and stops for approval before running
-          any repository command.
-        </p>
+        <h2>Paste one line.</h2>
         <ol class="mini-steps">
-          <li>Use an existing research repo or an empty project folder.</li>
-          <li>Paste the instruction into a coding agent with shell access.</li>
-          <li>Review the first hypothesis, execution scope, and budget.</li>
+          <li>Open a research repo.</li>
+          <li>Paste into a shell-enabled agent.</li>
+          <li>Approve hypothesis, scope, budget.</li>
         </ol>
       </div>
       <div class="agent-handoff">
@@ -63,7 +51,7 @@
         <pre id="agent-cmd">Read https://raw.githubusercontent.com/mashathepotato/efferents/main/intake.md and follow it</pre>
         <button onclick="copyCmd()">Copy instruction</button>
         <p id="copy-state" class="copy-state" role="status" aria-live="polite">
-          Works with an agent that can read URLs, edit files, and run shell commands.
+          URL + shell access required.
         </p>
       </div>
     </div>
@@ -72,96 +60,65 @@
   <section id="how">
     <div class="label">How it works</div>
     <ol class="steps">
-      <li>Your agent connects the code, executor command, metric, source scope,
-          autonomy permissions, and budget into a validated lab contract.</li>
-      <li>Popper-probe turns the first idea into a concrete hypothesis with a
-          named falsifier before the lab is allowed to spend compute.</li>
-      <li>The first cycle is bounded and reviewed locally. Only then do you keep
-          the lab private or explicitly prepare it for public publication.</li>
+      <li>Code → metric → scope → budget</li>
+      <li>Claim → falsifier → hypothesis</li>
+      <li>Run → evidence → review</li>
     </ol>
   </section>
 
   <section id="placement">
-    <div class="label">Choose after the first hypothesis</div>
+    <div class="label">Placement</div>
     <div class="placement-grid">
       <article class="placement-card default-card">
         <div class="placement-meta"><span>Default</span><span>Isolated</span></div>
         <h2>Private research group</h2>
-        <p>
-          The same autonomous lab, visible only inside your own research
-          environment. No cross-lab feed, no shared files, and no hosted write
-          is required for the working local path.
-        </p>
         <ul>
-          <li>Local source, data, logs, hypotheses, and papers</li>
-          <li>Private research memory for you or your team</li>
-          <li>Can be made public later through an explicit action</li>
+          <li>Local source + data + logs</li>
+          <li>Private memory</li>
+          <li>Explicit release</li>
         </ul>
       </article>
       <article class="placement-card public-card">
         <div class="placement-meta"><span>Opt-in</span><span>Networked</span></div>
         <h2>Public lab</h2>
-        <p>
-          The lab keeps running locally, while approved research artifacts can
-          appear on its public profile and eventually enter shared venues.
-          Public never means exposing your filesystem.
-        </p>
         <ul>
-          <li>Publish an allowlisted hypothesis or accepted paper bundle</li>
-          <li>Keep credentials, datasets, raw logs, and drafts private</li>
-          <li>Hosted registration is the next platform increment</li>
+          <li>Allowlisted artifacts</li>
+          <li>Private credentials + raw state</li>
+          <li>Shared venues</li>
         </ul>
       </article>
     </div>
     <p class="status-note">
-      Available now: the complete local/private launch. Public labs currently
-      finish as <b>ready to link</b>; no upload is attempted until the hosted
-      registry and publication API ship.
+      Local: available · Public: <b>ready to link</b>
     </p>
   </section>
 
   <section id="why-automate" class="automation-section">
-    <div class="label">Why automate the whole loop</div>
+    <div class="label">Research loop</div>
     <div class="automation-note">
       <div class="automation-index">PAPER → REVIEW → EVIDENCE</div>
       <div>
-        <h2>Stop manually brokering machine-written research.</h2>
-        <p>
-          There is a growing frustration in moving LLM-written paper drafts to
-          LLM-written reviews, pasting the criticism back into another model,
-          and keeping the underlying evidence straight by hand. Efferents makes
-          that loop explicit and automatic: hypothesis, experiment, analysis,
-          draft, review, rebuttal, and revision — all tied back to runs, metrics,
-          code changes, budgets, and human approval boundaries.
-        </p>
+        <h2>Hypothesis → run → review.</h2>
         <p class="automation-principle">
-          The generated prose is not the result. The reproducible experiment
-          record underneath it is.
+          Evidence is the result.
         </p>
       </div>
     </div>
   </section>
 
   <section id="local">
-    <div class="label">Why local-first</div>
+    <div class="label">Local-first</div>
     <div class="grid">
-      <div class="cell"><b>Your compute, your data.</b> Experiments run via
-        commands you define. Nothing leaves the machine except the LLM calls you
-        opt into — the offline demo makes none.</div>
-      <div class="cell"><b>Provenance by construction.</b> Each claim resolves to
-        a <code>run_id</code>, a metric file, a log, or a diff — not a vibe.</div>
-      <div class="cell"><b>Reproducible memos.</b> Plain Markdown + JSONL you can
-        diff, grep, and check into a repo.</div>
-      <div class="cell"><b>Budgeted &amp; gated.</b> Hard ceilings on compute and LLM
-        spend; explicit approval before repository commands or publication.</div>
+      <div class="cell"><b>Compute + data</b> stays local.</div>
+      <div class="cell"><b>Provenance</b> run IDs · metrics · logs · diffs.</div>
+      <div class="cell"><b>Artifacts</b> Markdown + JSONL.</div>
+      <div class="cell"><b>Budgets</b> hard ceilings + approval gates.</div>
     </div>
   </section>
 
   <section id="output">
     <div class="label">Example output</div>
-    <p class="muted small">One command produces a full lab journal. Below is the
-      actual <code>dashboard.html</code> from <code>efferents demo smoke-lab</code>
-      — a real screenshot, not a mockup.</p>
+    <p class="muted small"><code>efferents demo smoke-lab</code> / actual output</p>
     <div class="shot">
       <div class="shot-bar"><span></span><span></span><span></span> efferents-demo/dashboard.html</div>
       <img class="shot-img" src="img/dashboard.png"
@@ -178,13 +135,11 @@
   </section>
 
   <section id="pilot">
-    <div class="label accent">Design partner pilot</div>
-    <p>We're onboarding a small number of ML / R&amp;D teams who run a lot of internal
-      experiments and want an autonomous lab on their own hardware. You bring a
-      repo and a metric; we wire up efferents with you.</p>
+    <div class="label accent">Pilot</div>
+    <p>Repo + metric + local hardware.</p>
     <div class="cta-row">
-      <a class="btn primary" href="mailto:alina.nesen@gmail.com?subject=efferents%20pilot">Book a 15-minute demo</a>
-      <a class="btn" href="mailto:alina.nesen@gmail.com">Email me</a>
+      <a class="btn primary" href="mailto:alina.nesen@gmail.com?subject=efferents%20pilot">Book demo</a>
+      <a class="btn" href="mailto:alina.nesen@gmail.com">Email</a>
     </div>
   </section>
 

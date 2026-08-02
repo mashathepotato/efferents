@@ -231,11 +231,11 @@ def _campaign_status(c: dict) -> tuple[str, str]:
 
 
 _STATUS_COLORS = {
-    "open": "#0057ff",
+    "open": "#03befc",
     "resolved": "#003b80",
-    "stale": "#0751a6",
+    "stale": "#003b80",
     "no-novel": "#f07c82",
-    "closed": "#0057ff",
+    "closed": "#03befc",
     "uncampaigned": "#003b80",
 }
 
@@ -275,9 +275,9 @@ def _trend_png_b64(snap: dict, db_path=None) -> str | None:
     axes = axes.flatten()
     for ax in axes:
         ax.set_facecolor("#ffffff")
-        ax.tick_params(colors="#0751a6", labelsize=7)
+        ax.tick_params(colors="#003b80", labelsize=7)
         for spine in ax.spines.values():
-            spine.set_color("#0057ff")
+            spine.set_color("#03befc")
 
     n_panels_with_data = 0
     for ax, (col, label, target) in zip(axes, _panel_metrics(db_path)):
@@ -291,17 +291,17 @@ def _trend_png_b64(snap: dict, db_path=None) -> str | None:
             cs.append(_STATUS_COLORS.get(css, "#003b80"))
         if not xs:
             ax.text(0.5, 0.5, f"no data for {col}", ha="center", va="center",
-                    transform=ax.transAxes, color="#0751a6", fontsize=9)
+                    transform=ax.transAxes, color="#003b80", fontsize=9)
             ax.set_xticks([])
             ax.set_yticks([])
             ax.set_title(label, fontsize=10, color="#003b80", loc="left")
             continue
         n_panels_with_data += 1
-        ax.plot(xs, ys, color="#0057ff", linewidth=1, zorder=1)
+        ax.plot(xs, ys, color="#03befc", linewidth=1, zorder=1)
         ax.scatter(xs, ys, c=cs, s=38, zorder=2,
                    edgecolor="#ffffff", linewidth=0.9)
         if target is not None:
-            ax.axhline(target, color="#0057ff", linestyle="--", linewidth=1,
+            ax.axhline(target, color="#03befc", linestyle="--", linewidth=1,
                        zorder=0)
         ax.set_title(label, fontsize=10, color="#003b80", loc="left")
         # Tick labels on the bottom-row panels only (so labels don't fight each other)
@@ -309,7 +309,7 @@ def _trend_png_b64(snap: dict, db_path=None) -> str | None:
         ax.set_xticklabels(
             [p[0] for p in positions], rotation=45, ha="right", fontsize=7
         )
-        ax.grid(True, color="#0057ff", linewidth=0.35)
+        ax.grid(True, color="#03befc", linewidth=0.35)
 
     if n_panels_with_data == 0:
         plt.close(fig)
@@ -471,11 +471,11 @@ h1 { margin-bottom: 4px; }
 :root {
   color-scheme: light;
   --bg: #ffffff; --panel: #ffffff; --raised: #ffffff;
-  --line: #0057ff; --line-soft: #0057ff; --fg: #003b80;
-  --muted: #0751a6; --dim: #0057ff; --signal: #0057ff;
-  --cyan: #0057ff; --danger: #f07c82; --warning: #0057ff;
+  --line: #03befc; --line-soft: #03befc; --fg: #003b80;
+  --muted: #003b80; --dim: #03befc; --signal: #03befc;
+  --cyan: #03befc; --danger: #f07c82; --warning: #03befc;
   --mono: "SFMono-Regular", Menlo, Monaco, "Cascadia Mono", "Liberation Mono", monospace;
-  --display: "Rockwell Nova", Rockwell, "American Typewriter", "Roboto Slab", serif;
+  --display: "American Typewriter", "Rockwell Nova", Rockwell, "Courier New", monospace;
   --sans: var(--display);
 }
 * { box-sizing: border-box; }
@@ -491,7 +491,7 @@ a:hover { color: var(--signal); }
 code { padding: 1px 4px; border: 1px solid var(--line); background: var(--panel);
        color: var(--signal); font-family: var(--mono); }
 h1 { margin: 0 0 7px; font-size: clamp(26px, 3.5vw, 44px);
-     font-weight: 500; letter-spacing: -.045em; line-height: 1.04; }
+     font-weight: 700; letter-spacing: -.045em; line-height: 1.04; }
 .meta { margin-bottom: 22px; color: var(--muted); font: 10px/1.5 var(--mono);
         letter-spacing: .035em; text-transform: uppercase; }
 .trend { margin: 22px 0 30px; border: 1px solid var(--line); background: var(--panel); }
