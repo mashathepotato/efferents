@@ -58,6 +58,8 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 payload = self.control.info()
                 payload["csrf_token"] = self.csrf_token
                 return self._send_json(payload)
+            if path == "/api/labs":
+                return self._send_json(self.control.portfolio())
 
             connected = self.control.snapshot()
             if path == "/api/state":
@@ -98,6 +100,10 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 return self._send_json(
                     self.control.connect(str(payload.get("source") or "")),
                     status=200,
+                )
+            if path == "/api/labs/select":
+                return self._send_json(
+                    self.control.select_lab(str(payload.get("lab_id") or ""))
                 )
             if path == "/api/steer":
                 return self._send_json(self.control.steer(

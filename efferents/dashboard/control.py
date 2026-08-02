@@ -22,6 +22,7 @@ from urllib.parse import unquote, urlsplit
 from efferents import daemon
 from efferents import lab as lab_mod
 from efferents.cli import _init_lab_root
+from efferents.dashboard import reader
 from efferents.lab import LabConfig, SubmissionError
 from efferents.registry import LabRecord, Registry
 
@@ -308,6 +309,100 @@ class ControlContext:
     def snapshot(self) -> ConnectedLab | None:
         with self._lock:
             return self._connected
+
+    def portfolio(self) -> dict:
+        """Return every valid local lab without implying public registration."""
+        selected = self.snapshot()
+        records = {record.lab_id: record for record in Registry().list()}
+        if selected is not None and selected.cfg.lab_id not in records:
+            records[selected.cfg.lab_id] = LabRecord(
+                lab_id=selected.cfg.lab_id,
+                submission_dir=str(selected.submission_dir),
+                lab_root=str(selected.lab_root),
+                pid=0,
+                started_at="",
+                status="stopped",
+            )
+
+        labs: list[dict] = []
+        for record in records.values():
+            submission = Path(record.submission_dir).expanduser().resolve()
+            lab_root = Path(record.lab_root).expanduser().resolve()
+            try:
+                if selected is not None and record.lab_id == selected.cfg.lab_id:
+                    cfg = selected.cfg
+                else:
+                    cfg = LabConfig.from_submission(submission, check_paths=False)
+                summary = reader.read_summary(lab_root, cfg)
+            except (OSError, SubmissionError, RuntimeError):
+                continue
+            labs.append({
+                "lab_id": cfg.lab_id,
+                "domain": cfg.domain,
+                "subdomain": cfg.subdomain,
+                "pi_handle": cfg.pi_handle,
+                "repository": cfg.code_repo,
+                "submission_dir": str(submission),
+                "selected": selected is not None and cfg.lab_id == selected.cfg.lab_id,
+                "visibility": "private",
+                **summary,
+            })
+
+        labs.sort(key=lambda lab: (
+            not lab["selected"],
+            lab["status"] != "running",
+            str(lab["lab_id"]).casefold(),
+        ))
+        edges = []
+        for index, source in enumerate(labs):
+            for target in labs[index + 1:]:
+                if source["domain"] == target["domain"]:
+                    edges.append({
+                        "source": source["lab_id"],
+                        "target": target["lab_id"],
+                        "kind": "shared-domain",
+                    })
+        return {
+            "labs": labs,
+            "edges": edges,
+            "public_network": {
+                "connected": False,
+                "labs": 0,
+                "message": (
+                    "No public registry is connected. Local labs remain private until "
+                    "a human explicitly authorizes publication."
+                ),
+            },
+        }
+
+    def select_lab(self, lab_id: str) -> dict:
+        """Switch the dashboard to a registered lab without executing it."""
+        lab_id = lab_id.strip()
+        if not lab_id:
+            raise ControlError("Choose a local lab to inspect.")
+        record = Registry().get(lab_id)
+        if record is None:
+            raise ControlError(f"Unknown local lab: {lab_id!r}.", status=404)
+        submission = Path(record.submission_dir).expanduser().resolve()
+        lab_root = Path(record.lab_root).expanduser().resolve()
+        try:
+            cfg = LabConfig.from_submission(submission, check_paths=False)
+        except SubmissionError as exc:
+            raise ControlError(
+                f"Registered lab can no longer be loaded: {exc}", status=422
+            ) from exc
+        connected = ConnectedLab(
+            cfg=cfg,
+            submission_dir=submission,
+            lab_root=lab_root,
+            source=str(submission / "README.md"),
+            repository=cfg.code_repo,
+            readme_path="README.md" if (submission / "README.md").is_file() else None,
+        )
+        lab_mod.set_config(cfg)
+        with self._lock:
+            self._connected = connected
+        return self.info()
 
     def connect(self, value: str) -> dict:
         value = value.strip()

@@ -104,6 +104,44 @@ def read_activity(lab_root: Path, n: int = 20) -> list[dict]:
     return entries[:n]
 
 
+def read_summary(lab_root: Path, cfg: "LabConfig") -> dict:
+    """Return the compact, evidence-backed state used by the lab portfolio rail."""
+    state = read_state(lab_root, cfg=cfg)
+    run_data = read_runs(lab_root, n=60, cfg=cfg)
+    papers = read_papers(lab_root)
+    activity = read_activity(lab_root, n=1)
+    values = [
+        float(run["value"])
+        for run in run_data["runs"]
+        if run.get("value") is not None
+    ]
+    direction = run_data["headline"]["direction"]
+    best = (
+        (max(values) if direction == "max" else min(values))
+        if values
+        else None
+    )
+    latest_run = run_data["runs"][0] if run_data["runs"] else {}
+    last_activity = (
+        activity[0].get("timestamp")
+        if activity
+        else latest_run.get("started_at")
+    )
+    return {
+        "status": state["status"],
+        "budget": state["budget"],
+        "headline": {
+            **run_data["headline"],
+            "best": best,
+            "latest": latest_run.get("value"),
+            "observations": len(run_data["runs"]),
+        },
+        "papers": len(papers),
+        "last_activity": last_activity,
+        "hypothesis": state["hypothesis"],
+    }
+
+
 def _budget_spent(path: Path) -> float:
     if not path.exists():
         return 0.0
