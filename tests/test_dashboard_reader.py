@@ -146,3 +146,26 @@ def test_read_runs_coerces_non_numeric_metric_to_none(tmp_path, smoke_lab_config
     assert by_id["r1"] is None
     assert by_id["r2"] == 0.04
     assert [pt["value"] for pt in out["series"]] == [0.04]
+
+
+def test_read_summary_counts_and_ranks_full_history(tmp_path, smoke_lab_config):
+    db = tmp_path / "runs.sqlite"
+    conn = sqlite3.connect(db)
+    conn.execute(
+        "CREATE TABLE runs (run_id TEXT PRIMARY KEY, started_at TEXT, "
+        "ended_at TEXT, synthetic_loss REAL)"
+    )
+    conn.executemany(
+        "INSERT INTO runs (run_id, started_at, synthetic_loss) VALUES (?, ?, ?)",
+        [
+            (f"r{i:03}", f"2026-06-01T10:{i:02}:00", float(100 - i))
+            for i in range(75)
+        ],
+    )
+    conn.commit()
+    conn.close()
+
+    summary = reader.read_summary(tmp_path, smoke_lab_config)
+
+    assert summary["headline"]["observations"] == 75
+    assert summary["headline"]["best"] == 26.0

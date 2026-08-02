@@ -231,11 +231,11 @@ def _campaign_status(c: dict) -> tuple[str, str]:
 
 
 _STATUS_COLORS = {
-    "open": "#03befc",
+    "open": "#003b80",
     "resolved": "#003b80",
     "stale": "#003b80",
     "no-novel": "#f07c82",
-    "closed": "#03befc",
+    "closed": "#003b80",
     "uncampaigned": "#003b80",
 }
 
@@ -277,7 +277,7 @@ def _trend_png_b64(snap: dict, db_path=None) -> str | None:
         ax.set_facecolor("#ffffff")
         ax.tick_params(colors="#003b80", labelsize=7)
         for spine in ax.spines.values():
-            spine.set_color("#03befc")
+            spine.set_color("#003b80")
 
     n_panels_with_data = 0
     for ax, (col, label, target) in zip(axes, _panel_metrics(db_path)):
@@ -297,11 +297,11 @@ def _trend_png_b64(snap: dict, db_path=None) -> str | None:
             ax.set_title(label, fontsize=10, color="#003b80", loc="left")
             continue
         n_panels_with_data += 1
-        ax.plot(xs, ys, color="#03befc", linewidth=1, zorder=1)
+        ax.plot(xs, ys, color="#d4a017", linewidth=1, zorder=1)
         ax.scatter(xs, ys, c=cs, s=38, zorder=2,
                    edgecolor="#ffffff", linewidth=0.9)
         if target is not None:
-            ax.axhline(target, color="#03befc", linestyle="--", linewidth=1,
+            ax.axhline(target, color="#f06c00", linestyle="--", linewidth=1,
                        zorder=0)
         ax.set_title(label, fontsize=10, color="#003b80", loc="left")
         # Tick labels on the bottom-row panels only (so labels don't fight each other)
@@ -309,7 +309,7 @@ def _trend_png_b64(snap: dict, db_path=None) -> str | None:
         ax.set_xticklabels(
             [p[0] for p in positions], rotation=45, ha="right", fontsize=7
         )
-        ax.grid(True, color="#03befc", linewidth=0.35)
+        ax.grid(True, color="#003b80", linewidth=0.35)
 
     if n_panels_with_data == 0:
         plt.close(fig)
@@ -473,7 +473,8 @@ h1 { margin-bottom: 4px; }
   --bg: #ffffff; --panel: #ffffff; --raised: #ffffff;
   --line: #003b80; --line-soft: #003b80; --fg: #003b80;
   --muted: #003b80; --dim: #003b80; --signal: #003b80;
-  --cyan: #003b80; --accent: #03befc; --danger: #f07c82; --warning: #003b80;
+  --data: #003b80; --mustard: #d4a017; --orange: #f06c00;
+  --danger: #f07c82; --warning: #003b80;
   --mono: "SFMono-Regular", Menlo, Monaco, "Cascadia Mono", "Liberation Mono", monospace;
   --display: "American Typewriter", "Rockwell Nova", Rockwell, "Courier New", monospace;
   --sans: var(--display);
@@ -516,7 +517,7 @@ h1 { margin: 0 0 7px; font-size: clamp(26px, 3.5vw, 44px);
 .status { padding: 3px 6px; border: 1px solid currentColor; border-radius: 0;
           background: transparent; font: 700 8px/1 var(--mono);
           letter-spacing: .09em; text-transform: uppercase; }
-.status-open { background: transparent; color: var(--cyan); }
+.status-open { background: transparent; color: var(--data); }
 .status-resolved { background: transparent; color: var(--signal); }
 .status-stale { background: transparent; color: var(--muted); }
 .status-no-novel { background: transparent; color: var(--danger); }
@@ -539,7 +540,7 @@ h1 { margin: 0 0 7px; font-size: clamp(26px, 3.5vw, 44px);
 .arch .arch-stats { color: var(--muted); font: 9px/1.5 var(--mono); }
 .arch-body { padding: 14px; }
 .arch-stats-block { margin-bottom: 12px; padding: 9px 12px;
-                    border-left: 2px solid var(--cyan); border-radius: 0;
+                    border-left: 2px solid var(--data); border-radius: 0;
                     background: var(--panel); color: var(--muted);
                     font: 10px/1.6 var(--mono); }
 
@@ -555,7 +556,7 @@ h1 { margin: 0 0 7px; font-size: clamp(26px, 3.5vw, 44px);
 .run-detail { padding: 10px 12px 12px; border-color: var(--line);
               background: var(--panel); color: var(--muted); font: 9px/1.55 var(--mono); }
 .run-detail .kv .k { color: var(--dim); }
-.run-detail .commit-msg { border-color: var(--line); color: var(--cyan); }
+.run-detail .commit-msg { border-color: var(--line); color: var(--data); }
 .empty { padding: 28px; border-color: var(--line); border-radius: 0;
          color: var(--dim); font: 9px/1.5 var(--mono);
          letter-spacing: .05em; text-transform: uppercase; }

@@ -56,6 +56,39 @@ def test_api_runs(running_server):
     assert body["runs"][0]["run_id"] == "r1"
 
 
+def test_api_serves_only_catalogued_visual_evidence(
+    running_server, tmp_path, smoke_lab_config
+):
+    image = smoke_lab_config.source.dir / "sample.png"
+    image.write_bytes(b"\x89PNG\r\n\x1a\nserved")
+    observation = json.dumps([{
+        "name": "sample",
+        "dimensions": {"seed": 4},
+        "metrics": {"synthetic_loss": 0.05},
+        "artifacts": [{"kind": "sample_grid", "path": str(image)}],
+    }])
+    conn = sqlite3.connect(tmp_path / "runs.sqlite")
+    conn.execute("ALTER TABLE runs ADD COLUMN observations_json TEXT")
+    conn.execute("ALTER TABLE runs ADD COLUMN artifacts_json TEXT")
+    conn.execute(
+        "UPDATE runs SET observations_json = ?, artifacts_json = '[]' WHERE run_id = 'r1'",
+        (observation,),
+    )
+    conn.commit()
+    conn.close()
+
+    status, body = _get(running_server, "/api/evidence")
+
+    assert status == 200
+    artifact_url = body["records"][0]["artifacts"][0]["url"]
+    assert str(image) not in artifact_url
+    with urllib.request.urlopen(
+        f"http://127.0.0.1:{running_server}{artifact_url}"
+    ) as response:
+        assert response.headers["Content-Type"] == "image/png"
+        assert response.read() == image.read_bytes()
+
+
 def test_api_papers_empty(running_server):
     status, body = _get(running_server, "/api/papers")
     assert status == 200

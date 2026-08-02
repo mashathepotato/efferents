@@ -62,6 +62,23 @@ function formatMetric(value) {
   return number.toLocaleString(undefined, { maximumSignificantDigits: 6 });
 }
 
+function quantile(values, fraction) {
+  if (!values.length) return null;
+  const sorted = [...values].sort((left, right) => left - right);
+  const position = (sorted.length - 1) * fraction;
+  const lower = Math.floor(position);
+  const remainder = position - lower;
+  return sorted[lower + 1] == null
+    ? sorted[lower]
+    : sorted[lower] + remainder * (sorted[lower + 1] - sorted[lower]);
+}
+
+function compactRunId(value) {
+  const runId = String(value || "");
+  if (runId.length <= 22) return runId || "—";
+  return `…${runId.slice(-21)}`;
+}
+
 function formatTimestamp(value, compact = false) {
   if (!value) return "—";
   const date = new Date(value);
@@ -441,8 +458,12 @@ function renderState(state) {
 
   const hypothesis = state.hypothesis || {};
   text("student", hypothesis.student ? `student / ${hypothesis.student}` : "student / —");
-  text("question", hypothesis.question || "No open campaign.");
-  text("claim", hypothesis.claim || "No claim.");
+  const question = hypothesis.question || "No open campaign.";
+  const claim = hypothesis.claim || "No claim.";
+  text("question", question);
+  text("claim", question.replace(/\s+/g, " ").trim() === claim.replace(/\s+/g, " ").trim()
+    ? "Matches the active hypothesis above."
+    : claim);
   text("falsifier", hypothesis.falsifier || "No falsifier.");
 }
 
@@ -451,49 +472,79 @@ function renderRuns(data) {
   const direction = headline.direction === "max" ? "max" : "min";
   const directionLabel = direction === "max" ? "higher is better" : "lower is better";
   const runs = Array.isArray(data.runs) ? data.runs : [];
-  const values = runs
-    .map((run) => Number(run.value))
-    .filter((value) => Number.isFinite(value));
-  const best = values.length
-    ? (direction === "max" ? Math.max(...values) : Math.min(...values))
+  const history = data.history || {};
+  const observedRuns = runs.filter((run) => Number.isFinite(Number(run.value)));
+  const eligibleRuns = observedRuns.filter((run) => run.eligible !== false);
+  const eligibleValues = eligibleRuns.map((run) => Number(run.value));
+  const recentBest = eligibleValues.length
+    ? (direction === "max" ? Math.max(...eligibleValues) : Math.min(...eligibleValues))
     : null;
-  const latest = runs.length && Number.isFinite(Number(runs[0].value))
-    ? Number(runs[0].value)
-    : null;
+  const best = Number.isFinite(Number(history.best)) ? Number(history.best) : recentBest;
+  const latest = eligibleRuns.length ? Number(eligibleRuns[0].value) : null;
+  const bestRunId = history.best_run_id ||
+    eligibleRuns.find((run) => Number(run.value) === best)?.run_id || "";
+  const median = quantile(eligibleValues, 0.5);
+  const lowerQuartile = quantile(eligibleValues, 0.25);
+  const upperQuartile = quantile(eligibleValues, 0.75);
+  const iqr = lowerQuartile == null || upperQuartile == null
+    ? null
+    : upperQuartile - lowerQuartile;
+  const excludedCount = runs.filter((run) => run.eligible === false).length;
 
   text("metric-label", headline.column || "Headline metric");
   text("metric-direction", directionLabel);
   text("run-metric-header", headline.column || "Result");
-  text("run-count", `${runs.length} ${runs.length === 1 ? "record" : "records"}`);
+  text("run-count", `${runs.length} recent / ${Number(history.total || runs.length)} total`);
   text("metric-best", formatMetric(best));
+  text("metric-latest", formatMetric(latest));
+  text("metric-eligible", `${eligibleRuns.length} / ${runs.length}`);
+  text("metric-median", formatMetric(median));
+  text("metric-iqr", formatMetric(iqr));
+  const bestRunElement = document.getElementById("metric-best-run");
+  bestRunElement.textContent = compactRunId(bestRunId);
+  bestRunElement.title = bestRunId;
 
   if (latest == null || best == null) {
     text("metric-delta", "—");
   } else {
-    const gap = latest - best;
-    const prefix = gap > 0 ? "+" : "";
-    text("metric-delta", gap === 0 ? "at best" : `${prefix}${formatMetric(gap)}`);
+    const gap = direction === "max" ? best - latest : latest - best;
+    text("metric-delta", Math.abs(gap) < Number.EPSILON ? "at best" : formatMetric(gap));
   }
 
   const tbody = document.querySelector("#runs tbody");
   tbody.innerHTML = "";
   const firstBestIndex = runs.findIndex((run) =>
-    Number.isFinite(Number(run.value)) && Number(run.value) === best
+    run.eligible !== false && Number.isFinite(Number(run.value)) && Number(run.value) === best
   );
   runs.forEach((run, index) => {
     const numericValue = Number(run.value);
     const hasValue = Number.isFinite(numericValue);
-    const tiesBest = hasValue && best != null && numericValue === best;
+    const eligible = hasValue && run.eligible !== false;
+    const excluded = run.eligible === false;
+    const tiesBest = eligible && best != null && numericValue === best;
     const isBest = tiesBest && index === firstBestIndex;
     const row = document.createElement("tr");
-    if (isBest) row.className = "is-best";
+    row.className = isBest ? "is-best" : excluded ? "is-excluded" : "";
+    const failures = Array.isArray(run.constraint_failures)
+      ? run.constraint_failures.join("; ")
+      : "";
+    if (failures) row.title = failures;
+    const validity = isBest
+      ? "best"
+      : tiesBest
+        ? "ties best"
+        : excluded
+          ? "excluded"
+          : hasValue
+            ? "eligible"
+            : "missing";
     row.innerHTML =
       `<td>${String(runs.length - index).padStart(2, "0")}</td>` +
       `<td class="run-id" title="${esc(run.run_id || "")}">${esc(run.run_id || "—")}</td>` +
       `<td title="${esc(run.started_at || "")}">${esc(formatTimestamp(run.started_at))}</td>` +
       `<td class="metric-cell">${esc(formatMetric(run.value))}</td>` +
-      `<td><span class="signal-tag${isBest ? " best" : ""}">` +
-      `${isBest ? "best" : tiesBest ? "ties best" : hasValue ? "observed" : "missing"}</span></td>`;
+      `<td><span class="signal-tag${isBest ? " best" : excluded ? " excluded" : ""}">` +
+      `${validity}</span></td>`;
     tbody.appendChild(row);
   });
 
@@ -503,7 +554,12 @@ function renderRuns(data) {
     tbody.appendChild(row);
   }
 
-  renderTrend(Array.isArray(data.series) ? data.series : [], direction);
+  renderTrend(Array.isArray(data.series) ? data.series : [], direction, {
+    metric: headline.column || "metric",
+    eligible: eligibleRuns.length,
+    excluded: excludedCount,
+    median,
+  });
 }
 
 function svgElement(name, attributes = {}) {
@@ -512,20 +568,25 @@ function svgElement(name, attributes = {}) {
   return element;
 }
 
-function renderTrend(series, direction) {
+function renderTrend(series, direction, summary = {}) {
   const svg = document.getElementById("trend");
   svg.innerHTML = "";
+  const finiteSeries = series.filter((point) => Number.isFinite(Number(point.value)));
+  svg.setAttribute(
+    "aria-label",
+    `${summary.metric || "metric"} across ${finiteSeries.length} eligible observations`,
+  );
 
-  if (!series.length) {
-    text("trend-caption", "No metric observations");
+  if (!finiteSeries.length) {
+    text("trend-caption", "No eligible metric observations");
     text("metric-range", "—");
     return;
   }
 
   const width = 600;
   const height = 180;
-  const padding = { top: 14, right: 18, bottom: 24, left: 42 };
-  const values = series.map((point) => Number(point.value));
+  const padding = { top: 14, right: 18, bottom: 24, left: 62 };
+  const values = finiteSeries.map((point) => Number(point.value));
   const rawMin = Math.min(...values);
   const rawMax = Math.max(...values);
   const rawSpan = rawMax - rawMin;
@@ -544,12 +605,19 @@ function renderTrend(series, direction) {
       y2: y,
       class: "grid-line",
     }));
+    const tick = svgElement("text", {
+      x: padding.left - 7,
+      y: y + 3,
+      "text-anchor": "end",
+    });
+    tick.textContent = formatMetric(max - ((max - min) / 4) * index);
+    svg.appendChild(tick);
   }
 
-  const coordinates = series.map((point, index) => {
-    const x = series.length === 1
+  const coordinates = finiteSeries.map((point, index) => {
+    const x = finiteSeries.length === 1
       ? padding.left + chartWidth / 2
-      : padding.left + (index / (series.length - 1)) * chartWidth;
+      : padding.left + (index / (finiteSeries.length - 1)) * chartWidth;
     const y = padding.top + (1 - ((Number(point.value) - min) / (max - min))) * chartHeight;
     return { x, y, value: Number(point.value) };
   });
@@ -573,30 +641,104 @@ function renderTrend(series, direction) {
     }));
   });
 
-  const topLabel = svgElement("text", { x: 2, y: padding.top + 3 });
-  topLabel.textContent = formatMetric(rawMax);
-  svg.appendChild(topLabel);
-  const bottomLabel = svgElement("text", { x: 2, y: height - padding.bottom + 3 });
-  bottomLabel.textContent = formatMetric(rawMin);
-  svg.appendChild(bottomLabel);
+  if (summary.median != null) {
+    const medianY = padding.top +
+      (1 - ((Number(summary.median) - min) / (max - min))) * chartHeight;
+    svg.appendChild(svgElement("line", {
+      x1: padding.left,
+      x2: width - padding.right,
+      y1: medianY,
+      y2: medianY,
+      class: "reference-line",
+    }));
+    const medianLabel = svgElement("text", {
+      x: width - padding.right,
+      y: medianY - 4,
+      "text-anchor": "end",
+      class: "reference-label",
+    });
+    medianLabel.textContent = `median ${formatMetric(summary.median)}`;
+    svg.appendChild(medianLabel);
+  }
 
   const startLabel = svgElement("text", {
     x: padding.left,
     y: height - 6,
     "text-anchor": "start",
   });
-  startLabel.textContent = formatTimestamp(series[0].started_at, true);
+  startLabel.textContent = formatTimestamp(finiteSeries[0].started_at, true);
   svg.appendChild(startLabel);
   const endLabel = svgElement("text", {
     x: width - padding.right,
     y: height - 6,
     "text-anchor": "end",
   });
-  endLabel.textContent = formatTimestamp(series[series.length - 1].started_at, true);
+  endLabel.textContent = formatTimestamp(finiteSeries[finiteSeries.length - 1].started_at, true);
   svg.appendChild(endLabel);
 
-  text("trend-caption", `${series.length} observations / chronological`);
+  text(
+    "trend-caption",
+    `${finiteSeries.length} eligible / chronological` +
+      (summary.excluded ? ` · ${summary.excluded} excluded` : ""),
+  );
   text("metric-range", `range ${formatMetric(rawMin)} — ${formatMetric(rawMax)}`);
+}
+
+function renderEvidence(data) {
+  const panel = document.getElementById("evidence-panel");
+  const records = Array.isArray(data?.records) ? data.records : [];
+  const metricPanels = Array.isArray(data?.panels) ? data.panels : [];
+  const constraints = Array.isArray(data?.constraints) ? data.constraints : [];
+  panel.hidden = records.length === 0;
+  text(
+    "evidence-count",
+    `${records.length} visual ${records.length === 1 ? "record" : "records"} / ` +
+      `${Number(data?.artifact_count || 0)} images`,
+  );
+  if (!records.length) return;
+
+  const gates = document.getElementById("evidence-gates");
+  gates.innerHTML = constraints.length
+    ? constraints.map((constraint) =>
+      `<span class="evidence-gate"><strong>${esc(constraint.label || constraint.column)}</strong> ` +
+      `${esc(constraint.column)} ${esc(constraint.op)} ${esc(formatMetric(constraint.value))}</span>`
+    ).join("")
+    : '<span class="evidence-axis"><strong>No eligibility gates</strong></span>';
+  gates.insertAdjacentHTML(
+    "beforeend",
+    `<span class="evidence-axis"><strong>${metricPanels.length}</strong> configured metrics</span>`,
+  );
+
+  const gallery = document.getElementById("evidence-gallery");
+  gallery.innerHTML = records.map((record) => {
+    const dimensions = Object.entries(record.dimensions || {});
+    const failures = Array.isArray(record.constraint_failures)
+      ? record.constraint_failures
+      : [];
+    const artifact = (record.artifacts || [])[0];
+    const metricRows = metricPanels
+      .filter((metric) => record.metrics?.[metric.column] != null)
+      .map((metric) =>
+        `<div><dt title="${esc(metric.label)}">${esc(metric.label)}</dt>` +
+        `<dd>${esc(formatMetric(record.metrics[metric.column]))}</dd></div>`
+      ).join("");
+    return `<article class="evidence-record ${record.eligible ? "is-eligible" : "is-excluded"}">` +
+      (artifact
+        ? `<a class="evidence-artifact" href="${esc(artifact.url)}" target="_blank" rel="noopener" ` +
+          `aria-label="Open ${esc(record.name)} image at full resolution">` +
+          `<img src="${esc(artifact.url)}" loading="lazy" alt="${esc(record.name)} visual result"></a>`
+        : "") +
+      `<div class="evidence-record-body"><div class="evidence-record-head">` +
+      `<strong title="${esc(record.run_id)}">${esc(record.name || compactRunId(record.run_id))}</strong>` +
+      `<span class="evidence-validity">${record.eligible ? "eligible" : "excluded"}</span></div>` +
+      `<div class="evidence-dimensions">` +
+      dimensions.map(([key, value]) => `<span>${esc(key)}=<strong>${esc(value)}</strong></span>`).join("") +
+      `</div><dl class="evidence-metrics">${metricRows}</dl>` +
+      (failures.length
+        ? `<p class="evidence-failure">${failures.map(esc).join(" · ")}</p>`
+        : "") +
+      `</div></article>`;
+  }).join("");
 }
 
 function renderPapers(papers) {
@@ -643,6 +785,7 @@ async function refreshObserver() {
   const requests = [
     ["/api/state", renderState],
     ["/api/runs", renderRuns],
+    ["/api/evidence", renderEvidence],
     ["/api/papers", renderPapers],
     ["/api/activity", renderActivity],
   ];
@@ -781,6 +924,17 @@ function initRuntimeControls() {
   });
 }
 
+function initPanelToggles() {
+  document.querySelectorAll("[data-panel-toggle]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const panel = button.closest(".panel");
+      const collapsed = panel.classList.toggle("collapsed");
+      button.setAttribute("aria-expanded", String(!collapsed));
+      button.textContent = collapsed ? "Show" : "Hide";
+    });
+  });
+}
+
 function initNetworkScope() {
   document.querySelectorAll("[data-network-scope]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -792,6 +946,7 @@ function initNetworkScope() {
 
 initTheme();
 initRouting();
+initPanelToggles();
 initNetworkScope();
 initConnectForm();
 initSteeringForm();

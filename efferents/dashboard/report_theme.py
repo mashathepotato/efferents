@@ -14,8 +14,9 @@ REPORT_CSS = r"""
   --signal: #003b80;
   --signal-strong: #00204d;
   --on-signal: #ffffff;
-  --cyan: #003b80;
-  --accent: #03befc;
+  --data: #003b80;
+  --mustard: #d4a017;
+  --orange: #f06c00;
   --mono: "SFMono-Regular", Menlo, Monaco, "Cascadia Mono", "Liberation Mono", monospace;
   --display: "American Typewriter", "Rockwell Nova", Rockwell, "Courier New", monospace;
   --sans: var(--display);
@@ -165,7 +166,7 @@ main {
 .bar {
   height: 10px;
   border-radius: 0;
-  background: var(--accent);
+  background: var(--mustard);
 }
 .val {
   color: var(--muted);
@@ -216,7 +217,7 @@ tr.best td { background: transparent; }
   display: block;
   padding: 14px 16px;
   background: var(--panel);
-  color: var(--cyan);
+  color: var(--data);
   font: 11px/1.35 var(--mono);
   text-decoration: none;
 }

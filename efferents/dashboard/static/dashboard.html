@@ -238,17 +238,26 @@
 
           <div class="metric-readout">
             <div>
-              <div class="field-label">Best observed</div>
+              <div class="field-label">Best all-time eligible</div>
               <div id="metric-best" class="metric-value">—</div>
             </div>
             <div class="metric-secondary">
-              <div class="field-label">Latest / best gap</div>
+              <div class="field-label">Latest eligible</div>
+              <div id="metric-latest">—</div>
+              <div class="field-label metric-gap-label">Gap from best</div>
               <div id="metric-delta">—</div>
             </div>
           </div>
 
+          <dl class="metric-summary-grid" aria-label="Eligible-run summary statistics">
+            <div><dt>Eligible / recent</dt><dd id="metric-eligible">—</dd></div>
+            <div><dt>Recent median</dt><dd id="metric-median">—</dd></div>
+            <div><dt>Recent IQR</dt><dd id="metric-iqr">—</dd></div>
+            <div><dt>Best run</dt><dd id="metric-best-run">—</dd></div>
+          </dl>
+
           <div class="chart-frame">
-            <svg id="trend" viewBox="0 0 600 180" preserveAspectRatio="none"
+            <svg id="trend" viewBox="0 0 600 180" preserveAspectRatio="xMidYMid meet"
                  role="img" aria-label="Headline metric trend"></svg>
           </div>
           <div class="chart-footer">
@@ -258,10 +267,21 @@
         </article>
       </section>
 
+      <section id="evidence-panel" class="panel evidence-panel" hidden
+               aria-labelledby="evidence-title">
+        <header class="panel-header">
+          <span class="section-index">03</span>
+          <h2 id="evidence-title">Lab evidence</h2>
+          <span id="evidence-count" class="header-meta">0 visual records</span>
+        </header>
+        <div id="evidence-gates" class="evidence-gates"></div>
+        <div id="evidence-gallery" class="evidence-gallery"></div>
+      </section>
+
       <section class="data-grid" aria-label="Lab records">
         <article class="panel runs-panel">
           <header class="panel-header">
-            <span class="section-index">03</span>
+            <span class="section-index">04</span>
             <h2>Run ledger</h2>
             <span id="run-count" class="header-meta">0 records</span>
           </header>
@@ -273,7 +293,7 @@
                   <th scope="col">Run ID</th>
                   <th scope="col">Started · UTC</th>
                   <th scope="col" id="run-metric-header">Result</th>
-                  <th scope="col">Signal</th>
+                  <th scope="col">Validity</th>
                 </tr>
               </thead>
               <tbody></tbody>
@@ -284,18 +304,22 @@
         <aside class="side-stack">
           <section class="panel papers-panel">
             <header class="panel-header">
-              <span class="section-index">04</span>
+              <span class="section-index">05</span>
               <h2>Paper register</h2>
               <span id="paper-count" class="header-meta">0 records</span>
+              <button class="panel-toggle" type="button" data-panel-toggle
+                      aria-controls="papers" aria-expanded="true">Hide</button>
             </header>
             <div id="papers" class="records-list"></div>
           </section>
 
           <section class="panel activity-panel">
             <header class="panel-header">
-              <span class="section-index">05</span>
+              <span class="section-index">06</span>
               <h2>Agent log</h2>
               <span class="live-mark"><span aria-hidden="true"></span> live</span>
+              <button class="panel-toggle" type="button" data-panel-toggle
+                      aria-controls="activity" aria-expanded="true">Hide</button>
             </header>
             <div id="activity" class="activity-list"></div>
           </section>

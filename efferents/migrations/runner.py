@@ -44,6 +44,7 @@ _NEW_RUN_COLUMNS = (
     ("config_hash", "TEXT"),
     ("artifacts_json", "TEXT"),
     ("raw_metrics_json", "TEXT"),
+    ("observations_json", "TEXT"),
     ("seed", "INTEGER"),
 )
 
@@ -101,6 +102,7 @@ CREATE TABLE IF NOT EXISTS runs (
     config_hash TEXT,
     artifacts_json TEXT,
     raw_metrics_json TEXT,
+    observations_json TEXT,
     seed INTEGER,
     git_commit TEXT,
     duration_seconds REAL

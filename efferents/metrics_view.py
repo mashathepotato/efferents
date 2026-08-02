@@ -62,15 +62,83 @@ def headline_value(row: dict) -> float | None:
     return finite(row.get(headline().column))
 
 
-def best_run(rows: list[dict]) -> dict | None:
+def constraint_failures(row: dict, *, cfg=None) -> list[str]:
+    """Return human-readable failures for configured ranking constraints."""
+    cfg = cfg or _lab.get_config()
+    failures: list[str] = []
+    operators = {
+        "<": lambda actual, wanted: actual < wanted,
+        "<=": lambda actual, wanted: actual <= wanted,
+        ">": lambda actual, wanted: actual > wanted,
+        ">=": lambda actual, wanted: actual >= wanted,
+        "==": lambda actual, wanted: actual == wanted,
+    }
+    for constraint in cfg.metrics.constraints:
+        actual = finite(row.get(constraint.column))
+        if actual is None or not operators[constraint.op](actual, constraint.value):
+            label = constraint.label or constraint.column
+            rendered = "missing" if actual is None else f"{actual:g}"
+            failures.append(
+                f"{label}: {rendered} (requires {constraint.op} {constraint.value:g})"
+            )
+    return failures
+
+
+def eligible(row: dict, *, cfg=None) -> bool:
+    """Whether a run may participate in best-run selection."""
+    return not constraint_failures(row, cfg=cfg)
+
+
+def best_run(rows: list[dict], *, cfg=None) -> dict | None:
     """Best row by the headline column + direction, skipping rows whose headline
     value isn't finite. None if no scored rows."""
-    h = headline()
-    scored = [r for r in rows if finite(r.get(h.column)) is not None]
+    cfg = cfg or _lab.get_config()
+    h = cfg.metrics.headline
+    scored = [
+        r for r in rows
+        if finite(r.get(h.column)) is not None and eligible(r, cfg=cfg)
+    ]
     if not scored:
         return None
     chooser = min if h.direction == "min" else max
     return chooser(scored, key=lambda r: finite(r.get(h.column)))
+
+
+def best_run_from_db(db_path: Path, *, cfg=None) -> dict | None:
+    """Return the best eligible persisted run without truncating history."""
+    db_path = Path(db_path)
+    if not db_path.exists():
+        return None
+    cfg = cfg or _lab.get_config()
+    headline_col = cfg.metrics.headline.column
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    try:
+        columns = {row[1] for row in conn.execute("PRAGMA table_info(runs)")}
+        required = {headline_col, *(c.column for c in cfg.metrics.constraints)}
+        if not required.issubset(columns):
+            return None
+        clauses = [f"typeof({headline_col}) IN ('integer', 'real')"]
+        params: list[float] = []
+        if "status" in columns:
+            clauses.append("status = 'succeeded'")
+        for constraint in cfg.metrics.constraints:
+            clauses.append(
+                f"typeof({constraint.column}) IN ('integer', 'real') "
+                f"AND {constraint.column} {constraint.op} ?"
+            )
+            params.append(constraint.value)
+        order = "ASC" if cfg.metrics.headline.direction == "min" else "DESC"
+        row = conn.execute(
+            f"SELECT * FROM runs WHERE {' AND '.join(clauses)} "
+            f"ORDER BY {headline_col} {order} LIMIT 1",
+            params,
+        ).fetchone()
+    except sqlite3.OperationalError:
+        return None
+    finally:
+        conn.close()
+    return dict(row) if row is not None else None
 
 
 def improved(prev: float | None, current: float | None, *,

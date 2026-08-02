@@ -3,7 +3,10 @@
 Phase A's `run_command` wrote rows directly to SQLite. The new contract is:
 the run command's last action is to emit a single JSON line to stdout
 containing run_id, metrics, optional artifacts, optional elapsed_s,
-optional git_commit. The daemon parses that line and writes the row.
+optional git_commit. A lab may additionally emit ``observations`` for paired
+arms, evaluation slices, or other subsidiary measurements. The daemon parses
+that envelope and writes the primary row while preserving the full observation
+set as structured JSON.
 This decouples the run from the daemon's filesystem.
 """
 from __future__ import annotations
@@ -27,6 +30,7 @@ from efferents import lab as _lab
 class RunResult:
     ok: bool
     metrics: dict | None = None
+    observations: list[dict] = field(default_factory=list)
     artifacts: list[dict] = field(default_factory=list)
     git_commit: str | None = None
     elapsed_s: float | None = None
@@ -70,6 +74,40 @@ def _validated_metrics(raw: object) -> tuple[dict[str, float | int] | None, str 
             return None, f"metric {key!r} must be a finite number"
         metrics[key] = value
     return metrics, None
+
+
+def _validated_observations(raw: object) -> tuple[list[dict] | None, str | None]:
+    if raw is None:
+        return [], None
+    if not isinstance(raw, list):
+        return None, "'observations' must be a list"
+    observations: list[dict] = []
+    for i, item in enumerate(raw):
+        if not isinstance(item, dict):
+            return None, f"observations[{i}] must be an object"
+        metrics, error = _validated_metrics(item.get("metrics"))
+        if error is not None:
+            return None, f"observations[{i}]: {error}"
+        dimensions = item.get("dimensions") or {}
+        if not isinstance(dimensions, dict):
+            return None, f"observations[{i}].dimensions must be an object"
+        for key, value in dimensions.items():
+            if not isinstance(key, str) or not _COL_NAME_RE.fullmatch(key):
+                return None, f"observations[{i}] has invalid dimension name {key!r}"
+            if value is not None and (
+                isinstance(value, (dict, list))
+                or not isinstance(value, (str, int, float, bool))
+            ):
+                return None, (
+                    f"observations[{i}].dimensions[{key!r}] must be a scalar"
+                )
+        observations.append({
+            "name": item.get("name"),
+            "dimensions": dimensions,
+            "metrics": metrics,
+            "artifacts": list(item.get("artifacts") or []),
+        })
+    return observations, None
 
 
 def _extract_trailing_json(text: str) -> dict | None:
@@ -157,18 +195,23 @@ def _run_and_capture(
         )
 
     metrics, metric_error = _validated_metrics(last_json.get("metrics"))
-    ok = proc.returncode == 0 and metric_error is None
+    observations, observation_error = _validated_observations(
+        last_json.get("observations")
+    )
+    contract_error = metric_error or observation_error
+    ok = proc.returncode == 0 and contract_error is None
     return RunResult(
         ok=ok,
         metrics=metrics,
+        observations=observations or [],
         artifacts=list(last_json.get("artifacts") or []),
         git_commit=last_json.get("git_commit"),
         elapsed_s=last_json.get("elapsed_s"),
         stdout=stdout,
         stderr=stderr,
         error=(
-            metric_error
-            if metric_error is not None
+            contract_error
+            if contract_error is not None
             else (f"run_command exited with status {proc.returncode}" if proc.returncode else None)
         ),
         return_code=proc.returncode,
@@ -214,6 +257,7 @@ def _persist_run_result(
         "campaign_id", "researcher_mode", "student_id", "status",
         "exit_code", "error", "stdout_path", "stderr_path",
         "config_yaml", "config_hash", "artifacts_json", "raw_metrics_json",
+        "observations_json",
         "seed",
     ]
     now = datetime.now(timezone.utc).isoformat()
@@ -239,6 +283,7 @@ def _persist_run_result(
         config_hash,
         json.dumps(result.artifacts),
         json.dumps(result.metrics or {}),
+        json.dumps(result.observations),
         seed,
     ]
     if result.ok:
@@ -277,6 +322,7 @@ def _persist_run_result(
                 "stdout_path": "TEXT", "stderr_path": "TEXT",
                 "config_yaml": "TEXT", "config_hash": "TEXT",
                 "artifacts_json": "TEXT", "raw_metrics_json": "TEXT",
+                "observations_json": "TEXT",
                 "seed": "INTEGER", "git_commit": "TEXT",
                 "duration_seconds": "REAL",
             }

@@ -31,7 +31,9 @@ def test_shared_visual_contract_is_minimal_blue_and_white_research_console():
     assert "--panel: #ffffff;" in css
     assert "--panel-raised: #ffffff;" in css
     assert "--signal: #003b80;" in css
-    assert "--accent: #03befc;" in css
+    assert "--mustard: #d4a017;" in css
+    assert "--orange: #f06c00;" in css
+    assert "#03befc" not in css
     assert "#0057ff" not in css
     assert "--shadow: none;" in css
     assert "--display:" in css
@@ -49,8 +51,9 @@ def test_shared_visual_contract_is_minimal_blue_and_white_research_console():
     assert ".lab-map" in css
     assert "color-scheme: light;" in REPORT_CSS
     assert "--signal: #003b80;" in REPORT_CSS
-    assert "--accent: #03befc;" in REPORT_CSS
-    assert REPORT_CSS.count("#03befc") == 1
+    assert "--mustard: #d4a017;" in REPORT_CSS
+    assert "--orange: #f06c00;" in REPORT_CSS
+    assert "#03befc" not in REPORT_CSS
     assert "--sans: var(--display);" in REPORT_CSS
     assert 'content: "efferents / research record";' in REPORT_CSS
     assert 'content: "EF / RESEARCH RECORD";' not in REPORT_CSS
@@ -60,6 +63,25 @@ def test_shared_visual_contract_is_minimal_blue_and_white_research_console():
     assert "#b9f36a" not in progress
     assert "--bg: #ffffff;" in progress
     assert "--signal: #003b80;" in progress
-    assert "--accent: #03befc;" in progress
+    assert "--mustard: #d4a017;" in progress
+    assert "--orange: #f06c00;" in progress
+    assert "#03befc" not in progress
     assert "--sans: var(--display);" in progress
     assert "#f7fbff" not in progress
+
+
+def test_observer_is_compact_validity_aware_and_supports_visual_evidence():
+    html = (STATIC / "dashboard.html").read_text()
+    css = (STATIC / "dashboard.css").read_text()
+    javascript = (STATIC / "dashboard.js").read_text()
+
+    assert 'id="metric-eligible"' in html
+    assert 'id="metric-median"' in html
+    assert 'id="metric-iqr"' in html
+    assert 'id="evidence-panel"' in html
+    assert 'preserveAspectRatio="xMidYMid meet"' in html
+    assert "font: 550 clamp(27px, 3vw, 42px)/1 var(--mono);" in css
+    assert ".evidence-gallery" in css
+    assert "run.eligible !== false" in javascript
+    assert '"/api/evidence"' in javascript
+    assert "Eligible-run summary statistics" in html

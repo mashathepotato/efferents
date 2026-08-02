@@ -100,3 +100,30 @@ def test_run_and_capture_rejects_nonfinite_metric(tmp_path):
     )
     assert result.ok is False
     assert "finite number" in (result.error or "")
+
+
+def test_run_and_capture_preserves_structured_observations(tmp_path):
+    payload = {
+        "metrics": {"loss": 0.2},
+        "observations": [
+            {
+                "name": "treatment-sample",
+                "dimensions": {"variant": "treatment", "seed": 42},
+                "metrics": {"loss": 0.2, "validity": 1.0},
+                "artifacts": [{"kind": "sample", "path": "sample.png"}],
+            },
+            {
+                "name": "control-sample",
+                "dimensions": {"variant": "control", "seed": 42},
+                "metrics": {"loss": 0.3, "validity": 1.0},
+            },
+        ],
+    }
+    cmd = f"echo '{json.dumps(payload)}'"
+    result = _run_and_capture(
+        cmd, timeout_s=10, cwd=str(tmp_path), env_passthrough=()
+    )
+    assert result.ok is True
+    assert len(result.observations) == 2
+    assert result.observations[0]["dimensions"]["variant"] == "treatment"
+    assert result.observations[1]["metrics"]["loss"] == 0.3

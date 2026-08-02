@@ -28,6 +28,7 @@ _CONTENT_TYPES = {
     ".html": "text/html; charset=utf-8",
     ".css": "text/css; charset=utf-8",
     ".js": "application/javascript; charset=utf-8",
+    **reader.ARTIFACT_CONTENT_TYPES,
 }
 
 
@@ -82,6 +83,24 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 return self._send_json(
                     reader.read_activity(connected.lab_root) if connected else []
                 )
+            if path == "/api/evidence":
+                if connected is None:
+                    return self._send_json(_empty_evidence())
+                return self._send_json(
+                    reader.read_evidence(connected.lab_root, cfg=connected.cfg)
+                )
+            if path.startswith("/api/artifacts/"):
+                if connected is None:
+                    return self.send_error(404)
+                token = path.removeprefix("/api/artifacts/")
+                if len(token) != 24 or not token.isalnum():
+                    return self.send_error(404)
+                artifact = reader.resolve_artifact(
+                    connected.lab_root, token, cfg=connected.cfg
+                )
+                if artifact is None:
+                    return self.send_error(404)
+                return self._send_file(artifact)
             if path.startswith("/static/"):
                 target = (STATIC_DIR / path[len("/static/"):]).resolve()
                 if STATIC_DIR in target.parents and target.is_file():
@@ -199,7 +218,12 @@ def _empty_runs() -> dict:
         "headline": {"column": "metric", "direction": "min"},
         "runs": [],
         "series": [],
+        "history": {"total": 0, "best": None, "best_run_id": None},
     }
+
+
+def _empty_evidence() -> dict:
+    return {"panels": [], "constraints": [], "records": [], "artifact_count": 0}
 
 
 def make_server(

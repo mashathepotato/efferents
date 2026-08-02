@@ -29,3 +29,14 @@ def test_dashboard_scripts_are_external_for_strict_script_csp():
 
     assert '<script src="/static/dashboard.js"></script>' in html
     assert "<script>" not in html
+
+
+def test_observe_side_panels_stick_until_replaced_and_can_hide():
+    html = (STATIC / "dashboard.html").read_text()
+    css = (STATIC / "dashboard.css").read_text()
+    javascript = (STATIC / "dashboard.js").read_text()
+
+    assert html.count("data-panel-toggle") == 2
+    assert ".side-stack .panel {\n  position: sticky;" in css
+    assert ".panel.collapsed .records-list" in css
+    assert "initPanelToggles();" in javascript

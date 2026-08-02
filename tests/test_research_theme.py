@@ -30,8 +30,12 @@ def test_theme_contract_is_light_first_and_high_information():
     assert "--signal: #003b80;" in RESEARCH_THEME_CSS
     assert "--line: #003b80;" in RESEARCH_THEME_CSS
     assert "--on-signal: #ffffff;" in RESEARCH_THEME_CSS
-    assert "--accent: #03befc;" in RESEARCH_THEME_CSS
-    assert RESEARCH_THEME_CSS.count("#03befc") == 2
+    assert "--data: #003b80;" in RESEARCH_THEME_CSS
+    assert "--mustard: #d4a017;" in RESEARCH_THEME_CSS
+    assert "--orange: #f06c00;" in RESEARCH_THEME_CSS
+    assert RESEARCH_THEME_CSS.count("#d4a017") == 2
+    assert RESEARCH_THEME_CSS.count("#f06c00") == 2
+    assert "#03befc" not in RESEARCH_THEME_CSS
     assert "#0057ff" not in RESEARCH_THEME_CSS
     assert "--display:" in RESEARCH_THEME_CSS
     assert "--sans: var(--display);" in RESEARCH_THEME_CSS
@@ -79,6 +83,8 @@ def test_checked_in_challenge_report_uses_current_report_theme():
     assert 'content: "efferents / research record";' in report
     assert "--sans: var(--display);" in report
     assert "--signal: #003b80;" in report
-    assert "--accent: #03befc;" in report
+    assert "--mustard: #d4a017;" in report
+    assert "--orange: #f06c00;" in report
+    assert "#03befc" not in report
     assert "#b9f36a" not in report
     assert 'content: "EF / RESEARCH RECORD";' not in report

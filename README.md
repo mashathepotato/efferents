@@ -18,8 +18,9 @@ a code diff.
 The local website is the operating surface for the lab’s funder: connect a
 repository without executing it, inject auditable research direction, start or
 stop spending explicitly, and inspect progress without reading every run or
-paper. It uses the same minimal electric-cyan (`#03befc`) and white research
-console across the core workspace and bundled examples, pairing blocky
+paper. It uses the same minimal navy (`#003b80`) and white research console
+across the core workspace and bundled examples, with mustard (`#d4a017`) and
+Sainsbury-inspired orange (`#f06c00`) reserved for sparse visual signals. It pairs blocky
 Petra/typewriter headings with monospaced evidence metadata—light by default,
 with dark mode as a remembered opt-in.
 
@@ -230,11 +231,11 @@ its file-backed state, and exposes three local views:
   code.
 - **Steer** records human direction and an optional one-cycle Researcher mode
   in `context/research_log.md`.
-- **Observe** shows the current hypothesis, headline metric, run ledger, paper
-  register, budget, and agent activity.
+- **Observe** shows the current hypothesis, validity-aware metrics, lab-specific
+  visual evidence, run ledger, paper register, budget, and agent activity.
 
-The workspace defaults to a white and `#03befc` light theme; dark mode is an opt-in
-preference remembered by the browser. To open a known lab directly, use
+The workspace defaults to navy on white; mustard and orange are rare graphical
+accents. Dark mode is an opt-in preference remembered by the browser. To open a known lab directly, use
 `efferents serve --lab-root examples/smoke-lab/lab`.
 
 See [`intake.md`](./intake.md) for the canonical agent-led launch flow and

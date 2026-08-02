@@ -81,3 +81,35 @@ def test_persist_run_result_adds_missing_column_and_retries(tmp_path, monkeypatc
     conn.close()
     assert rows == [("run-x", 0.42)]
     assert "synthetic_loss" in cols
+
+
+def test_persist_run_result_preserves_observation_envelope(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "lab").mkdir()
+    db = tmp_path / "lab" / "runs.sqlite"
+    conn = sqlite3.connect(db)
+    conn.execute(
+        "CREATE TABLE runs (run_id TEXT PRIMARY KEY, started_at TEXT, ended_at TEXT, "
+        "config_path TEXT, loss REAL)"
+    )
+    conn.commit()
+    conn.close()
+
+    result = RunResult(
+        ok=True,
+        metrics={"loss": 0.2},
+        observations=[{
+            "name": "control",
+            "dimensions": {"variant": "control"},
+            "metrics": {"loss": 0.3},
+            "artifacts": [],
+        }],
+    )
+    _persist_run_result(result, "run-observed", Path("configs/x.yaml"))
+
+    conn = sqlite3.connect(db)
+    stored = conn.execute(
+        "SELECT observations_json FROM runs WHERE run_id = 'run-observed'"
+    ).fetchone()[0]
+    conn.close()
+    assert '"variant": "control"' in stored

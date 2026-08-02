@@ -277,10 +277,9 @@ PAGE = embed_research_theme(r"""<!doctype html>
     --text-secondary: var(--muted);
     --text-muted: var(--dim);
     --series-1: var(--signal);
-    --series-2: var(--warning);
-    --series-3: var(--cyan);
+    --series-2: var(--mustard);
+    --series-3: var(--orange);
     --good: var(--signal);
-    --accent: var(--signal);
   }
   html, body { min-height: 100vh; }
   #app {
@@ -303,7 +302,7 @@ PAGE = embed_research_theme(r"""<!doctype html>
     width: 36px;
     height: 36px;
     place-items: center;
-    color: var(--signal);
+    color: var(--orange);
     content: "ℯ";
     font: 500 29px/1 var(--display);
     font-style: italic;
@@ -343,7 +342,7 @@ PAGE = embed_research_theme(r"""<!doctype html>
     color: var(--muted);
   }
   .btn.ghost:hover { border-color: var(--signal); color: var(--signal); }
-  a { color: var(--cyan); text-decoration: none; }
+  a { color: var(--data); text-decoration: none; }
   a:hover { color: var(--signal); }
   .grid {
     display: grid;

@@ -115,6 +115,21 @@ class Panel:
 
 
 @dataclass(frozen=True)
+class Constraint:
+    """A metric threshold that a run must satisfy before it can rank.
+
+    Constraints are deliberately small and declarative.  They cover fidelity
+    and safety gates such as ``amp_ratio >= 0.04`` without teaching the
+    framework what any domain-specific metric means.
+    """
+
+    column: str
+    op: Literal["<", "<=", ">", ">=", "=="]
+    value: float
+    label: str | None = None
+
+
+@dataclass(frozen=True)
 class Source:
     dir: Path
     allowed_patterns: tuple[str, ...] = ("**/*.py",)
@@ -134,6 +149,7 @@ class Executor:
 class Metrics:
     headline: Headline
     panels: tuple[Panel, ...]
+    constraints: tuple[Constraint, ...] = ()
     flat_digest_epsilon: float = 0.005
     # Run columns that define an "experimental axis" for saturation analysis
     # (the Researcher groups runs by these before checking whether a metric has
@@ -285,6 +301,37 @@ def _build_labconfig(
         ))
     panels = tuple(panels_list)
 
+    constraints_list = []
+    for i, item in enumerate(metrics_raw.get("constraints") or []):
+        if not isinstance(item, dict) or "column" not in item:
+            raise SubmissionError(
+                f"metrics.constraints[{i}] missing required 'column' field"
+            )
+        column = item["column"]
+        if not isinstance(column, str) or not _COL_NAME_RE.match(column):
+            raise SubmissionError(
+                f"metrics.constraints[{i}].column {column!r} must match "
+                "[A-Za-z_][A-Za-z0-9_]* (SQL identifier rules)"
+            )
+        op = item.get("op")
+        if op not in ("<", "<=", ">", ">=", "=="):
+            raise SubmissionError(
+                f"metrics.constraints[{i}].op must be one of < | <= | > | >= | =="
+            )
+        try:
+            value = float(item["value"])
+        except (KeyError, TypeError, ValueError) as e:
+            raise SubmissionError(
+                f"metrics.constraints[{i}].value must be numeric"
+            ) from e
+        constraints_list.append(Constraint(
+            column=column,
+            op=op,
+            value=value,
+            label=item.get("label"),
+        ))
+    constraints = tuple(constraints_list)
+
     bucket_axes_raw = metrics_raw.get("bucket_axes") or ()
     for i, ax in enumerate(bucket_axes_raw):
         if not isinstance(ax, str) or not _COL_NAME_RE.match(ax):
@@ -423,6 +470,7 @@ def _build_labconfig(
         metrics=Metrics(
             headline=Headline(column=headline_col, direction=headline_dir),
             panels=panels,
+            constraints=constraints,
             flat_digest_epsilon=flat_digest_epsilon,
             bucket_axes=bucket_axes,
         ),

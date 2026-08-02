@@ -58,9 +58,11 @@ def test_landing_defaults_to_light_lab_theme():
     assert "--signal: #003b80;" in css
     assert "--line: #003b80;" in css
     assert "--on-signal: #ffffff;" in css
-    assert "--accent: #03befc;" in css
-    assert "color: var(--accent);" in css
-    assert css.count("#03befc") == 1
+    assert "--data: #003b80;" in css
+    assert "--mustard: #d4a017;" in css
+    assert "--orange: #f06c00;" in css
+    assert "color: var(--orange);" in css
+    assert "#03befc" not in css
     assert "#0057ff" not in css
     assert "--display:" in css
     assert "--sans: var(--display);" in css

@@ -7,6 +7,7 @@ socket.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import sqlite3
@@ -17,11 +18,20 @@ from efferents import daemon
 from efferents import lab as lab_mod
 from efferents.agents import state as state_mod
 from efferents.journal.feed import render_feed
+from efferents import metrics_view
 
 if TYPE_CHECKING:
     from efferents.lab import LabConfig
 
 _ACTIVITY_BODY_PREVIEW = 300
+_EVIDENCE_RUN_LIMIT = 120
+ARTIFACT_CONTENT_TYPES = {
+    ".gif": "image/gif",
+    ".jpeg": "image/jpeg",
+    ".jpg": "image/jpeg",
+    ".png": "image/png",
+    ".webp": "image/webp",
+}
 
 
 def read_state(lab_root: Path, cfg: "LabConfig | None" = None) -> dict:
@@ -53,18 +63,268 @@ def read_runs(
 
     db = lab_root / "runs.sqlite"
     rows = state_mod.recent_runs(db, n) if db.exists() else []
-    runs = [
-        {"run_id": r.get("run_id"), "started_at": r.get("started_at"),
-         "value": _finite(r.get(column))}
-        for r in rows
-    ]
+    runs = []
+    for row in rows:
+        failures = metrics_view.constraint_failures(row, cfg=cfg)
+        runs.append({
+            "run_id": row.get("run_id"),
+            "started_at": row.get("started_at"),
+            "value": _finite(row.get(column)),
+            "eligible": not failures,
+            "constraint_failures": failures,
+        })
     series = [
         {"started_at": r["started_at"], "value": r["value"]}
         for r in reversed(runs)
-        if r["value"] is not None and r["started_at"] is not None
+        if (
+            r["value"] is not None
+            and r["started_at"] is not None
+            and r["eligible"]
+        )
     ]
+    best_row = metrics_view.best_run_from_db(db, cfg=cfg)
+    history = {
+        "total": state_mod.runs_count(db),
+        "best": (
+            metrics_view.finite(best_row.get(column))
+            if best_row is not None
+            else None
+        ),
+        "best_run_id": best_row.get("run_id") if best_row is not None else None,
+    }
     return {"headline": {"column": column, "direction": direction},
-            "runs": runs, "series": series}
+            "runs": runs, "series": series, "history": history}
+
+
+def _json_list(value) -> list:
+    if isinstance(value, list):
+        return value
+    if not isinstance(value, str) or not value.strip():
+        return []
+    try:
+        parsed = json.loads(value)
+    except (json.JSONDecodeError, TypeError, ValueError):
+        return []
+    return parsed if isinstance(parsed, list) else []
+
+
+def _artifact_path(
+    value: object, lab_root: Path, cfg: "LabConfig"
+) -> Path | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    raw = Path(value).expanduser()
+    roots = (Path(lab_root).resolve(), Path(cfg.source.dir).resolve())
+    candidates = (raw,) if raw.is_absolute() else tuple(root / raw for root in roots)
+    for candidate in candidates:
+        resolved = candidate.resolve()
+        if (
+            resolved.is_file()
+            and resolved.suffix.lower() in ARTIFACT_CONTENT_TYPES
+            and any(resolved == root or root in resolved.parents for root in roots)
+        ):
+            return resolved
+    return None
+
+
+def _artifact_token(run_id: str, path: Path) -> str:
+    payload = f"{run_id}\0{path}".encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()[:24]
+
+
+def _panel_specs(cfg: "LabConfig") -> list[dict]:
+    configured = {panel.column: panel for panel in cfg.metrics.panels}
+    columns = [cfg.metrics.headline.column, *configured]
+    specs = []
+    seen = set()
+    for column in columns:
+        if column in seen:
+            continue
+        seen.add(column)
+        panel = configured.get(column)
+        specs.append({
+            "column": column,
+            "label": panel.label if panel else column,
+            "direction": panel.direction if panel else cfg.metrics.headline.direction,
+            "target": panel.target if panel else None,
+        })
+    return specs
+
+
+def _json_dict(path: Path) -> dict:
+    try:
+        value = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError, TypeError, ValueError):
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
+def _deployment_evidence(
+    lab_root: Path,
+    cfg: "LabConfig",
+    panels: list[dict],
+    catalog: dict[str, Path],
+) -> list[dict]:
+    root = Path(lab_root) / "deployments"
+    if not root.is_dir():
+        return []
+    images = sorted(
+        (
+            path for path in root.rglob("*")
+            if path.is_file() and path.suffix.lower() in ARTIFACT_CONTENT_TYPES
+        ),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )[:12]
+    records = []
+    for image in images:
+        relative = image.relative_to(root)
+        deployment_dir = root / relative.parts[0]
+        manifest = _json_dict(deployment_dir / "manifest.json")
+        metrics_doc = _json_dict(image.parent / "metrics.json")
+        if not metrics_doc:
+            metrics_paths = list(deployment_dir.rglob("metrics.json"))
+            metrics_doc = _json_dict(metrics_paths[0]) if metrics_paths else {}
+        merged_metrics = {}
+        if isinstance(manifest.get("metrics"), dict):
+            merged_metrics.update(manifest["metrics"])
+        if isinstance(metrics_doc.get("metrics"), dict):
+            merged_metrics.update(metrics_doc["metrics"])
+        metrics = {
+            panel["column"]: metrics_view.finite(merged_metrics.get(panel["column"]))
+            for panel in panels
+        }
+        failures = metrics_view.constraint_failures(merged_metrics, cfg=cfg)
+        run_id = str(manifest.get("source_run_id") or f"deployment:{relative}")
+        token = _artifact_token(f"{run_id}:{relative}", image.resolve())
+        catalog[token] = image.resolve()
+        dimensions = {}
+        for key, value in manifest.items():
+            if (
+                len(dimensions) < 6
+                and isinstance(value, (str, int, float, bool))
+                and key not in {
+                    "contract_version", "lab_id", "promoted_at", "source_run_id"
+                }
+                and "path" not in key
+                and "command" not in key
+                and len(str(value)) <= 48
+            ):
+                dimensions[key] = value
+        records.append({
+            "run_id": run_id,
+            "started_at": manifest.get("promoted_at"),
+            "name": " / ".join(relative.with_suffix("").parts),
+            "eligible": not failures,
+            "constraint_failures": failures,
+            "dimensions": dimensions,
+            "metrics": metrics,
+            "artifacts": [{
+                "kind": "deployment_image",
+                "token": token,
+                "url": f"/api/artifacts/{token}",
+            }],
+        })
+    return records
+
+
+def _evidence_payload(
+    lab_root: Path, cfg: "LabConfig"
+) -> tuple[dict, dict[str, Path]]:
+    lab_root = Path(lab_root)
+    db = lab_root / "runs.sqlite"
+    rows = state_mod.recent_runs(db, _EVIDENCE_RUN_LIMIT) if db.exists() else []
+    panels = _panel_specs(cfg)
+    catalog: dict[str, Path] = {}
+    records: list[dict] = []
+
+    for row in rows:
+        run_id = str(row.get("run_id") or "unnamed-run")
+        observations = [
+            item for item in _json_list(row.get("observations_json"))
+            if isinstance(item, dict)
+        ]
+        if not observations and _json_list(row.get("artifacts_json")):
+            observations = [{
+                "name": run_id,
+                "dimensions": {},
+                "metrics": {},
+                "artifacts": _json_list(row.get("artifacts_json")),
+            }]
+
+        failures = metrics_view.constraint_failures(row, cfg=cfg)
+        for observation in observations:
+            dimensions = observation.get("dimensions")
+            dimensions = dimensions if isinstance(dimensions, dict) else {}
+            observed_metrics = observation.get("metrics")
+            observed_metrics = observed_metrics if isinstance(observed_metrics, dict) else {}
+            metrics = {
+                panel["column"]: metrics_view.finite(
+                    observed_metrics.get(panel["column"], row.get(panel["column"]))
+                )
+                for panel in panels
+            }
+            artifacts = observation.get("artifacts")
+            artifacts = artifacts if isinstance(artifacts, list) else []
+            if not artifacts:
+                artifacts = _json_list(row.get("artifacts_json"))
+
+            visual_artifacts = []
+            seen_paths: set[Path] = set()
+            for artifact in artifacts:
+                if not isinstance(artifact, dict):
+                    continue
+                path = _artifact_path(artifact.get("path"), lab_root, cfg)
+                if path is None or path in seen_paths:
+                    continue
+                seen_paths.add(path)
+                token = _artifact_token(run_id, path)
+                catalog[token] = path
+                visual_artifacts.append({
+                    "kind": str(artifact.get("kind") or "image"),
+                    "token": token,
+                    "url": f"/api/artifacts/{token}",
+                })
+
+            if visual_artifacts:
+                records.append({
+                    "run_id": run_id,
+                    "started_at": row.get("started_at"),
+                    "name": str(observation.get("name") or "visual evidence"),
+                    "eligible": not failures,
+                    "constraint_failures": failures,
+                    "dimensions": dimensions,
+                    "metrics": metrics,
+                    "artifacts": visual_artifacts,
+                })
+
+    constraints = [{
+        "column": constraint.column,
+        "op": constraint.op,
+        "value": constraint.value,
+        "label": constraint.label or constraint.column,
+    } for constraint in cfg.metrics.constraints]
+    records = _deployment_evidence(lab_root, cfg, panels, catalog) + records
+    return ({
+        "panels": panels,
+        "constraints": constraints,
+        "records": records,
+        "artifact_count": sum(len(record["artifacts"]) for record in records),
+    }, catalog)
+
+
+def read_evidence(lab_root: Path, cfg: "LabConfig | None" = None) -> dict:
+    """Return lab-declared visual observations without assuming a domain."""
+    cfg = cfg or lab_mod.get_config()
+    return _evidence_payload(Path(lab_root), cfg)[0]
+
+
+def resolve_artifact(
+    lab_root: Path, token: str, cfg: "LabConfig | None" = None
+) -> Path | None:
+    """Resolve an opaque artifact token from the selected lab's evidence set."""
+    cfg = cfg or lab_mod.get_config()
+    return _evidence_payload(Path(lab_root), cfg)[1].get(token)
 
 
 def read_papers(lab_root: Path) -> list[dict]:
@@ -110,15 +370,10 @@ def read_summary(lab_root: Path, cfg: "LabConfig") -> dict:
     run_data = read_runs(lab_root, n=60, cfg=cfg)
     papers = read_papers(lab_root)
     activity = read_activity(lab_root, n=1)
-    values = [
-        float(run["value"])
-        for run in run_data["runs"]
-        if run.get("value") is not None
-    ]
-    direction = run_data["headline"]["direction"]
+    best_row = metrics_view.best_run_from_db(lab_root / "runs.sqlite", cfg=cfg)
     best = (
-        (max(values) if direction == "max" else min(values))
-        if values
+        metrics_view.finite(best_row.get(cfg.metrics.headline.column))
+        if best_row is not None
         else None
     )
     latest_run = run_data["runs"][0] if run_data["runs"] else {}
@@ -134,7 +389,7 @@ def read_summary(lab_root: Path, cfg: "LabConfig") -> dict:
             **run_data["headline"],
             "best": best,
             "latest": latest_run.get("value"),
-            "observations": len(run_data["runs"]),
+            "observations": state_mod.runs_count(lab_root / "runs.sqlite"),
         },
         "papers": len(papers),
         "last_activity": last_activity,
