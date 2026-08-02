@@ -90,9 +90,10 @@ content-type, and referrer protections. API-key values are never returned.
 ## Visual system
 
 The workspace uses a high-information research-console vocabulary: compact
-monospace metadata, dense ledgers, explicit status fields, and restrained
-sky-blue signals on white surfaces. The light palette is the default. Dark mode
-is opt-in and persisted in browser local storage.
+monospace type, dense ledgers, explicit status fields, flat white surfaces, and
+saturated blue rules and selections. Pale-blue fills, blur, and ambient shadows
+are excluded. The light palette is the default. Dark mode is opt-in and
+persisted in browser local storage.
 
 There is no frontend build step and no third-party browser dependency.
 

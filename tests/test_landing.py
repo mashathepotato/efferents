@@ -39,7 +39,10 @@ def test_landing_defaults_to_light_lab_theme():
     html = LANDING.read_text()
     css = STYLES.read_text()
     assert '<meta name="color-scheme" content="light">' in html
-    assert '<meta name="theme-color" content="#f7fbff">' in html
+    assert '<meta name="theme-color" content="#ffffff">' in html
     assert "color-scheme: light;" in css
-    assert "--bg: #f7fbff;" in css
-    assert "--signal: #258fd2;" in css
+    assert "--bg: #ffffff;" in css
+    assert "--signal: #0057ff;" in css
+    assert "--sans: var(--mono);" in css
+    assert "linear-gradient" not in css
+    assert "backdrop-filter" not in css

@@ -17,8 +17,11 @@ LIVE = ROOT / "examples" / "challengescape" / "live.py"
 def test_theme_contract_is_light_first_and_high_information():
     assert RESEARCH_THEME_CSS.startswith(":root {\n  color-scheme: light;")
     assert ':root[data-theme="dark"]' in RESEARCH_THEME_CSS
-    assert "--bg: #f7fbff;" in RESEARCH_THEME_CSS
-    assert "--signal: #258fd2;" in RESEARCH_THEME_CSS
+    assert "--bg: #ffffff;" in RESEARCH_THEME_CSS
+    assert "--signal: #0057ff;" in RESEARCH_THEME_CSS
+    assert "--sans: var(--mono);" in RESEARCH_THEME_CSS
+    assert "color-mix" not in RESEARCH_THEME_CSS
+    assert "backdrop-filter" not in RESEARCH_THEME_CSS
     assert "#356f50" not in RESEARCH_THEME_CSS
     assert "--mono:" in RESEARCH_THEME_CSS
     assert "border-radius: 0;" in RESEARCH_THEME_CSS

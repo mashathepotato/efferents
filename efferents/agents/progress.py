@@ -231,12 +231,12 @@ def _campaign_status(c: dict) -> tuple[str, str]:
 
 
 _STATUS_COLORS = {
-    "open": "#57c5f5",
-    "resolved": "#258fd2",
-    "stale": "#8298aa",
+    "open": "#0057ff",
+    "resolved": "#003b80",
+    "stale": "#0751a6",
     "no-novel": "#f07c82",
     "closed": "#efbd6b",
-    "uncampaigned": "#587186",
+    "uncampaigned": "#003b80",
 }
 
 
@@ -275,9 +275,9 @@ def _trend_png_b64(snap: dict, db_path=None) -> str | None:
     axes = axes.flatten()
     for ax in axes:
         ax.set_facecolor("#ffffff")
-        ax.tick_params(colors="#8298aa", labelsize=7)
+        ax.tick_params(colors="#0751a6", labelsize=7)
         for spine in ax.spines.values():
-            spine.set_color("#bed8e8")
+            spine.set_color("#0057ff")
 
     n_panels_with_data = 0
     for ax, (col, label, target) in zip(axes, _panel_metrics(db_path)):
@@ -288,28 +288,28 @@ def _trend_png_b64(snap: dict, db_path=None) -> str | None:
                 continue
             xs.append(i)
             ys.append(val)
-            cs.append(_STATUS_COLORS.get(css, "#587186"))
+            cs.append(_STATUS_COLORS.get(css, "#003b80"))
         if not xs:
             ax.text(0.5, 0.5, f"no data for {col}", ha="center", va="center",
-                    transform=ax.transAxes, color="#8298aa", fontsize=9)
+                    transform=ax.transAxes, color="#0751a6", fontsize=9)
             ax.set_xticks([])
             ax.set_yticks([])
-            ax.set_title(label, fontsize=10, color="#102b3c", loc="left")
+            ax.set_title(label, fontsize=10, color="#003b80", loc="left")
             continue
         n_panels_with_data += 1
-        ax.plot(xs, ys, color="#57c5f5", linewidth=1, zorder=1, alpha=0.82)
+        ax.plot(xs, ys, color="#0057ff", linewidth=1, zorder=1)
         ax.scatter(xs, ys, c=cs, s=38, zorder=2,
                    edgecolor="#ffffff", linewidth=0.9)
         if target is not None:
             ax.axhline(target, color="#efbd6b", linestyle="--", linewidth=1,
                        alpha=0.6, zorder=0)
-        ax.set_title(label, fontsize=10, color="#102b3c", loc="left")
+        ax.set_title(label, fontsize=10, color="#003b80", loc="left")
         # Tick labels on the bottom-row panels only (so labels don't fight each other)
         ax.set_xticks(list(range(len(positions))))
         ax.set_xticklabels(
             [p[0] for p in positions], rotation=45, ha="right", fontsize=7
         )
-        ax.grid(True, color="#dcebf4", alpha=0.9, linewidth=0.55)
+        ax.grid(True, color="#0057ff", linewidth=0.35)
 
     if n_panels_with_data == 0:
         plt.close(fig)
@@ -318,7 +318,7 @@ def _trend_png_b64(snap: dict, db_path=None) -> str | None:
     fig.suptitle(
         f"Trend per metric — {'best per campaign' if campaigns else 'recent runs (no campaigns yet)'}",
         fontsize=12,
-        color="#102b3c",
+        color="#003b80",
         x=0.04,
         ha="left",
     )
@@ -470,30 +470,27 @@ h1 { margin-bottom: 4px; }
 /* Research-console theme */
 :root {
   color-scheme: light;
-  --bg: #f7fbff; --panel: #ffffff; --raised: #eef7fd;
-  --line: #bed8e8; --line-soft: #dcebf4; --fg: #102b3c;
-  --muted: #587186; --dim: #8298aa; --signal: #258fd2;
-  --cyan: #57c5f5; --danger: #f07c82; --warning: #efbd6b;
-  --mono: "SFMono-Regular", "Roboto Mono", "Cascadia Code", monospace;
-  --sans: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --bg: #ffffff; --panel: #ffffff; --raised: #ffffff;
+  --line: #0057ff; --line-soft: #0057ff; --fg: #003b80;
+  --muted: #0751a6; --dim: #0057ff; --signal: #0057ff;
+  --cyan: #0057ff; --danger: #f07c82; --warning: #956219;
+  --mono: "SFMono-Regular", Menlo, Monaco, "Cascadia Mono", "Liberation Mono", monospace;
+  --sans: var(--mono);
 }
 * { box-sizing: border-box; }
 html { background: var(--bg); }
 body {
   max-width: 1440px; margin: 0 auto; padding: 34px 24px 64px;
-  background:
-    linear-gradient(rgba(37,143,210,.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(37,143,210,.032) 1px, transparent 1px),
-    var(--bg);
-  background-size: 48px 48px;
+  background: var(--bg);
   color: var(--fg); font: 14px/1.5 var(--sans);
   font-variant-numeric: tabular-nums;
 }
-a { color: var(--signal); text-decoration-color: rgba(37,143,210,.35); }
+a { color: var(--signal); text-decoration-color: var(--signal); }
 a:hover { color: var(--signal); }
-code { padding: 1px 4px; background: #e8f4fb; color: #31546a; font-family: var(--mono); }
-h1 { margin: 0 0 7px; font-size: clamp(28px, 4vw, 54px);
-     font-weight: 520; letter-spacing: -.045em; line-height: 1.04; }
+code { padding: 1px 4px; border: 1px solid var(--line); background: var(--panel);
+       color: var(--signal); font-family: var(--mono); }
+h1 { margin: 0 0 7px; font-size: clamp(26px, 3.5vw, 44px);
+     font-weight: 700; letter-spacing: -.045em; line-height: 1.04; }
 .meta { margin-bottom: 22px; color: var(--muted); font: 10px/1.5 var(--mono);
         letter-spacing: .035em; text-transform: uppercase; }
 .trend { margin: 22px 0 30px; border: 1px solid var(--line); background: var(--panel); }
@@ -505,11 +502,11 @@ h1 { margin: 0 0 7px; font-size: clamp(28px, 4vw, 54px);
 .card { display: grid; grid-template-columns: minmax(0,1fr) 300px; gap: 0;
         align-items: stretch; margin: 12px 0; padding: 0;
         border: 1px solid var(--line); border-radius: 0;
-        background: rgba(255,255,255,.96); }
+        background: var(--panel); }
 .card-text { padding: 18px 20px; }
 .card-text h3 { margin: 0 0 12px; font: 650 12px/1.4 var(--mono);
                 letter-spacing: .04em; }
-.card-text .q { margin: 0 0 15px; color: #49687d; font-size: 17px; line-height: 1.45; }
+.card-text .q { margin: 0 0 15px; color: var(--muted); font-size: 15px; line-height: 1.5; }
 .card-text .meta-row { margin-top: 5px; color: var(--muted);
                        font: 10px/1.55 var(--mono); }
 .card-image { display: grid; min-height: 180px; place-items: center;
@@ -529,20 +526,20 @@ h1 { margin: 0 0 7px; font-size: clamp(28px, 4vw, 54px);
 .arch summary { grid-template-columns: 58px 86px minmax(0,1fr) 130px 130px 16px;
                 min-height: 68px; padding: 7px 13px; }
 .arch summary .marker { color: var(--dim); font-size: 11px; }
-.arch summary:hover { background: rgba(37,143,210,.05); }
+.arch summary:hover { box-shadow: inset 2px 0 0 var(--signal); }
 .arch[open] summary { border-bottom: 1px solid var(--line); }
 .arch .arch-thumb { width: 52px; height: 52px; border: 1px solid var(--line);
                     border-radius: 0; }
 .arch .arch-thumb-empty { width: 52px; height: 52px; border: 1px dashed var(--line);
                           border-radius: 0; color: var(--dim); font: 8px/1.3 var(--mono); }
 .arch .arch-sha { color: var(--signal); font: 650 10px/1.3 var(--mono); }
-.arch .arch-subject { color: #31546a; font-size: 13px; }
+.arch .arch-subject { color: var(--fg); font-size: 13px; }
 .arch .arch-date { color: var(--dim); font: 9px/1.5 var(--mono); }
 .arch .arch-stats { color: var(--muted); font: 9px/1.5 var(--mono); }
 .arch-body { padding: 14px; }
 .arch-stats-block { margin-bottom: 12px; padding: 9px 12px;
                     border-left: 2px solid var(--cyan); border-radius: 0;
-                    background: var(--raised); color: var(--muted);
+                    background: var(--panel); color: var(--muted);
                     font: 10px/1.6 var(--mono); }
 
 .section-h { margin: 34px 0 10px; padding-bottom: 9px; border-color: var(--line);
@@ -555,7 +552,7 @@ h1 { margin: 0 0 7px; font-size: clamp(28px, 4vw, 54px);
                  color: var(--muted); font: 9px/1.4 var(--mono); }
 .run-tile[open] > summary .cap { color: var(--signal); }
 .run-detail { padding: 10px 12px 12px; border-color: var(--line);
-              background: var(--raised); color: #587186; font: 9px/1.55 var(--mono); }
+              background: var(--panel); color: var(--muted); font: 9px/1.55 var(--mono); }
 .run-detail .kv .k { color: var(--dim); }
 .run-detail .commit-msg { border-color: var(--line); color: var(--cyan); }
 .empty { padding: 28px; border-color: var(--line); border-radius: 0;

@@ -34,9 +34,9 @@ Read these first:
 
 ## UI contract
 
-- The modern research-lab interface is the product default, including in
-  examples and challenge demos. Do not create a parallel "quick" dashboard
-  with its own visual language.
+- The research-console interface is the product default, including in examples
+  and challenge demos. Do not create a parallel "quick" dashboard with its own
+  visual language.
 - `efferents/dashboard/static/dashboard.css` is the canonical visual contract.
   Python example apps that emit HTML must embed it through
   `efferents.dashboard.theme.embed_research_theme`; generated offline reports
@@ -45,10 +45,10 @@ Read these first:
   persistent user choice. Do not default from the operating-system color
   scheme.
 - Preserve the high-information research-console vocabulary: square panels,
-  white surfaces with restrained sky-blue signals, compact monospace metadata, dense evidence
-  tables, visible provenance, and explicit runtime/budget state. Avoid rounded
-  card grids, decorative gradients, generic blue SaaS accents, and oversized
-  whitespace.
+  white surfaces, saturated blue rules and selections, compact monospace type,
+  dense evidence tables, visible provenance, and explicit runtime/budget state.
+  Avoid pale-blue fills, blur, ambient shadows, rounded card grids, decorative
+  gradients, generic SaaS styling, and oversized whitespace.
 - `tests/test_research_theme.py` enforces the example-app boundary. Extend that
   contract when adding a new HTML generator instead of bypassing it.
 

@@ -18,9 +18,9 @@ a code diff.
 The local website is the operating surface for the lab’s funder: connect a
 repository without executing it, inject auditable research direction, start or
 stop spending explicitly, and inspect progress without reading every run or
-paper. It uses the same high-information white-and-sky-blue research-lab
-interface across the core workspace and bundled examples—light by default,
-with dark mode as a remembered opt-in.
+paper. It uses the same flat blue-and-white code-console interface across the
+core workspace and bundled examples—light by default, with dark mode as a
+remembered opt-in.
 
 ## Launch with your agent
 
@@ -55,7 +55,7 @@ papers, and agent activity. A persistent lab rail switches among every lab in
 the local portfolio, while **Network** maps their operational relationships and
 keeps the future public-journal boundary visible without publishing anything.
 
-![The Efferents lab-network view: local labs in a persistent left rail, a sky-blue topology map, node-level research intelligence, and an explicit publication boundary](docs/img/lab-network-workspace.png)
+![The Efferents lab-network view: local labs in a persistent left rail, a crisp blue-and-white topology, node-level research intelligence, and an explicit publication boundary](docs/img/lab-network-workspace.png)
 
 ## Why automate the whole research loop
 

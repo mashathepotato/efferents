@@ -3,29 +3,25 @@
 REPORT_CSS = r"""
 :root {
   color-scheme: light;
-  --bg: #f7fbff;
+  --bg: #ffffff;
   --panel: #ffffff;
-  --raised: #eef7fd;
-  --line: #bed8e8;
-  --line-soft: #dcebf4;
-  --fg: #102b3c;
-  --muted: #587186;
-  --dim: #8298aa;
-  --signal: #258fd2;
-  --cyan: #57c5f5;
-  --mono: "SFMono-Regular", "Roboto Mono", "Cascadia Code", monospace;
-  --sans: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --raised: #ffffff;
+  --line: #0057ff;
+  --line-soft: #0057ff;
+  --fg: #003b80;
+  --muted: #0751a6;
+  --dim: #0057ff;
+  --signal: #0057ff;
+  --cyan: #0057ff;
+  --mono: "SFMono-Regular", Menlo, Monaco, "Cascadia Mono", "Liberation Mono", monospace;
+  --sans: var(--mono);
 }
 * { box-sizing: border-box; }
 html { background: var(--bg); }
 body {
   min-width: 320px;
   margin: 0;
-  background:
-    linear-gradient(rgba(37,143,210,.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(37,143,210,.032) 1px, transparent 1px),
-    var(--bg);
-  background-size: 48px 48px;
+  background: var(--bg);
   color: var(--fg);
   font: 14px/1.55 var(--sans);
   font-variant-numeric: tabular-nums;
@@ -33,7 +29,7 @@ body {
 header {
   padding: 30px clamp(20px,4vw,56px);
   border-bottom: 1px solid var(--line);
-  background: rgba(247,251,255,.94);
+  background: var(--bg);
 }
 header::before {
   display: block;
@@ -46,8 +42,8 @@ header::before {
 h1 {
   max-width: 1060px;
   margin: 0 0 7px;
-  font-size: clamp(26px,3.4vw,48px);
-  font-weight: 520;
+  font-size: clamp(24px,3vw,40px);
+  font-weight: 700;
   letter-spacing: -.04em;
   line-height: 1.08;
 }
@@ -55,8 +51,9 @@ h1 {
 .small { font: 10px/1.5 var(--mono); letter-spacing: .035em; text-transform: uppercase; }
 code {
   padding: 1px 4px;
-  background: #e8f4fb;
-  color: #31546a;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--signal);
   font: 11px/1.4 var(--mono);
 }
 main {
@@ -143,7 +140,7 @@ main {
 .section > p {
   max-width: 920px;
   margin: 20px 14px;
-  color: #49687d;
+  color: var(--muted);
   font-size: clamp(16px,1.7vw,21px);
   line-height: 1.55;
 }
@@ -164,7 +161,6 @@ main {
   height: 10px;
   border-radius: 0;
   background: var(--cyan);
-  opacity: .72;
 }
 .val {
   color: var(--muted);
@@ -187,16 +183,16 @@ td {
   white-space: nowrap;
 }
 th {
-  color: var(--dim);
-  background: var(--raised);
+  color: #ffffff;
+  background: var(--signal);
   font-size: 8px;
   font-weight: 500;
   letter-spacing: .08em;
   text-transform: uppercase;
 }
-td { color: #49687d; }
+td { color: var(--muted); }
 tr.best {
-  background: rgba(37,143,210,.08);
+  background: var(--panel);
   box-shadow: inset 2px 0 0 var(--signal);
 }
 tr.best td { background: transparent; }
@@ -220,8 +216,8 @@ tr.best td { background: transparent; }
   text-decoration: none;
 }
 .memos a:hover {
-  background: var(--raised);
-  color: var(--signal);
+  background: var(--signal);
+  color: #ffffff;
 }
 @media (max-width: 660px) {
   .banner { padding: 48px 13px 13px; }
