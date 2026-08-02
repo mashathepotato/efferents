@@ -30,7 +30,8 @@ def test_shared_visual_contract_is_minimal_blue_and_white_research_console():
     assert "--bg: #ffffff;" in css
     assert "--panel: #ffffff;" in css
     assert "--panel-raised: #ffffff;" in css
-    assert "--signal: #03befc;" in css
+    assert "--signal: #003b80;" in css
+    assert "--accent: #03befc;" in css
     assert "#0057ff" not in css
     assert "--shadow: none;" in css
     assert "--display:" in css
@@ -47,7 +48,8 @@ def test_shared_visual_contract_is_minimal_blue_and_white_research_console():
     assert "grid-template-columns: minmax(110px, .8fr) minmax(150px, 1.2fr);" in css
     assert ".lab-map" in css
     assert "color-scheme: light;" in REPORT_CSS
-    assert "--signal: #03befc;" in REPORT_CSS
+    assert "--signal: #003b80;" in REPORT_CSS
+    assert "--accent: #03befc;" in REPORT_CSS
     assert "--sans: var(--display);" in REPORT_CSS
     assert 'content: "efferents / research record";' in REPORT_CSS
     assert 'content: "EF / RESEARCH RECORD";' not in REPORT_CSS
@@ -56,5 +58,7 @@ def test_shared_visual_contract_is_minimal_blue_and_white_research_console():
     assert "#69ddd0" not in progress
     assert "#b9f36a" not in progress
     assert "--bg: #ffffff;" in progress
+    assert "--signal: #003b80;" in progress
+    assert "--accent: #03befc;" in progress
     assert "--sans: var(--display);" in progress
     assert "#f7fbff" not in progress

@@ -55,7 +55,11 @@ def test_landing_defaults_to_light_lab_theme():
     assert '<meta name="theme-color" content="#ffffff">' in html
     assert "color-scheme: light;" in css
     assert "--bg: #ffffff;" in css
-    assert "--signal: #03befc;" in css
+    assert "--signal: #003b80;" in css
+    assert "--line: #003b80;" in css
+    assert "--on-signal: #ffffff;" in css
+    assert "--accent: #03befc;" in css
+    assert "color: var(--accent);" in css
     assert "#0057ff" not in css
     assert "--display:" in css
     assert "--sans: var(--display);" in css

@@ -471,9 +471,9 @@ h1 { margin-bottom: 4px; }
 :root {
   color-scheme: light;
   --bg: #ffffff; --panel: #ffffff; --raised: #ffffff;
-  --line: #03befc; --line-soft: #03befc; --fg: #003b80;
-  --muted: #003b80; --dim: #03befc; --signal: #03befc;
-  --cyan: #03befc; --danger: #f07c82; --warning: #03befc;
+  --line: #003b80; --line-soft: #003b80; --fg: #003b80;
+  --muted: #003b80; --dim: #003b80; --signal: #003b80;
+  --cyan: #003b80; --accent: #03befc; --danger: #f07c82; --warning: #003b80;
   --mono: "SFMono-Regular", Menlo, Monaco, "Cascadia Mono", "Liberation Mono", monospace;
   --display: "American Typewriter", "Rockwell Nova", Rockwell, "Courier New", monospace;
   --sans: var(--display);

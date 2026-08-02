@@ -3,17 +3,18 @@
   --bg: #ffffff;
   --panel: #ffffff;
   --panel-raised: #ffffff;
-  --line: #03befc;
-  --line-soft: #03befc;
+  --line: #003b80;
+  --line-soft: #003b80;
   --fg: #003b80;
   --muted: #003b80;
-  --dim: #03befc;
-  --signal: #03befc;
-  --signal-strong: #003b80;
-  --on-signal: #003b80;
+  --dim: #003b80;
+  --signal: #003b80;
+  --signal-strong: #00204d;
+  --on-signal: #ffffff;
   --signal-soft: #ffffff;
-  --cyan: #03befc;
-  --warning: #03befc;
+  --cyan: #003b80;
+  --accent: #03befc;
+  --warning: #003b80;
   --danger: #ae4148;
   --danger-soft: rgba(174, 65, 72, 0.08);
   --shadow: none;
@@ -37,6 +38,7 @@
   --on-signal: #00204d;
   --signal-soft: #00204d;
   --cyan: #ffffff;
+  --accent: #03befc;
   --warning: #ffffff;
   --danger: #f07c82;
   --danger-soft: rgba(240, 124, 130, 0.09);
@@ -88,7 +90,7 @@ a:focus-visible,
 input:focus-visible,
 textarea:focus-visible,
 select:focus-visible {
-  outline: 2px solid var(--cyan);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
@@ -319,7 +321,7 @@ footer {
   display: block;
   width: 0;
   height: 100%;
-  background: var(--cyan);
+  background: var(--accent);
   transition: width 240ms ease;
 }
 
@@ -1490,7 +1492,7 @@ tbody tr.is-best {
 }
 
 #network-lines .domain-edge {
-  stroke: var(--cyan);
+  stroke: var(--accent);
   stroke-width: 1.5;
 }
 
@@ -1638,7 +1640,7 @@ tbody tr.is-best {
 
 .legend-line {
   width: 18px;
-  border-top: 1px solid var(--cyan);
+  border-top: 1px solid var(--accent);
 }
 
 .network-inspector {
