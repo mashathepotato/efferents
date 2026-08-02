@@ -12,7 +12,7 @@
   --signal-strong: #003b80;
   --signal-soft: #ffffff;
   --cyan: #0057ff;
-  --warning: #956219;
+  --warning: #0057ff;
   --danger: #ae4148;
   --danger-soft: rgba(174, 65, 72, 0.08);
   --shadow: none;
@@ -34,7 +34,7 @@
   --signal-strong: #0057ff;
   --signal-soft: #00204d;
   --cyan: #ffffff;
-  --warning: #efbd6b;
+  --warning: #ffffff;
   --danger: #f07c82;
   --danger-soft: rgba(240, 124, 130, 0.09);
   --shadow: none;

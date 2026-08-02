@@ -235,7 +235,7 @@ _STATUS_COLORS = {
     "resolved": "#003b80",
     "stale": "#0751a6",
     "no-novel": "#f07c82",
-    "closed": "#efbd6b",
+    "closed": "#0057ff",
     "uncampaigned": "#003b80",
 }
 
@@ -301,8 +301,8 @@ def _trend_png_b64(snap: dict, db_path=None) -> str | None:
         ax.scatter(xs, ys, c=cs, s=38, zorder=2,
                    edgecolor="#ffffff", linewidth=0.9)
         if target is not None:
-            ax.axhline(target, color="#efbd6b", linestyle="--", linewidth=1,
-                       alpha=0.6, zorder=0)
+            ax.axhline(target, color="#0057ff", linestyle="--", linewidth=1,
+                       zorder=0)
         ax.set_title(label, fontsize=10, color="#003b80", loc="left")
         # Tick labels on the bottom-row panels only (so labels don't fight each other)
         ax.set_xticks(list(range(len(positions))))
@@ -473,7 +473,7 @@ h1 { margin-bottom: 4px; }
   --bg: #ffffff; --panel: #ffffff; --raised: #ffffff;
   --line: #0057ff; --line-soft: #0057ff; --fg: #003b80;
   --muted: #0751a6; --dim: #0057ff; --signal: #0057ff;
-  --cyan: #0057ff; --danger: #f07c82; --warning: #956219;
+  --cyan: #0057ff; --danger: #f07c82; --warning: #0057ff;
   --mono: "SFMono-Regular", Menlo, Monaco, "Cascadia Mono", "Liberation Mono", monospace;
   --sans: var(--mono);
 }
