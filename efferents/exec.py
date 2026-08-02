@@ -43,7 +43,7 @@ class RunResult:
 _SAFE_BASE_ENV = (
     "PATH", "HOME", "USER", "LOGNAME", "SHELL",
     "TMPDIR", "TMP", "TEMP", "LANG", "LC_ALL",
-    "VIRTUAL_ENV", "PYTHONPATH", "DYLD_LIBRARY_PATH",
+    "VIRTUAL_ENV", "PYTHONPATH", "DYLD_LIBRARY_PATH", "LD_LIBRARY_PATH",
 )
 _COL_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
@@ -218,13 +218,20 @@ def _run_and_capture(
     )
 
 
-def _execute_run(config_path: Path) -> RunResult:
+def _execute_run(config_path: Path, *, smoke: bool = False) -> RunResult:
     """Render the lab's run_command and execute it, parsing stdout JSON."""
     cfg = _lab.get_config()
-    cmd = cfg.executor.run_command.format(config_path=str(config_path))
+    template = (
+        cfg.executor.smoke_command
+        if smoke and cfg.executor.smoke_command
+        else cfg.executor.run_command
+    )
+    cmd = template.format(config_path=str(config_path))
     return _run_and_capture(
         cmd,
-        timeout_s=cfg.executor.run_timeout_s,
+        timeout_s=(
+            cfg.executor.smoke_timeout_s if smoke else cfg.executor.run_timeout_s
+        ),
         cwd=str(cfg.source.dir),
         env_passthrough=cfg.executor.env_passthrough,
     )
@@ -304,7 +311,11 @@ def _persist_run_result(
     col_list = ",".join(f'"{col}"' for col in cols)
     sql = f"INSERT INTO runs ({col_list}) VALUES ({placeholders})"
 
-    with sqlite3.connect(db_path) as conn:
+    with sqlite3.connect(db_path, timeout=30.0) as conn:
+        # WAL lets the dashboard read while a run row is being written; without
+        # it a lock collision here silently drops the row after compute is spent.
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA busy_timeout=30000")
         try:
             conn.execute(sql, vals)
             conn.commit()

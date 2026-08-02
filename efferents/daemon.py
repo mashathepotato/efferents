@@ -93,6 +93,9 @@ def daemonize_and_run(lab_root: Path, loop: Callable[[], None]) -> int:
         raise
     except BaseException as e:
         (lab_root / "halt_reason.txt").write_text(f"unhandled exception: {e!r}")
+        # os._exit skips the finally below; clear the pidfile here or a crash
+        # leaves a stale pid that can block restarts once the pid is recycled.
+        clear_pidfile(lab_root / "daemon.pid")
         os._exit(1)
     finally:
         clear_pidfile(lab_root / "daemon.pid")

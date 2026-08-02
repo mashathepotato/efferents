@@ -75,6 +75,10 @@ def test_non_anthropic_model_uses_litellm_pricing():
     assert cost_usd("openai/gpt-5", CallUsage(1_000_000, 1_000_000)) > 0
 
 
+def test_current_opus_pricing_is_used():
+    assert cost_usd("claude-opus-4-7", CallUsage(1_000_000, 1_000_000)) == 30.0
+
+
 def test_parse_chain_and_resolution(monkeypatch):
     assert parse_chain(" a , b ,, c ") == ["a", "b", "c"]
     monkeypatch.setenv(
@@ -130,6 +134,59 @@ def test_routing_dispatches_by_provider_per_call(monkeypatch):
     assert client.messages.create(model="claude-sonnet-5", messages=[]) == "claude-response"
     assert client.messages.create(model="moonshot/kimi-k2-thinking", messages=[]) == "kimi-response"
     assert client.last_served_model == "moonshot/kimi-k2-thinking"
+
+
+def test_anthropic_route_enables_automatic_prompt_caching(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "k")
+    delegate = _FakeDelegate(result="ok")
+    client = _routing_client_with({"anthropic": delegate})
+
+    client.messages.create(
+        model="claude-sonnet-4-6",
+        system="stable instructions",
+        messages=[{"role": "user", "content": "dynamic request"}],
+    )
+
+    assert delegate.calls[0]["cache_control"] == {"type": "ephemeral"}
+
+
+def test_anthropic_route_preserves_explicit_cache_strategy(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "k")
+    delegate = _FakeDelegate(result="ok")
+    client = _routing_client_with({"anthropic": delegate})
+    system = [{
+        "type": "text",
+        "text": "stable instructions",
+        "cache_control": {"type": "ephemeral"},
+    }]
+
+    client.messages.create(
+        model="claude-sonnet-4-6", system=system, messages=[]
+    )
+
+    assert delegate.calls[0]["system"] == system
+    assert "cache_control" not in delegate.calls[0]
+
+
+def test_automatic_prompt_caching_can_be_disabled(monkeypatch):
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "k")
+    monkeypatch.setenv("EFFERENTS_CLAUDE_CACHE", "off")
+    delegate = _FakeDelegate(result="ok")
+    client = _routing_client_with({"anthropic": delegate})
+
+    client.messages.create(model="claude-sonnet-4-6", messages=[])
+
+    assert "cache_control" not in delegate.calls[0]
+
+
+def test_non_anthropic_route_does_not_receive_claude_cache_control(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "k")
+    delegate = _FakeDelegate(result="ok")
+    client = _routing_client_with({"openai": delegate})
+
+    client.messages.create(model="openai/gpt-5", messages=[])
+
+    assert "cache_control" not in delegate.calls[0]
 
 
 def test_routing_fails_over_on_provider_error(monkeypatch):

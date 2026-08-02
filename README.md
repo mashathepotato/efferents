@@ -222,6 +222,13 @@ at a custom endpoint. Local providers such as `ollama/...` do not require an
 API key. Provider credentials remain daemon-only and are not exposed to the
 lab's experiment commands.
 
+Claude prompt caching is enabled by default. Calls with carefully partitioned
+context use explicit cache breakpoints; other Claude calls use Anthropic's
+automatic five-minute cache. Cache writes and reads are recorded in
+`budget.jsonl` and included in spend estimates. Set
+`EFFERENTS_CLAUDE_CACHE=off` in a submission's `.env` to disable only the
+automatic fallback (explicit, call-site breakpoints remain in effect).
+
 Paste a GitHub repository or README URL into the entry page. A valid lab
 submission has a `README`, `lab.yaml`, and Popper-passed `hypothesis.md`.
 Efferents checks the repository out under `~/.efferents/checkouts/`, initializes

@@ -112,7 +112,7 @@ class Orchestrator:
         *,
         lab_dir: str | Path = "lab",
         context_dir: str | Path = "context",
-        daily_cap_usd: float = 100.0,
+        daily_cap_usd: float = 10.0,
         runs_per_digest: int = 40,
         hours_per_digest: float = 4.0,
         runs_per_coder: int = 8,
@@ -198,6 +198,7 @@ class Orchestrator:
                     "campaign_id": campaign_id,
                     "mode": "refine",
                     "student_id": _lab.DEFAULT_STUDENT_ID,
+                    "use_smoke_command": True,
                 },
             )
             return 1

@@ -1,8 +1,8 @@
 """Spend tracking, daily cap, model routing.
 
-Pricing as of late 2025 (per million tokens):
+Pricing as of 2026-08 (per million tokens):
 
-    claude-opus-4-7    : $15 in, $75 out
+    claude-opus-4-7    : $5 in, $25 out
     claude-sonnet-4-6  : $3 in, $15 out
     claude-haiku-4-5   : $1 in, $5 out
 
@@ -22,7 +22,7 @@ from typing import Any
 from efferents.agents.state import append_jsonl, read_jsonl
 
 PRICING_PER_MTOK = {
-    "claude-opus-4-7":    {"input": 15.00, "output": 75.00},
+    "claude-opus-4-7":    {"input":  5.00, "output": 25.00},
     "claude-sonnet-4-6":  {"input":  3.00, "output": 15.00},
     "claude-haiku-4-5":   {"input":  1.00, "output":  5.00},
 }

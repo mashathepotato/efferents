@@ -73,7 +73,10 @@ def execute(
 
     started = now_iso()
     t0 = time.monotonic()
-    result = _execute_run(config_path)
+    result = _execute_run(
+        config_path,
+        smoke=bool(proposal.get("use_smoke_command")),
+    )
     duration = time.monotonic() - t0
 
     logs_dir = paths.root / "logs"

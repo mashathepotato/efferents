@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+from copy import deepcopy
 from types import SimpleNamespace
 from typing import Any
 
@@ -101,6 +102,37 @@ def make_client() -> Any:
     fail over across providers.
     """
     return RoutingMessagesClient()
+
+
+def _has_explicit_cache_control(value: Any) -> bool:
+    """Whether a request subtree already owns its cache-breakpoint strategy."""
+    if isinstance(value, dict):
+        if "cache_control" in value:
+            return True
+        return any(_has_explicit_cache_control(item) for item in value.values())
+    if isinstance(value, (list, tuple)):
+        return any(_has_explicit_cache_control(item) for item in value)
+    return False
+
+
+def _anthropic_request(kwargs: dict[str, Any]) -> dict[str, Any]:
+    """Enable safe automatic prompt caching for otherwise-uncached Claude calls.
+
+    Agent prompts with explicit block-level breakpoints are deliberately left
+    alone: Anthropic permits at most four breakpoints and those call sites have
+    already separated stable context from per-run evidence. The top-level
+    automatic breakpoint is the recommended default for simpler calls.
+    """
+    enabled = os.environ.get("EFFERENTS_CLAUDE_CACHE", "1").strip().lower()
+    if enabled in {"0", "false", "no", "off"}:
+        return kwargs
+    if "cache_control" in kwargs or _has_explicit_cache_control(
+        (kwargs.get("system"), kwargs.get("messages"), kwargs.get("tools"))
+    ):
+        return kwargs
+    prepared = deepcopy(kwargs)
+    prepared["cache_control"] = {"type": "ephemeral"}
+    return prepared
 
 
 def _text_from_content(content: Any) -> str:
@@ -249,7 +281,10 @@ class _RoutingMessages:
                 model_id = candidate.split("/", 1)[1]
             delegate = self._parent.delegate_for(provider)
             try:
-                response = delegate.messages.create(**{**kwargs, "model": model_id})
+                request = {**kwargs, "model": model_id}
+                if provider == "anthropic":
+                    request = _anthropic_request(request)
+                response = delegate.messages.create(**request)
             except Exception as exc:  # provider outage/quota/auth — try the next link
                 if len(chain) == 1:
                     raise

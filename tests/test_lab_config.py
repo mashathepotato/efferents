@@ -5,6 +5,7 @@ import shutil
 from pathlib import Path
 
 import pytest
+import yaml
 
 from efferents.lab import (
     Budget, Executor, Headline, LabConfig, Metrics, Panel, Source, SubmissionError,
@@ -25,6 +26,17 @@ def test_from_submission_happy_path(tmp_path):
     assert cfg.metrics.headline.column == "synthetic_loss"
     assert cfg.metrics.headline.direction == "min"
     assert cfg.budget.daily_cap_usd == 10.0
+
+
+def test_env_passthrough_rejects_daemon_credentials(tmp_path):
+    src = Path(__file__).parent / "fixtures" / "sample_submission"
+    sub = tmp_path / "sub"
+    shutil.copytree(src, sub)
+    raw = yaml.safe_load((sub / "lab.yaml").read_text())
+    raw.setdefault("executor", {})["env_passthrough"] = ["ANTHROPIC_API_KEY"]
+    (sub / "lab.yaml").write_text(yaml.safe_dump(raw))
+    with pytest.raises(SubmissionError, match="daemon credentials"):
+        LabConfig.from_submission(sub)
 
 
 def test_from_submission_missing_hypothesis(tmp_path):
