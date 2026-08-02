@@ -35,13 +35,20 @@ def test_portfolio_lists_registered_labs_and_switches_without_execution(
 
     portfolio = control.portfolio()
     assert [lab["lab_id"] for lab in portfolio["labs"]] == [
-        "protein-folding",
         "climate-signal",
+        "protein-folding",
     ]
-    assert portfolio["labs"][0]["selected"] is True
+    assert portfolio["labs"][1]["selected"] is True
     assert all(lab["visibility"] == "private" for lab in portfolio["labs"])
     assert portfolio["public_network"]["connected"] is False
 
     selected = control.select_lab("climate-signal")
     assert selected["lab_id"] == "climate-signal"
     assert selected["status"] == "stopped"
+
+    switched = control.portfolio()
+    assert [lab["lab_id"] for lab in switched["labs"]] == [
+        "climate-signal",
+        "protein-folding",
+    ]
+    assert switched["labs"][0]["selected"] is True

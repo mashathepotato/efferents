@@ -348,11 +348,8 @@ class ControlContext:
                 **summary,
             })
 
-        labs.sort(key=lambda lab: (
-            not lab["selected"],
-            lab["status"] != "running",
-            str(lab["lab_id"]).casefold(),
-        ))
+        # Registry order is the persistent rail order. Selection changes only
+        # the highlighted row; it must not move that row underneath the cursor.
         edges = []
         for index, source in enumerate(labs):
             for target in labs[index + 1:]:
