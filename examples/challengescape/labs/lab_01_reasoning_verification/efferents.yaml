@@ -29,6 +29,24 @@ sweep:
 metric: "clean_fa_drop_k1_to_k3"
 maximize: true
 
+# Workspace charts, rendered by the shared efferents chart runtime
+# (efferents/dashboard/static/charts.js). One entry per panel; `metric` may be
+# any numeric field a run logs. Omit the list entirely to fall back to one
+# inferred chart per (metric, param) pair found in runs.jsonl.
+charts:
+  - metric: clean_fa_drop_k1_to_k3
+    x: param
+    x_label: pool size N
+    label: clean false-alarm drop k1→k3
+    target: 0.20
+    target_label: gate ≥ 0.20
+  - metric: false_assurance_rate
+    x: param
+    x_label: quorum k
+    type: bar
+    label: false-assurance rate (earlier cycle)
+    maximize: false
+
 budget:
   max_gpu_hours: 0.5
   max_llm_cost_usd: 0    # deterministic runs; verdict pass budgeted separately

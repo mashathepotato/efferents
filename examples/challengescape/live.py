@@ -29,6 +29,7 @@ from urllib.parse import parse_qs, urlparse
 
 import yaml
 
+from efferents.dashboard.charts import embed_charts
 from efferents.dashboard.theme import embed_research_theme
 
 ROOT = Path(__file__).resolve().parent
@@ -120,11 +121,19 @@ def _lab_state(lab_dir: Path) -> dict:
             if not line.strip():
                 continue
             r = json.loads(line)
-            runs.append({
+            # Full numeric record: every metric a run logged is chartable, and
+            # each run's own declared (metric, param) pair survives config
+            # changes between research cycles.
+            rec = {
                 "run_id": r["run_id"],
+                "param": r.get("param"),
+                "metric": r.get("metric"),
                 "value": r.get("value"),
                 "metric_value": r.get(metric),
-            })
+            }
+            rec.update({k: v for k, v in r.items()
+                        if isinstance(v, (int, float)) and not isinstance(v, bool)})
+            runs.append(rec)
         age = time.time() - runs_file.stat().st_mtime
         status = "running" if age < RUNNING_WINDOW_S else "complete"
 
@@ -181,6 +190,9 @@ def _lab_state(lab_dir: Path) -> dict:
         "metric": metric,
         "maximize": maximize,
         "param": cfg.get("sweep", {}).get("param"),
+        # Lab-owned chart declarations (efferents.yaml `charts:`). Optional —
+        # with no list the client infers one chart per (metric, param) pair.
+        "charts": cfg.get("charts") or [],
         "status": status,
         "runs": runs,
         "runs_planned": len(cfg.get("sweep", {}).get("values", []) or [None]),
@@ -262,7 +274,7 @@ def read_artifact(lab: str, rel: str) -> str | None:
     return path.read_text() if path.is_file() else None
 
 
-PAGE = embed_research_theme(r"""<!doctype html>
+PAGE = embed_charts(embed_research_theme(r"""<!doctype html>
 <html lang="en" data-efferents-theme="__EFFERENTS_RESEARCH_THEME_ID__"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Challengescape labs — live</title>
@@ -317,7 +329,7 @@ PAGE = embed_research_theme(r"""<!doctype html>
     min-width: 0;
     overflow: hidden;
     color: var(--muted);
-    font: 9px/1.5 var(--mono);
+    font: 11px/1.5 var(--mono);
     letter-spacing: .025em;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -326,15 +338,14 @@ PAGE = embed_research_theme(r"""<!doctype html>
     min-height: 32px;
     padding: 8px 12px;
     border: 1px solid var(--signal);
-    border-radius: 0;
+    border-radius: var(--radius-s);
     background: var(--signal);
     color: var(--on-signal);
     cursor: pointer;
-    font: 650 9px/1 var(--mono);
+    font: 650 11px/1 var(--mono);
     letter-spacing: .07em;
     text-transform: uppercase;
   }
-  :root[data-theme="dark"] .btn { color: var(--bg); }
   .btn:hover { background: var(--signal-strong); }
   .btn.ghost {
     border-color: var(--line);
@@ -355,7 +366,7 @@ PAGE = embed_research_theme(r"""<!doctype html>
     min-width: 0;
     padding: 18px;
     border: 1px solid var(--line);
-    border-radius: 0;
+    border-radius: var(--radius);
     background: var(--panel);
     box-shadow: none;
   }
@@ -405,7 +416,7 @@ PAGE = embed_research_theme(r"""<!doctype html>
   .tile .k {
     margin-top: 7px;
     color: var(--dim);
-    font: 8px/1.25 var(--mono);
+    font: 10px/1.25 var(--mono);
     letter-spacing: .08em;
     text-transform: uppercase;
   }
@@ -414,15 +425,31 @@ PAGE = embed_research_theme(r"""<!doctype html>
     align-items: center;
     gap: 7px;
     color: var(--muted);
-    font: 9px/1 var(--mono);
+    font: 11px/1 var(--mono);
     text-transform: uppercase;
   }
-  .dot { width: 6px; height: 6px; border: 1px solid currentColor; border-radius: 0; }
+  .dot { width: 6px; height: 6px; border: 1px solid currentColor; border-radius: 50%; }
   .running .dot { background: var(--warning); animation: pulse 1.2s infinite; }
   .complete .dot { background: var(--good); }
   @keyframes pulse { 50% { opacity: .3; } }
-  svg text { fill: var(--muted); font: 9px/1 var(--mono); }
+  svg text { fill: var(--muted); font: 10px/1 var(--mono); }
   svg .grid-line, svg .axis { stroke: var(--line); }
+  .chartset {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px 26px;
+    margin-top: 12px;
+  }
+  .efc-chart { min-width: 0; margin: 0; }
+  .efc-caption {
+    margin-bottom: 8px;
+    color: var(--dim);
+    font: 650 10px/1.3 var(--mono);
+    letter-spacing: .07em;
+    text-transform: uppercase;
+  }
+  .detail-grid { background: transparent; padding: 0; gap: 16px; }
+  .detail-grid > .card { border: 1px solid var(--line); }
   table {
     width: 100%;
     margin-top: 10px;
@@ -438,7 +465,7 @@ PAGE = embed_research_theme(r"""<!doctype html>
   th {
     background: var(--panel-raised);
     color: var(--dim);
-    font-size: 8px;
+    font-size: 10px;
     font-weight: 500;
     letter-spacing: .075em;
     text-transform: uppercase;
@@ -446,17 +473,17 @@ PAGE = embed_research_theme(r"""<!doctype html>
   td { color: var(--muted); vertical-align: top; }
   tr.best td { font-weight: 650; }
   tr.best { background: var(--signal-soft); box-shadow: inset 2px 0 0 var(--signal); }
-  .verdict { margin-top: 12px; color: var(--muted); font: 9px/1.5 var(--mono); }
+  .verdict { margin-top: 12px; color: var(--muted); font: 11px/1.5 var(--mono); }
   .themes { margin-top: 10px; }
   .chip {
     display: inline-block;
     margin: 2px 3px 0 0;
     padding: 3px 7px;
     border: 1px solid var(--line);
-    border-radius: 0;
+    border-radius: 999px;
     background: transparent;
     color: var(--muted);
-    font: 8px/1.25 var(--mono);
+    font: 10px/1.25 var(--mono);
     letter-spacing: .035em;
     text-transform: uppercase;
   }
@@ -474,32 +501,32 @@ PAGE = embed_research_theme(r"""<!doctype html>
   }
   .role {
     color: var(--dim);
-    font: 8px/1.4 var(--mono);
+    font: 10px/1.4 var(--mono);
     letter-spacing: .065em;
     text-transform: uppercase;
   }
-  .pipeline .t { margin-left: auto; color: var(--dim); font: 8px/1.5 var(--mono); }
+  .pipeline .t { margin-left: auto; color: var(--dim); font: 10px/1.5 var(--mono); }
   .viewer {
     max-height: 60vh;
     margin-top: 12px;
     overflow: auto;
     padding: 20px;
     border: 1px solid var(--line);
-    border-radius: 0;
+    border-radius: var(--radius);
     background: var(--bg);
     font-size: 13px;
   }
   .viewer h1 { font-size: 18px; text-transform: none; }
   .viewer h2 { margin-top: 24px; font-size: 14px; }
   .viewer table { font-size: 10px; }
-  .viewer code { padding: 1px 4px; border-radius: 0; background: var(--panel-raised); }
+  .viewer code { padding: 1px 4px; border-radius: 4px; background: var(--panel-raised); }
   .viewer blockquote {
     margin: 12px 0;
     padding: 6px 12px;
     border-left: 2px solid var(--signal);
     color: var(--muted);
   }
-  .back { font: 9px/1 var(--mono); text-transform: uppercase; }
+  .back { font: 11px/1 var(--mono); text-transform: uppercase; }
   .net-wrap { overflow-x: auto; text-align: center; }
   .net-node { cursor: pointer; }
   #modal {
@@ -509,13 +536,13 @@ PAGE = embed_research_theme(r"""<!doctype html>
     display: none;
     align-items: center;
     justify-content: center;
-    background: rgba(9, 34, 50, .48);
+    background: rgba(10, 16, 26, .55);
   }
   #modal .box {
     width: min(760px, calc(100% - 28px));
     padding: 26px;
     border: 1px solid var(--line);
-    border-radius: 0;
+    border-radius: var(--radius);
     background: var(--panel);
     box-shadow: var(--shadow);
   }
@@ -526,7 +553,7 @@ PAGE = embed_research_theme(r"""<!doctype html>
     overflow: auto;
     padding: 15px;
     border: 1px solid var(--line);
-    border-radius: 0;
+    border-radius: var(--radius-s);
     background: var(--bg);
     color: var(--muted);
     font: 10px/1.55 var(--mono);
@@ -539,11 +566,11 @@ PAGE = embed_research_theme(r"""<!doctype html>
     display: none;
     padding: 6px 9px;
     border: 1px solid var(--line);
-    border-radius: 0;
+    border-radius: var(--radius-s);
     background: var(--panel);
     color: var(--muted);
     box-shadow: var(--shadow);
-    font: 9px/1.4 var(--mono);
+    font: 11px/1.4 var(--mono);
     pointer-events: none;
   }
   @media (max-width: 760px) {
@@ -595,7 +622,11 @@ Finally write an intra-lab review (005_review.md) and one cross-lab review,
 following examples/challengescape/prompts/.
 
 Do not create a bespoke dashboard for this lab. It appears in the existing
-Challengescape live workspace. Any extension to an example HTML app must use
+Challengescape live workspace. If the lab should display more than the default
+metric-vs-param line, declare charts in efferents.yaml under `charts:` (keys:
+metric, x, type, label, target) — the workspace renders whatever is declared
+through efferents.dashboard.charts. Never hand-roll a fixed-size SVG. Any
+extension to an example HTML app must use
 efferents.dashboard.theme.embed_research_theme so it inherits the canonical
 research-lab UI.</pre>
   <div class="modal-actions">
@@ -603,6 +634,7 @@ research-lab UI.</pre>
     <button class="btn" onclick="copyEntry(this)">Copy to clipboard</button>
   </div>
 </div></div>
+<script>/*__EFFERENTS_CHARTS_JS__*/</script>
 <script>
 const SERIES = ["--series-1", "--series-2", "--series-3", "--series-1", "--series-2"];
 const REPO_URL = "https://github.com/mashathepotato/efferents";
@@ -698,50 +730,39 @@ function renderMd(text) {
   return html;
 }
 
-/* ---------- metric chart ------------------------------------------------ */
-function chart(lab, color, W, H) {
-  const runs = lab.runs.filter(r => typeof r.metric_value === "number");
-  const m = {t: 14, r: 16, b: 30, l: 52};
-  if (!runs.length) return `<svg width="${W}" height="${H}" style="max-width:100%"><text x="${W/2}" y="${H/2}" text-anchor="middle">waiting for first run…</text></svg>`;
-  const ys = runs.map(r => r.metric_value);
-  let lo = Math.min(...ys), hi = Math.max(...ys);
-  if (lo === hi) { lo -= 1; hi += 1; }
-  const pad = (hi - lo) * 0.12; lo -= pad; hi += pad;
-  const x = i => m.l + (runs.length === 1 ? 0.5 : i / (runs.length - 1)) * (W - m.l - m.r);
-  const y = v => m.t + (1 - (v - lo) / (hi - lo)) * (H - m.t - m.b);
-  let s = `<svg width="${W}" height="${H}" style="max-width:100%">`;
-  for (let g = 0; g < 3; g++) {
-    const gy = m.t + g * (H - m.t - m.b) / 2;
-    s += `<line class="grid-line" x1="${m.l}" y1="${gy}" x2="${W - m.r}" y2="${gy}"/>`;
-    s += `<text x="${m.l - 6}" y="${gy + 4}" text-anchor="end">${fmt(hi - g * (hi - lo) / 2)}</text>`;
-  }
-  s += `<line class="axis" x1="${m.l}" y1="${H - m.b}" x2="${W - m.r}" y2="${H - m.b}"/>`;
-  s += `<path d="${runs.map((r, i) => `${i ? "L" : "M"}${x(i)},${y(r.metric_value)}`).join("")}"
-        fill="none" stroke="var(${color})" stroke-width="2"/>`;
-  const bestId = lab.best && lab.best.run_id;
-  runs.forEach((r, i) => {
-    const isBest = r.run_id === bestId;
-    s += `<circle cx="${x(i)}" cy="${y(r.metric_value)}" r="${isBest ? 5.5 : 4.5}"
-      fill="var(${color})" stroke="var(--surface-2)" stroke-width="2"
-      data-tip="${r.run_id} · ${lab.param}=${r.value} · ${lab.metric}=${fmt(r.metric_value)}"/>`;
-    if (isBest) s += `<text x="${x(i)}" y="${y(r.metric_value) - 10}" text-anchor="middle"
-      style="fill:var(--text-primary);font-weight:650">${fmt(r.metric_value)}</text>`;
-    s += `<text x="${x(i)}" y="${H - m.b + 15}" text-anchor="middle">${fmt(r.value)}</text>`;
+/* ---------- metric charts (efferents chart runtime) --------------------- */
+/* Specs come from each lab's own `charts:` config (or are inferred from its
+ * run records) and render responsively — no fixed-width SVGs to squish. */
+function chartSpecs(lab) {
+  return EfferentsCharts.specsFromRuns(lab.runs, lab.charts, {
+    metric: lab.metric,
+    param: lab.param,
+    maximize: lab.maximize,
+    color: `var(${seriesFor(lab.name)})`,
   });
-  s += `<text x="${(m.l + W - m.r) / 2}" y="${H - 3}" text-anchor="middle">${lab.param}</text>`;
-  return s + "</svg>";
+}
+
+function mountCharts() {
+  document.querySelectorAll("[data-chartset]").forEach(el => {
+    const lab = STATE.labs.find(l => l.name === el.dataset.chartset);
+    if (!lab) return;
+    const specs = chartSpecs(lab);
+    if (!specs.length) {
+      el.innerHTML = `<p style="color:var(--text-muted);font:10px/1.5 var(--mono);
+        letter-spacing:.07em;text-transform:uppercase">waiting for first run…</p>`;
+      return;
+    }
+    EfferentsCharts.renderAll(el, specs);
+    bindTooltips();
+  });
 }
 
 function sparkline(lab, color) {
-  const runs = lab.runs.filter(r => typeof r.metric_value === "number");
-  const W = 120, H = 34;
-  if (runs.length < 2) return "";
-  const ys = runs.map(r => r.metric_value);
-  const lo = Math.min(...ys), hi = Math.max(...ys) || 1;
-  const x = i => 2 + i / (runs.length - 1) * (W - 4);
-  const y = v => 3 + (1 - (v - lo) / ((hi - lo) || 1)) * (H - 6);
-  return `<svg width="${W}" height="${H}"><path fill="none" stroke="var(${color})"
-    stroke-width="2" d="${runs.map((r, i) => `${i ? "L" : "M"}${x(i)},${y(r.metric_value)}`).join("")}"/></svg>`;
+  return EfferentsCharts.types.spark({
+    color: `var(${color})`,
+    points: lab.runs.filter(r => typeof r.metric_value === "number")
+      .map(r => ({y: r.metric_value})),
+  }, 140);
 }
 
 /* ---------- network map ------------------------------------------------- */
@@ -972,9 +993,14 @@ function labDetail(state, name) {
   ${lab.phase ? `<div style="font-size:13px;color:var(--warning);margin-bottom:8px">⚙ ${lab.phase}</div>` : ""}
   ${(lab.activity || []).length ? `<p style="color:var(--text-muted);font-size:12px">
     artifacts: ${lab.activity.map(a => `${a.name} <strong>${a.lines}</strong>${a.live ? " ●" : ""}`).join(" · ")}</p>` : ""}
-  <div class="grid" style="grid-template-columns: minmax(340px, 1.1fr) minmax(360px, 1.6fr)">
+  <div class="card section">
+    <h2>Experiment signal</h2>
+    <div class="chartset" data-chartset="${lab.name}"></div>
+  </div>
+  <div class="grid detail-grid" style="grid-template-columns: minmax(340px, 1.1fr) minmax(360px, 1.6fr)">
     <div>
-      <div class="card">${chart(lab, color, 430, 210)}
+      <div class="card">
+        <h2>Run ledger</h2>
         <table><tr><th>run</th><th>${lab.param}</th><th>${lab.metric}</th></tr>
         ${lab.runs.map(r => `<tr class="${lab.best && r.run_id === lab.best.run_id ? "best" : ""}">
           <td>${r.run_id}</td><td>${fmt(r.value)}</td><td>${fmt(r.metric_value)}</td></tr>`).join("")}
@@ -1068,6 +1094,7 @@ function render() {
   window.scrollTo(0, y);
   setStamp("live · updated " + new Date().toLocaleTimeString());
   syncThemeButton();
+  mountCharts();
   bindTooltips();
   if (openArtifact && openArtifact.lab !== "shared"
       && (v.view !== "lab" || openArtifact.lab !== v.name)) openArtifact = null;
@@ -1099,7 +1126,7 @@ tick();
 setInterval(tick, 3000);
 </script>
 </body></html>
-""")
+"""))
 
 
 class _Handler(BaseHTTPRequestHandler):

@@ -29,7 +29,7 @@ def test_shared_visual_contract_is_minimal_blue_and_white_research_console():
 
     assert "--bg: #ffffff;" in css
     assert "--panel: #ffffff;" in css
-    assert "--panel-raised: #ffffff;" in css
+    assert "--panel-raised: #f6f8fa;" in css
     assert "--signal: #003b80;" in css
     assert "--mustard: #d4a017;" in css
     assert "--orange: #f06c00;" in css
@@ -37,7 +37,7 @@ def test_shared_visual_contract_is_minimal_blue_and_white_research_console():
     assert "#0057ff" not in css
     assert "--shadow: none;" in css
     assert "--display:" in css
-    assert "--sans: var(--display);" in css
+    assert "--sans: -apple-system" in css
     assert html.count(">ℯ</span>") == 2
     assert ">EF</span>" not in html
     assert "color-mix" not in css

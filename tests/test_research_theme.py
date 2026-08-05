@@ -28,9 +28,12 @@ def test_theme_contract_is_light_first_and_high_information():
     assert ':root[data-theme="dark"]' in RESEARCH_THEME_CSS
     assert "--bg: #ffffff;" in RESEARCH_THEME_CSS
     assert "--signal: #003b80;" in RESEARCH_THEME_CSS
-    assert "--line: #003b80;" in RESEARCH_THEME_CSS
+    # Hairlines and text carry their own neutral hierarchy; navy stays the
+    # rare signal accent instead of doubling as every border and paragraph.
+    assert "--line: #d5dce5;" in RESEARCH_THEME_CSS
+    assert "--fg: #16212e;" in RESEARCH_THEME_CSS
     assert "--on-signal: #ffffff;" in RESEARCH_THEME_CSS
-    assert "--data: #003b80;" in RESEARCH_THEME_CSS
+    assert "--data: #0b6e63;" in RESEARCH_THEME_CSS
     assert "--mustard: #d4a017;" in RESEARCH_THEME_CSS
     assert "--orange: #f06c00;" in RESEARCH_THEME_CSS
     assert RESEARCH_THEME_CSS.count("#d4a017") == 2
@@ -38,12 +41,15 @@ def test_theme_contract_is_light_first_and_high_information():
     assert "#03befc" not in RESEARCH_THEME_CSS
     assert "#0057ff" not in RESEARCH_THEME_CSS
     assert "--display:" in RESEARCH_THEME_CSS
-    assert "--sans: var(--display);" in RESEARCH_THEME_CSS
+    assert '--display: "American Typewriter"' in RESEARCH_THEME_CSS
+    # Typewriter is display-only; running UI text is a plain sans stack.
+    assert "--sans: var(--display);" not in RESEARCH_THEME_CSS
+    assert "--sans: -apple-system" in RESEARCH_THEME_CSS
     assert "color-mix" not in RESEARCH_THEME_CSS
     assert "backdrop-filter" not in RESEARCH_THEME_CSS
     assert "#356f50" not in RESEARCH_THEME_CSS
     assert "--mono:" in RESEARCH_THEME_CSS
-    assert "border-radius: 0;" in RESEARCH_THEME_CSS
+    assert "--radius: 10px;" in RESEARCH_THEME_CSS
 
 
 def test_theme_embedding_requires_both_contract_markers():
