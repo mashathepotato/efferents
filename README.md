@@ -72,6 +72,9 @@ an explicit budget or approval boundary.
 Efferents is that automation layer. It does not treat generated prose as the
 result; the result is the reproducible experiment record underneath it.
 
+Read the motivating essay, [The English Muffin Problem](https://medium.com/@mashapotatoes/the-english-muffin-problem-eac4d9951569),
+on Medium.
+
 ## Who it's for
 
 ML / R&D teams who run a lot of internal experiments and want an agent that
