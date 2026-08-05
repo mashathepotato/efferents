@@ -24,6 +24,25 @@ def test_dashboard_defaults_to_light_with_persistent_dark_opt_in():
     assert 'stored === "dark" ? "dark" : "light"' in javascript
 
 
+def test_dark_theme_is_the_inverse_navy_and_white_research_console():
+    css = (STATIC / "dashboard.css").read_text()
+    dark = css.split(':root[data-theme="dark"] {', 1)[1].split("\n}", 1)[0]
+
+    assert "--bg: #00142f;" in dark
+    assert "--panel: #00204d;" in dark
+    assert "--panel-raised: #002a61;" in dark
+    assert "--line: #ffffff;" in dark
+    assert "--fg: #ffffff;" in dark
+    assert "--signal: #ffffff;" in dark
+    assert "--on-signal: #00204d;" in dark
+    assert "--signal-soft: #003b80;" in dark
+    assert "--data: #ffffff;" in dark
+    assert "#10151c" not in dark
+    assert "#8ab2ff" not in dark
+    assert "#45c4b0" not in dark
+    assert "rgba(10, 16, 26" not in css
+
+
 def test_dashboard_scripts_are_external_for_strict_script_csp():
     html = (STATIC / "dashboard.html").read_text()
 

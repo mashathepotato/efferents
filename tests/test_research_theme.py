@@ -50,6 +50,11 @@ def test_theme_contract_is_light_first_and_high_information():
     assert "#356f50" not in RESEARCH_THEME_CSS
     assert "--mono:" in RESEARCH_THEME_CSS
     assert "--radius: 10px;" in RESEARCH_THEME_CSS
+    assert "--panel: #00204d;" in RESEARCH_THEME_CSS
+    assert "--line: #ffffff;" in RESEARCH_THEME_CSS
+    assert "#10151c" not in RESEARCH_THEME_CSS
+    assert "#8ab2ff" not in RESEARCH_THEME_CSS
+    assert "#45c4b0" not in RESEARCH_THEME_CSS
 
 
 def test_theme_embedding_requires_both_contract_markers():

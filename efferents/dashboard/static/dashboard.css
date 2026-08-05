@@ -28,22 +28,22 @@
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --bg: #10151c;
-  --panel: #151b23;
-  --panel-raised: #1b232d;
-  --line: #2b3542;
-  --line-soft: #222b36;
-  --fg: #e6eaf0;
-  --muted: #a2aebc;
-  --dim: #6d7888;
-  --signal: #8ab2ff;
-  --signal-strong: #b3ccff;
-  --on-signal: #0a1f3d;
-  --signal-soft: #1a2534;
-  --data: #45c4b0;
+  --bg: #00142f;
+  --panel: #00204d;
+  --panel-raised: #002a61;
+  --line: #ffffff;
+  --line-soft: #607b9d;
+  --fg: #ffffff;
+  --muted: #e2eaf3;
+  --dim: #afc0d4;
+  --signal: #ffffff;
+  --signal-strong: #e2eaf3;
+  --on-signal: #00204d;
+  --signal-soft: #003b80;
+  --data: #ffffff;
   --mustard: #d4a017;
   --orange: #f06c00;
-  --warning: #d8a94a;
+  --warning: #ffffff;
   --danger: #f07c82;
   --danger-soft: rgba(240, 124, 130, 0.09);
   --shadow: none;
@@ -2082,7 +2082,7 @@ tbody tr.is-excluded {
 }
 
 #runtime-dialog::backdrop {
-  background: rgba(10, 16, 26, 0.55);
+  background: rgba(0, 20, 47, 0.72);
 }
 
 .runtime-dialog-card {

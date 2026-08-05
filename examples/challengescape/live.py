@@ -536,7 +536,7 @@ PAGE = embed_charts(embed_research_theme(r"""<!doctype html>
     display: none;
     align-items: center;
     justify-content: center;
-    background: rgba(10, 16, 26, .55);
+    background: rgba(0, 20, 47, .72);
   }
   #modal .box {
     width: min(760px, calc(100% - 28px));
