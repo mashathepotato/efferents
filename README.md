@@ -3,7 +3,7 @@
 **Turn your research repo into an autonomous lab.**
 
 efferents runs bounded experiments on *your* compute and writes auditable
-internal research memos — with provenance — into a local lab journal. It frames
+internal research memos into a local lab journal. It frames
 a falsifiable hypothesis, plans an experiment, runs it against your own
 train/eval commands, and records every result claim back to a run, a metric, or
 a code diff.
@@ -222,15 +222,8 @@ OPENAI_API_KEY=...
 `EFFERENTS_MODEL_<ROLE>` can override individual roles such as `CODER`,
 `ANALYST`, or `REVIEWER`. `EFFERENTS_API_BASE` points OpenAI-compatible models
 at a custom endpoint. Local providers such as `ollama/...` do not require an
-API key. Provider credentials remain daemon-only and are not exposed to the
-lab's experiment commands.
+API key.
 
-Claude prompt caching is enabled by default. Calls with carefully partitioned
-context use explicit cache breakpoints; other Claude calls use Anthropic's
-automatic five-minute cache. Cache writes and reads are recorded in
-`budget.jsonl` and included in spend estimates. Set
-`EFFERENTS_CLAUDE_CACHE=off` in a submission's `.env` to disable only the
-automatic fallback (explicit, call-site breakpoints remain in effect).
 
 Paste a GitHub repository or README URL into the entry page. A valid lab
 submission has a `README`, `lab.yaml`, and Popper-passed `hypothesis.md`.
@@ -252,14 +245,9 @@ See [`intake.md`](./intake.md) for the canonical agent-led launch flow and
 [`the user-flow design`](./docs/superpowers/specs/2026-07-19-user-entry-and-lab-visibility-flow-design.md)
 for the private/public product boundary.
 
-## Status & design partners
+## Contact
 
-efferents is **early and honest about it**: the offline demo and the
-local CLI (`validate / start / status / serve`) works today; the live multi-agent
-loop runs but its prompts are still maturing. The lab-agnostic config layer
-(`LabConfig`, the repo adapter) is in place; broader domain coverage is in
-progress.
-
+Masha Baidachna: [LinkedIn](https://www.linkedin.com/in/masha-baidachna/)
 
 
 ## Acknowledgements
