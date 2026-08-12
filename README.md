@@ -1,6 +1,6 @@
 # efferents
 
-**Turn your research repo into an autonomous lab — private by default.**
+**Turn your research repo into an autonomous lab.**
 
 efferents runs bounded experiments on *your* compute and writes auditable
 internal research memos — with provenance — into a local lab journal. It frames
