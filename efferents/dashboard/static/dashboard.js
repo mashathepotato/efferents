@@ -182,7 +182,14 @@ function setRuntimeStatus(status) {
   badge.className = `status-badge ${normalized}`;
   text("status-text", normalized);
   text("connected-summary-status", normalized);
-  text("steer-runtime-state", normalized === "running" ? "agent is running" : "queued locally");
+  text(
+    "steer-runtime-state",
+    normalized === "running"
+      ? "agent is running"
+      : normalized === "paused"
+        ? "paused snapshot"
+        : "queued locally",
+  );
 }
 
 function setContractState(contract, phase = "result") {
@@ -226,6 +233,7 @@ function renderControl(info) {
   if (info.csrf_token) csrfToken = info.csrf_token;
   controlState = { ...controlState, ...info };
   const connected = Boolean(info.connected);
+  const pausedDemo = Boolean(info.paused_demo);
   controlState.connected = connected;
   controlState.hydrated = true;
 
@@ -254,19 +262,45 @@ function renderControl(info) {
   text("domain", info.domain || "unclassified");
   text("observe-lab-title", info.lab_id || "unnamed-lab");
   text("observe-lab-meta", `${info.domain || "unclassified"} / ${info.status || "stopped"}`);
-  text("connection-source", info.source || info.submission_dir || "local submission");
+  text(
+    "connection-source",
+    pausedDemo
+      ? "Read-only QML evidence snapshot"
+      : info.source || info.submission_dir || "local submission",
+  );
   text("connected-summary-name", info.lab_id || "unnamed-lab");
   text("connected-summary-domain", info.domain || "unclassified");
-  text("connected-summary-path", info.submission_dir || "—");
+  text(
+    "connected-summary-path",
+    pausedDemo ? "Historical local evidence" : info.submission_dir || "—",
+  );
   setRuntimeStatus(info.status);
   setContractState(info.contract);
   renderSteering(info.steering);
 
   const keyState = document.getElementById("api-key-state");
-  keyState.textContent = info.has_api_key ? "API key ready" : "API key missing";
-  keyState.classList.toggle("ready", Boolean(info.has_api_key));
-  document.getElementById("start-lab").hidden = info.status === "running";
-  document.getElementById("stop-lab").hidden = info.status !== "running";
+  keyState.textContent = pausedDemo
+    ? "Paused demo · no model calls"
+    : info.has_api_key ? "API key ready" : "API key missing";
+  keyState.classList.toggle("ready", Boolean(info.has_api_key) && !pausedDemo);
+  document.getElementById("activity-state").innerHTML = pausedDemo
+    ? '<span aria-hidden="true"></span> history'
+    : '<span aria-hidden="true"></span> live';
+  document.getElementById("start-lab").hidden = pausedDemo || info.status === "running";
+  document.getElementById("stop-lab").hidden = pausedDemo || info.status !== "running";
+  document.getElementById("connect-submit").disabled = pausedDemo;
+  const steerForm = document.getElementById("steer-form");
+  steerForm.querySelectorAll("textarea, select, button").forEach((control) => {
+    control.disabled = pausedDemo;
+  });
+  const activityPanel = document.querySelector(".activity-panel");
+  if (pausedDemo && !activityPanel.dataset.pausedDefault) {
+    activityPanel.dataset.pausedDefault = "collapsed";
+    activityPanel.classList.add("collapsed");
+    const activityToggle = activityPanel.querySelector("[data-panel-toggle]");
+    activityToggle.setAttribute("aria-expanded", "false");
+    activityToggle.textContent = "Show";
+  }
   renderRoute();
 }
 

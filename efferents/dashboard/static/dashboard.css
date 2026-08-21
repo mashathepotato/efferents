@@ -298,7 +298,8 @@ footer {
   background: currentColor;
 }
 
-.status-badge.stopped {
+.status-badge.stopped,
+.status-badge.paused {
   color: var(--warning);
 }
 

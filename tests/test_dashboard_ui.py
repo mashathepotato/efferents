@@ -14,6 +14,13 @@ def test_dashboard_has_connect_steer_observe_entry_flow():
     assert 'id="runtime-confirm-check"' in html
 
 
+def test_paused_demo_copy_and_controls_are_present():
+    js = (STATIC / "dashboard.js").read_text()
+    assert "Paused demo · no model calls" in js
+    assert "Read-only QML evidence snapshot" in js
+    assert 'document.getElementById("start-lab").hidden = pausedDemo' in js
+
+
 def test_dashboard_defaults_to_light_with_persistent_dark_opt_in():
     css = (STATIC / "dashboard.css").read_text()
     javascript = (STATIC / "dashboard.js").read_text()
